@@ -35,13 +35,3 @@ def length_extension(hash_class, padlen, known_hash, known_message, append_messa
     hash_func.set_iv(iv)
     hash_func.update(append_message)
     return hash_func.hexdigest(), data[padlen:] + append_message
-
-if __name__ == '__main__':
-    SALT = 'hoge'
-    m1 = 'user'
-    known_md5 = 'e63f73a0551c84d96fd4d1311410d0ef'
-    m2 = "|priv:teacher"
-    new_md5, data = length_extension(md5.MD5, len(SALT), known_md5, m1, m2)
-    print("known_md5 = " + known_md5)
-    print("new_md5   = " + new_md5)
-    print("data      = " + repr(data))

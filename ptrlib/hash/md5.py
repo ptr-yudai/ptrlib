@@ -11,7 +11,10 @@ class MD5(object):
         print(md5.hexdigest())
     """
     def __init__(self, prevlen=0):
-        """Initialize and reset this instance."""
+        """Initialize and reset this instance.
+        
+        You can set the message length of previous blocks.
+        """
         self.reset()
         if prevlen > 0:
             self.prevlen = prevlen
@@ -39,7 +42,7 @@ class MD5(object):
         
         You can specify the vector used as the IV of the next block.
         """
-        self.A, self.B, self.C, self.D = iv
+        self.A, self.B, self.C, self.D = list(iv)
 
     def convert(self, hash_string):
         """Convert the given hash into a vector.
@@ -219,7 +222,7 @@ class MD5(object):
             B = (B + BB) % 4294967296
             C = (C + CC) % 4294967296
             D = (D + DD) % 4294967296
-        # Set the result
+        # Return the result
         return A, B, C, D
 
 if __name__ == '__main__':
