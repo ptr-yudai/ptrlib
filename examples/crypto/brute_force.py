@@ -8,7 +8,7 @@ table = string.ascii_letters
 m = MD5()
 password_list = brute_force_attack(3, table_len=len(table))
 for pattern in password_list:
-    password = brute_force_pattern(pattern)
+    password = brute_force_pattern(pattern, table=table)
     m.update(password)
     if m.digest() == known_hash:
         print("Found the password!")
