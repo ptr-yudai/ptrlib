@@ -4,7 +4,7 @@ from Crypto.Cipher import AES
 
 # These functions are invisible, maybe over the internet
 # We can encrypt and decrypt arbitrary messages,
-# but we cannot decrypt given 
+# but in this case we don't know the key and iv of a ciphertext.
 def encrypt(plain):
     key = 'Secret Password!'
     iv  = 'Initial Vector!!'
