@@ -1,10 +1,4 @@
 """Length Extension Attack"""
-import md5
-# import sha1
-# import sha256
-# import sha512
-# import crc32
-
 def length_extension(hash_class, padlen, known_hash, known_message, append_message):
     """Length Extension Attack
     
@@ -26,7 +20,7 @@ def length_extension(hash_class, padlen, known_hash, known_message, append_messa
     # Get the last output
     iv = hash_func.convert(known_hash)
     if iv is None:
-        raise ValueError('The length of known_hash is invalid')
+        raise ValueError('The length of `known_hash` is invalid')
     # Set the first data
     data = '?' * padlen + known_message
     data = hash_func.padding(data)

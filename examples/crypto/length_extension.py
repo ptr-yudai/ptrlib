@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 from ptrlib import *
 import os
 
