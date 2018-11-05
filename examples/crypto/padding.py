@@ -28,3 +28,8 @@ padded_text = pad(text, bs, 'OAZP')
 print("===== OAZP =====")
 print("Padded   : " + repr(padded_text))
 print("Unpadded : " + repr(unpad(padded_text, 'OAZP')))
+
+padded_text = pad(text, bs, char='?')
+print("===== Arbitary Padding =====")
+print("Padded   : " + repr(padded_text))
+print("Unpadded : " + repr(unpad(padded_text, char='?')))
