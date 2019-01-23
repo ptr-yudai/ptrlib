@@ -1,5 +1,6 @@
 """Remote connection class"""
 import socket
+import sys
 
 class Socket(object):
     """Establish a connect to a server, receive and send data
@@ -105,6 +106,20 @@ class Socket(object):
         This function sends data with a newline appended.
         """
         self.send(data + '\n')
+
+    def interact(self, timeout=timeout):
+        while True:
+            sys.stdout.write("[ptrlib]$ ")
+            try:
+                line = sys.stdin.readline()
+            except KeyboardInterrupt:
+                break
+            self.send(line)
+            data = self.recv(4096)
+            sys.stdout.write(data)
+            while len(data) == 4096:
+                data = self.recv(4096)
+                sys.stdout.write(data)
 
     def settimeout(self, second):
         self.timeout = second
