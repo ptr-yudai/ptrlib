@@ -107,7 +107,7 @@ class Socket(object):
         """
         self.send(data + '\n')
 
-    def interact(self, timeout=timeout):
+    def interact(self, timeout=None):
         while True:
             sys.stdout.write("[ptrlib]$ ")
             try:
@@ -119,7 +119,10 @@ class Socket(object):
             sys.stdout.write(data)
             while len(data) == 4096:
                 data = self.recv(4096)
-                sys.stdout.write(data)
+                if data is None:
+                    return
+                else:
+                    sys.stdout.write(data)
 
     def settimeout(self, second):
         self.timeout = second
