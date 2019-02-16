@@ -8,7 +8,7 @@ Ptrlib is a Python library for CTF players.
 It's designed to make it easy to write a complex program of cryptohraphy, networking, exploit and so on.
 
 ## Requirement
-Supports: Python 2.7
+Supports: Python 3.7
 
 ## Usage
 Basic examples are available at [/examples](https://bitbucket.org/ptr-yudai/ptrlib/src/master/examples/).
