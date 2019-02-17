@@ -53,7 +53,6 @@ class Tube(metaclass=ABCMeta):
             c = self.recvonce(1, timeout)
             if c is None:
                 # Timeout
-                dump('recvline: Timeout', 'error')
                 break
             else:
                 data += c
@@ -88,7 +87,6 @@ class Tube(metaclass=ABCMeta):
             obj = self.recvonce(recv_size, timeout)
             if obj is None:
                 # Timeout
-                dump('recvuntil: Timeout', 'error')
                 break
             else:
                 data += obj

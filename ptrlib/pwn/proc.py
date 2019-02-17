@@ -1,0 +1,172 @@
+# coding: utf-8
+from ptrlib.debug.debug import *
+from ptrlib.util.encoding import *
+from ptrlib.pwn.tube import *
+import fcntl
+import os
+import subprocess
+
+class Process(Tube):
+    def __init__(self, args, env=None, cwd=None, timeout=None):
+        """Create a process
+        
+        Create a new process and make a pipe.
+
+        Args:
+            args (list): The arguments to pass
+            env (list) : The environment variables
+        
+        Returns:
+            Process: ``Process`` instance.
+        """
+        if isinstance(args, list):
+            self.args = args
+            self.filepath = args[0]
+        else:
+            self.args = [args]
+            self.filepath = args
+        self.env = env
+        self.timeout = timeout
+        self.temp_timeout = None
+        self.reservoir = b''
+
+        # Create a new process
+        try:
+            self.proc = subprocess.Popen(
+                self.args,
+                cwd = cwd,
+                env = self.env,
+                shell = False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.PIPE
+            )
+        except FileNotFoundError as e:
+            self.proc = None
+            dump("Process: Executable not found: {0}".format(self.filepath), "warning")
+            return
+
+        # Set in non-blocking mode
+        fd = self.proc.stdout.fileno()
+        fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+        dump("Process: Successfully created new process (PID={})".format(self.proc.pid), "success")
+
+    def _settimeout(self, timeout):
+        if timeout is None:
+            self.temp_timeout = self.timeout
+        else:
+            self.temp_timeout = timeout
+   
+    def _poll(self):
+        self.proc.poll()
+
+    def recv(self, size=4096, timeout=None):
+        """Receive raw data
+
+        Receive raw data of maximum `size` bytes length through the pipe.
+        
+        Args:
+            size    (int): The data size to receive
+            timeout (int): Timeout (in second)
+
+        Returns:
+            bytes: The received data
+        """
+        self._settimeout(timeout)
+        if size <= 0:
+            dump("recvonce: `size` must be larger than 0", "error")
+            return None
+
+        self._poll()
+        if size <= len(self.reservoir):
+            # Use the buffer
+            data = self.reservoir[:size]
+            self.reservoir = self.reservoir[size:]
+            return data
+
+        try:
+            data = self.proc.stdout.read()
+            if data is None:
+                return b''
+            self.reservoir += data
+        except subprocess.TimeoutExpired:
+            dump("recv: Timeout", "error")
+            return None
+
+        if len(self.reservoir) == 0:
+            # No data received
+            data = None
+        elif len(self.reservoir) >= size:
+            # Too much data received
+            data = self.reservoir[:size]
+            self.reservoir = self.reservoir[size:]
+        else:
+            # Too little data received
+            data = self.reservoir
+            self.reservoir = b''
+        return data
+
+    def recvonce(self, size=4, timeout=None):
+        """Receive raw data
+        
+        Receive raw data of `size` bytes length through the pipe.
+
+        Args:
+            size    (int): The data size to receive
+            timeout (int): Timeout (in second)
+
+        Returns:
+            bytes: The received data
+
+        Raises:
+            SocketException: If the socket is broken.
+        """
+        self._settimeout(timeout)
+        data = b''
+        if size <= 0:
+            dump("recvonce: `size` must be larger than 0", "error")
+            return None
+
+        read_byte = 0
+        recv_size = size
+        while read_byte < size:
+            recv_data = self.recv(recv_size, timeout)
+            if recv_data is None:
+                return None
+            data += recv_data
+            read_byte += len(data)
+            recv_size = size - read_byte
+        return data
+
+    def send(self, data, timeout=None):
+        """Send raw data
+        
+        Send raw data through the socket
+        
+        Args:
+            data (bytes) : Data to send
+            timeout (int): Timeout (in second)
+        """
+        self._settimeout(timeout)
+        if isinstance(data, str):
+            data = str2bytes(data)
+
+        try:
+            self.proc.stdin.write(data)
+            self.proc.stdin.flush()
+        except IOError:
+            dump("send: Broken pipe", "warning")
+
+    def close(self):
+        """Close the socket
+
+        Close the socket.
+        This method is called from the destructor.
+        """
+        if self.proc:
+            self.proc.kill()
+            dump("close: {0} killed".format(self.filepath), "success")
+
+    def __del__(self):
+        self.close()

@@ -16,9 +16,6 @@ class Socket(Tube):
         
         Returns:
             Socket: ``Socket`` instance.
-
-        Raises:
-            SocketException: If the connection could not established.
         """
         self.host = host
         self.port = port
@@ -28,9 +25,9 @@ class Socket(Tube):
         # Establish a connection
         try:
             self.sock.connect((self.host, self.port))
-            dump("Successfully connected to {0}:{1}".format(self.host, self.port), "success")
+            dump("Socket: Successfully connected to {0}:{1}".format(self.host, self.port), "success")
         except ConnectionRefusedError as e:
-            dump("Connection to {0}:{1} refused".format(self.host, self.port), "warning")
+            dump("Socket: Connection to {0}:{1} refused".format(self.host, self.port), "warning")
 
     def _settimeout(self, timeout):
         if timeout is None:
@@ -39,6 +36,17 @@ class Socket(Tube):
             self.sock.settimeout(timeout)
    
     def recv(self, size=4096, timeout=None):
+        """Receive raw data
+
+        Receive raw data of maximum `size` bytes length through the socket.
+        
+        Args:
+            size    (int): The data size to receive
+            timeout (int): Timeout (in second)
+
+        Returns:
+            bytes: The received data
+        """
         self._settimeout(timeout)
         if size <= 0:
             dump("recvonce: `size` must be larger than 0", "error")
@@ -46,6 +54,7 @@ class Socket(Tube):
         try:
             data = self.sock.recv(size)
         except socket.timeout:
+            dump("recv: Timeout", "error")
             return None
         # No data received
         if len(data) == 0:
@@ -53,7 +62,7 @@ class Socket(Tube):
         return data
 
     def recvonce(self, size=4, timeout=None):
-        """Receive raw data
+        """Receive raw data at once
         
         Receive raw data of `size` bytes length through the socket.
 
@@ -63,9 +72,6 @@ class Socket(Tube):
 
         Returns:
             bytes: The received data
-
-        Raises:
-            SocketException: If the socket is broken.
         """
         self._settimeout(timeout)
         data = b''
@@ -80,7 +86,8 @@ class Socket(Tube):
                 read_byte += len(data)
                 recv_size = size - read_byte
         except socket.timeout:
-            pass
+            dump("recv: Timeout", "error")
+            return None
         return data
 
     def send(self, data, timeout=None):
@@ -108,7 +115,7 @@ class Socket(Tube):
         This method is called from the destructor.
         """
         self.sock.close()
-        dump("Connection to {0}:{1} closed".format(self.host, self.port), "success")
+        dump("close: Connection to {0}:{1} closed".format(self.host, self.port), "success")
 
     def __del__(self):
         self.close()
