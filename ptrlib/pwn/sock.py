@@ -54,7 +54,6 @@ class Socket(Tube):
         try:
             data = self.sock.recv(size)
         except socket.timeout:
-            dump("recv: Timeout", "error")
             return None
         # No data received
         if len(data) == 0:

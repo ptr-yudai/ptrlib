@@ -2,6 +2,8 @@
 from ptrlib.debug.debug import *
 from ptrlib.util.encoding import *
 from ptrlib.pwn.tube import *
+import errno
+import select
 import fcntl
 import os
 import subprocess
@@ -29,6 +31,7 @@ class Process(Tube):
         self.timeout = timeout
         self.temp_timeout = None
         self.reservoir = b''
+        self.proc = None
 
         # Create a new process
         try:
@@ -42,8 +45,7 @@ class Process(Tube):
                 stdin=subprocess.PIPE
             )
         except FileNotFoundError as e:
-            self.proc = None
-            dump("Process: Executable not found: {0}".format(self.filepath), "warning")
+            dump("Process: Executable not found: '{0}'".format(self.filepath), "warning")
             return
 
         # Set in non-blocking mode
@@ -59,7 +61,33 @@ class Process(Tube):
             self.temp_timeout = timeout
    
     def _poll(self):
+        if self.proc is None:
+            return False
+
         self.proc.poll()
+        returncode = self.proc.returncode
+        if returncode is not None:
+            dump(
+                "Process '{}' stopped with exit code {} (PID={})".format(
+                    self.filepath, returncode, self.proc.pid
+                ),
+                "error"
+            )
+            self.proc = None
+        return returncode
+
+    def _is_alive(self):
+        return self._poll() is None
+
+    def _can_recv(self):
+        if self.proc is None:
+            return False
+
+        try:
+            return select.select([self.proc.stdout], [], [], self.temp_timeout) == ([self.proc.stdout], [], [])
+        except select.error as v:
+            if v[0] == errno.EINTR:
+                return False
 
     def recv(self, size=4096, timeout=None):
         """Receive raw data
@@ -85,10 +113,11 @@ class Process(Tube):
             self.reservoir = self.reservoir[size:]
             return data
 
+        if not self._can_recv():
+            return b''
+
         try:
             data = self.proc.stdout.read()
-            if data is None:
-                return b''
             self.reservoir += data
         except subprocess.TimeoutExpired:
             dump("recv: Timeout", "error")
@@ -134,6 +163,9 @@ class Process(Tube):
             recv_data = self.recv(recv_size, timeout)
             if recv_data is None:
                 return None
+            elif recv_data == b'':
+                dump("recvonce: Received nothing", "error")
+                return None
             data += recv_data
             read_byte += len(data)
             recv_size = size - read_byte
@@ -166,7 +198,7 @@ class Process(Tube):
         """
         if self.proc:
             self.proc.kill()
-            dump("close: {0} killed".format(self.filepath), "success")
+            dump("close: '{0}' killed".format(self.filepath), "success")
 
     def __del__(self):
         self.close()

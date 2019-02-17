@@ -4,6 +4,7 @@ from ptrlib.debug.debug import *
 from ptrlib.util.encoding import *
 from abc import ABCMeta, abstractmethod
 import threading
+import time
 
 class Tube(metaclass=ABCMeta):
     @abstractmethod
@@ -155,6 +156,7 @@ class Tube(metaclass=ABCMeta):
         th = threading.Thread(target=thread_recv)
         th.setDaemon(True)
         th.start()
+
         try:
             while not flag.isSet():
                 data = input("{bold}{blue}[ptrlib]${end} ".format(
@@ -164,6 +166,7 @@ class Tube(metaclass=ABCMeta):
                     flag.set()
                 else:
                     self.sendline(data)
+                time.sleep(0.1)
         except KeyboardInterrupt:
             flag.set()
 
