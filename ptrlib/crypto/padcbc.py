@@ -1,7 +1,7 @@
 from ptrlib.util.encoding import *
 
 """Padding Oracle Attack on CBC encryption"""
-def padding_oracle_cbc(decrypt, cipher, bs, unknown='\x00', unpad=True, iv=None):
+def padding_oracle(decrypt, cipher, bs, unknown='\x00', unpad=True, iv=None):
     """Padding Oracle Attack
     
     Given a ciphersystem such that:

@@ -1,3 +1,6 @@
 *~
 *.pyc
 /examples/*/ptrlib
+/dist
+/build
+*/__pycache__
