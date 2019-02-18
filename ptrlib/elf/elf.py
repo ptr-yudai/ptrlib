@@ -50,6 +50,8 @@ class ELF(object):
             if section_name == name:
                 return section_header.sh_addr
 
+        return None
+
     def plt(self):
         pass
 
@@ -116,33 +118,36 @@ class ELF(object):
 
             def __str__(self):
                 ret = ''
-                ret += Color.BOLD + Color.GREEN + "[*]" + Color.END
+                ret += Color.BOLD + Color.CYAN + "[*]" + Color.END
                 ret += " " + repr(self.elf.filepath) + "\n"
                 ret += "    Arch:\t{bit} bits ({endian} endian)\n".format(
                     bit = self.elf.structs.elfclass,
                     endian = 'little' if self.elf.structs.little_endian else 'big'
                 )
+                # DEP
                 if self.nx:
-                    ret += "    NX:\t\t{bold}{cyan}NX enabled{end}\n".format(
-                        bold=Color.BOLD, cyan=Color.CYAN, end=Color.END
+                    ret += "    NX:\t\t{bold}{green}NX enabled{end}\n".format(
+                        bold=Color.BOLD, green=Color.GREEN, end=Color.END
                     )
                 else:
                     ret += "    NX:\t\t{bold}{red}NX disabled{end}\n".format(
                         bold=Color.BOLD, red=Color.RED, end=Color.END
                     )
 
+                # SSP
                 if self.ssp:
-                    ret += "    SSP:\t{bold}{cyan}SSP enabled{end} (Canary found)\n".format(
-                        bold=Color.BOLD, cyan=Color.CYAN, end=Color.END
+                    ret += "    SSP:\t{bold}{green}SSP enabled{end} (Canary found)\n".format(
+                        bold=Color.BOLD, green=Color.GREEN, end=Color.END
                     )
                 else:
                     ret += "    SSP:\t{bold}{red}SSP disabled{end} (No canary found)\n".format(
                         bold=Color.BOLD, red=Color.RED, end=Color.END
                     )
-                    
+            
+                # RELRO
                 if self.relro == 2:
-                    ret += "    RELRO:\t{bold}{cyan}Full RELRO{end}\n".format(
-                        bold=Color.BOLD, cyan=Color.CYAN, end=Color.END
+                    ret += "    RELRO:\t{bold}{green}Full RELRO{end}\n".format(
+                        bold=Color.BOLD, green=Color.GREEN, end=Color.END
                     )
                 elif self.relro == 1:
                     ret += "    RELRO:\t{bold}{yellow}Partial RELRO{end}\n".format(
@@ -153,7 +158,15 @@ class ELF(object):
                         bold=Color.BOLD, red=Color.RED, end=Color.END
                     )
 
-                ret += "    PIE:\t(Not implemented yet!)"
+                # PIE
+                if self.pie:
+                    ret += "    PIE:\t{bold}{green}PIE enabled{end}".format(
+                        bold=Color.BOLD, green=Color.GREEN, end=Color.END
+                    )
+                else:
+                    ret += "    PIE:\t{bold}{red}PIE disabled{end}".format(
+                        bold=Color.BOLD, red=Color.RED, end=Color.END
+                    )
                 return ret
                 
         return _SecurityInfo(
@@ -165,10 +178,36 @@ class ELF(object):
         )
 
     def ssp(self):
-        return False
+        """Check SSP
+        
+        Check if the binary is protected with canary.
+
+        Returns:
+            bool: True if enabled, otherwise False.
+        """
+        if self.got('__stack_chk_fail') is not None:
+            return True
+        elif self.got('__stack_smash_handler') is not None:
+            return True
+        else:
+            return False
 
     def pie(self):
-        pass
+        """Check PIE
+
+        Check if PIE is enabled or disabled.
+
+        Returns:
+            bool: True if enabled, otherwise False.
+        """
+        if self._get_tag("EXEC"):
+            return False
+        if self.header.e_type == "ET_DYN":
+            if self._get_tag("DT_DEBUG"):
+                return True
+            else:
+                return False
+        return False
 
     def relro(self):
         """Check RELRO
@@ -183,8 +222,11 @@ class ELF(object):
             if segment_header.p_type == "PT_GNU_RELRO":
                 break
         else:
-            return False
-        return True
+            return 0
+        if self._get_tag("DT_BIND_NOW"):
+            return 2
+        else:
+            return 1
 
     def nx(self):
         """Check NX bit
@@ -201,6 +243,25 @@ class ELF(object):
                     # Executable
                     return False
                 return True
+        return False
+
+    def _get_tag(self, key):
+        for i in range(self.header.e_shnum):
+            section_header = self._get_section(i)
+            if section_header.sh_type != "SHT_DYNAMIC":
+                continue
+
+            i = 0
+            while True:
+                tag = self._parse(
+                    self.structs.Elf_Dyn,
+                    stream_pos = section_header.sh_offset + i * self.structs.Elf_Dyn.sizeof()
+                )
+                if tag.d_tag == key:
+                    return True
+                elif tag.d_tag == 'DT_NULL':
+                    break
+                i += 1
         return False
 
     def _get_segment(self, n):

@@ -237,12 +237,15 @@ class ELFStructs(object):
 
         self.Elf_Dyn = 'Elf_Dyn' / Struct(
             'd_tag' / Enum(self.Elf_Sxword, **d_tag_dict),
-            'd_un' / Union(
-                None,
-                'd_val' / self.Elf_Xword,
-                'd_ptr' / self.Elf_Addr,
-            )
+            'd_un' / self.Elf_Xword
         )
+        """
+        'd_un' / Union(
+        None,
+        'd_val' / self.Elf_Xword,
+        'd_ptr' / self.Elf_Addr,
+        )
+        """
 
     def _create_sym(self):
         # st_info is hierarchical. To access the type, use
