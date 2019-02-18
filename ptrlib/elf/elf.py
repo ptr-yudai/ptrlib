@@ -23,13 +23,44 @@ class ELF(object):
         # String table section
         self.section_string = self._get_section(self.header.e_shstrndx)
 
-    def symbol(self):
-        pass
+    def symbol(self, name):
+        """Get the address of a symbol
+
+        Find the address corresponding to a given symbol.
+        
+        Args:
+            name (str): The symbol name to find
+
+        Return:
+            int: The address of the symbol
+        """
+        if isinstance(name, str):
+            name = str2bytes(name)
+
+        # Find symbol
+        for i in range(self.header.e_shnum):
+            section_header = self._get_section(i)
+            if section_header.sh_type not in ["SHT_SYMTAB", "SHT_DYNSYM", "SHT_SUNW_LDYNSYM"]:
+                continue
+
+            section_strtab = self._get_section(section_header.sh_link)
+            for j in range(1, section_header.sh_size // section_header.sh_entsize):
+                sym = self._parse(
+                    self.structs.Elf_Sym,
+                    stream_pos = section_header.sh_offset + j * section_header.sh_entsize
+                )
+                sym_name = self._get_string(section_strtab.sh_offset + sym.st_name)
+                if sym_name == b'':
+                    continue
+                if sym_name == name:
+                    return sym.st_value
+        return None
+
 
     def section(self, name):
         """Get a section by name
 
-        Lookup a section by name and return the address
+        Lookup and find a section by name and return the address.
 
         Args:
             name (str): The section name to find
@@ -52,8 +83,17 @@ class ELF(object):
 
         return None
 
-    def plt(self):
-        pass
+    def plt(self, name):
+        """Get a PLT address
+
+        Lookup the PLT table and find the corresponding address
+        """
+        if isinstance(name, str):
+            name = str2bytes(name)
+
+        dump("Not implemented yet!", "debug")
+
+        return None
 
     def got(self, name):
         """Get a GOT address
@@ -77,8 +117,8 @@ class ELF(object):
 
             # Found the relocation section
             symbols = self._get_section(section_header.sh_link)
-            for i in range(section_header.sh_size // section_header.sh_entsize):
-                rel_offset = section_header.sh_offset + i * section_header.sh_entsize
+            for j in range(section_header.sh_size // section_header.sh_entsize):
+                rel_offset = section_header.sh_offset + j * section_header.sh_entsize
 
                 if section_header.sh_type == 'SHT_REL':
                     rel = self._parse(
@@ -206,7 +246,7 @@ class ELF(object):
             if self._get_tag("DT_DEBUG"):
                 return True
             else:
-                return False
+                return True
         return False
 
     def relro(self):
