@@ -263,7 +263,13 @@ class ELF(object):
                 break
         else:
             return 0
+        flags = self._get_tag("DT_FLAGS")
+        flags_1 = self._get_tag("DT_FLAGS_1")
         if self._get_tag("DT_BIND_NOW"):
+            return 2
+        elif flags and flags.d_un & 0x8:
+            return 2
+        elif flags_1 and flags_1.d_un & 0x8:
             return 2
         else:
             return 1
@@ -298,7 +304,7 @@ class ELF(object):
                     stream_pos = section_header.sh_offset + i * self.structs.Elf_Dyn.sizeof()
                 )
                 if tag.d_tag == key:
-                    return True
+                    return tag
                 elif tag.d_tag == 'DT_NULL':
                     break
                 i += 1
