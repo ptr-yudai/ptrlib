@@ -82,7 +82,7 @@ class Socket(Tube):
             recv_size = size
             while read_byte < size:
                 data += self.sock.recv(recv_size)
-                read_byte += len(data)
+                read_byte = len(data)
                 recv_size = size - read_byte
         except socket.timeout:
             dump("recv: Timeout", "error")
