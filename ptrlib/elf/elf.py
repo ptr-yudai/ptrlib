@@ -56,6 +56,37 @@ class ELF(object):
                     return sym.st_value
         return None
 
+    def find(self, pattern, stream_pos=0):
+        """Alias of ```search```
+        """
+        for result in self.search(pattern, stream_pos):
+            yield result
+
+    def search(self, pattern, stream_pos=0):
+        """Find a binary data from the ELF
+
+        Args:
+            pattern (bytes): A data to find
+
+        Returns:
+            generator: Address
+        """
+        if isinstance(pattern, str):
+            pattern = str2bytes(pattern)
+
+        self.stream.seek(stream_pos)
+        data = self.stream.read()
+        length = len(data)
+        addr, index = 0, 0
+        while addr < length:
+            data = data[index:]
+            if pattern in data:
+                index = data.index(pattern)
+                addr += index
+                yield addr
+                addr, index = addr + 2, index + 2
+            else:
+                break
 
     def section(self, name):
         """Get a section by name
