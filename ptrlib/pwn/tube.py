@@ -82,7 +82,6 @@ class Tube(metaclass=ABCMeta):
         # Receive data until the delimiter comes
         recv_size = length
         obj = None
-        i = length - 1
         while True:
             # Receive
             obj = self.recvonce(recv_size, timeout)
@@ -92,6 +91,7 @@ class Tube(metaclass=ABCMeta):
             else:
                 data += obj
             # Search
+            i = -1
             j = length - 1
             while j >= 0:
                 if data[i] != delim[j]: break
