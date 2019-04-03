@@ -15,21 +15,21 @@ def p64(data, order='little'):
         dump("p64: {} given ('int' expected)".format(type(data)), "warning")
     return data.to_bytes(8, byteorder=order)
 
-def u16(data, order='little', signed=True):
+def u16(data, order='little', signed=False):
     if isinstance(data, str):
         data = str2bytes(data)
     if not isinstance(data, bytes):
         dump("u16: {} given ('bytes' expected)".format(type(data)), "warning")
     return int.from_bytes(data, byteorder=order, signed=signed)
 
-def u32(data, order='little', signed=True):
+def u32(data, order='little', signed=False):
     if isinstance(data, str):
         data = str2bytes(data)
     if not isinstance(data, bytes):
         dump("u32: {} given ('bytes' expected)".format(type(data)), "warning")
     return int.from_bytes(data, byteorder=order, signed=signed)
 
-def u64(data, order='little', signed=True):
+def u64(data, order='little', signed=False):
     if isinstance(data, str):
         data = str2bytes(data)
     if not isinstance(data, bytes):
