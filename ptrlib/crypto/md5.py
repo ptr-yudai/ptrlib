@@ -1,5 +1,6 @@
 """Calculate MD5 sum."""
 import struct
+from ptrlib.util.encoding import *
 
 class MD5(object):
     """Calculate MD5 sum with the initialization vector specified.
@@ -67,6 +68,8 @@ class MD5(object):
         If you call update(a) and update(b) in this order,
         you will get the MD5 sum of a+b.
         """
+        if isinstance(message, str):
+            message = str2bytes(message)
         self.message += message
         self.up2date = False
 

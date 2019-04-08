@@ -1,5 +1,6 @@
 """Calculate SHA-1 sum"""
 import struct
+from ptrlib.util.encoding import *
 
 class SHA1(object):
     """Calcuate SHA-1 sum with the initialization vector specified.
@@ -66,6 +67,8 @@ class SHA1(object):
         If you call update(a) and update(b) in this order,
         you will get the SHA-1 sum of a+b.
         """
+        if isinstance(message, str):
+            message = str2bytes(message)
         self.message += message
         self.up2date = False
 
@@ -85,28 +88,28 @@ class SHA1(object):
         return message
 
     def digest(self):
-        """Get the digest of the current MD5 sum.
+        """Get the digest of the current SHA-1 sum.
 
-        This method returns the MD5 digest of the last updated message.
+        This method returns the SHA-1 digest of the last updated message.
         """
         if not self.up2date:
-            # Calculate the MD5 if necessary.
+            # Calculate the SHA-1 if necessary.
             A, B, C, D, E = self.__calc_sha1()
             self.sha1sum = struct.pack('>IIIII', A, B, C, D, E)
             self.up2date = True
         return self.sha1sum
 
     def hexdigest(self):
-        """Get the hexdigest of the current MD5 sum.
+        """Get the hexdigest of the current SHA-1 sum.
 
-        This method returns the MD5 digest of the last update message in hex string.
+        This method returns the SHA-1 digest of the last updated message in hex string.
         """
         return self.digest().hex()
 
     def __calc_sha1(self):
         """Calculate the SHA-1 sum.
 
-        This method should not be called outside.
+        This method should not be called from outside.
         """
         # Append a padding
         message = self.padding(self.message)
