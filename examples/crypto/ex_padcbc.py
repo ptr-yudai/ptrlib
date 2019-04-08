@@ -12,9 +12,9 @@ def encrypt(plain):
     aes = AES.new(key, AES.MODE_CBC, iv)
     return aes.encrypt(pad(plain, AES.block_size))
 
-def decrypt(cipher):
+def decrypt(cipher, iv=None):
     key = b'\xde\xad\xbe\xef\xca\xfe\xba\xbe\x01\x23\x45\x67\x89\xab\xcd\xef'
-    iv  = b'd34db33fc4f3b4b3'
+    iv  = iv or b'd34db33fc4f3b4b3'
     unpad = lambda s: s[:-s[-1]]
     aes = AES.new(key, AES.MODE_CBC, iv)
     decrypted = aes.decrypt(cipher)
@@ -41,8 +41,7 @@ cracked = padding_oracle(
     try_decrypt,
     cipher,
     AES.block_size,
-    unknown='?',
-    unpad=True
+    unknown=b'?',
 )
 print("===== Padding Oracle Attack =====")
 print("Plain text: " + repr(cracked))
@@ -51,10 +50,22 @@ cracked = padding_oracle(
     try_decrypt,
     cipher,
     AES.block_size,
-    unknown='?',
-    unpad=True,
-    iv = 'd34db33fc4f3b4b3'
+    unknown=b'?',
+    iv = b'd34db33fc4f3b4b3'
 )
 print("===== Padding Oracle Attack (with IV) =====")
 print("Plain text: " + repr(cracked))
+
+def pad(s):
+    l = AES.block_size - len(s) % AES.block_size
+    return s + bytes(l for _ in range(l))
+
+cracked = padding_oracle_encrypt(
+    try_decrypt,
+    pad(plain),
+    AES.block_size,
+    unknown=b'?',
+)
+print("===== Padding Oracle Encryption Attack =====")
+print("Plain text: " + repr(decrypt(cracked[AES.block_size:], cracked[:AES.block_size])))
 
