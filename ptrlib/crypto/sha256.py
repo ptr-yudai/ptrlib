@@ -118,7 +118,6 @@ class SHA256(object):
         """
         # Append a padding
         message = self.padding(self.message)
-        w = []
         # Define functions used in the calculation
         SHR = lambda v, n: (v & 0xffffffff) >> n
         ROTR = lambda v, n: ((v & 0xffffffff) >> (n & 31)) | (v << (32 - (n & 31))) & 0xffffffff
@@ -152,6 +151,7 @@ class SHA256(object):
         for j in range(len(message) // 64):
             A, B, C, D, E, F, G, H = Hash
             blocks = [message[j*64 + i:j*64 + i+4] for i in range(0, 64, 4)]
+            w = []
             # Rotation
             for i in range(64):
                 if i <= 15:
