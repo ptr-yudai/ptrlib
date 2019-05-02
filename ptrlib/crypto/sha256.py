@@ -41,8 +41,8 @@ class SHA256(object):
 
         You can change the vector used as the IV of the next block.
         """
-        if len(iv) != 5:
-            raise ValueError("IV must have 5 elements")
+        if len(iv) != 8:
+            raise ValueError("IV must have 8 elements")
         self.H = list(iv)
 
     def convert(self, hash_string):
