@@ -65,7 +65,7 @@ def padding_oracle(decrypt, cipher, bs, unknown=b"\x00", iv=None):
         )
         dump(
             "decrypted a block {}/{}: {}".format(
-                k, len(cipher_blocks), plain_blocks[k]
+                len(cipher_blocks) - k + 1, len(cipher_blocks), plain_blocks[k]
             ),
             "success",
         )
@@ -105,7 +105,7 @@ def padding_oracle_encrypt(decrypt, plain, bs, unknown=b"\x00"):
         cipher_blocks[k - 1] = cipher_block
         dump(
             "encrypted a block {}/{}: {}".format(
-                k, len(cipher_blocks), cipher_block[k - 1]
+                len(cipher-_block) - k + 1, len(cipher_blocks), cipher_block[k - 1]
             ),
             "success",
         )
