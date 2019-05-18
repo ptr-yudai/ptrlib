@@ -2,7 +2,6 @@ from ptrlib.util.encoding import *
 from ptrlib.debug.debug import dump
 
 
-
 def padding_oracle_block(decrypt, prev_block, cipher_block, bs):
     plain = [b"\x00" for i in range(bs)]
 
@@ -20,7 +19,7 @@ def padding_oracle_block(decrypt, prev_block, cipher_block, bs):
                     "decrypted a byte {}/{}: {}".format(i + 1, bs, plain[bs - i - 1]),
                     "success",
                 )
-                
+
                 found = True
                 break
             elif ret is not False:
@@ -105,7 +104,7 @@ def padding_oracle_encrypt(decrypt, plain, bs, unknown=b"\x00"):
         cipher_blocks[k - 1] = cipher_block
         dump(
             "encrypted a block {}/{}: {}".format(
-                len(cipher-_block) - k + 1, len(cipher_blocks), cipher_block[k - 1]
+                len(cipher_blocks) - k + 1, len(cipher_blocks), cipher_blocks[k - 1]
             ),
             "success",
         )
