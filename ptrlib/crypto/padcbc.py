@@ -98,9 +98,12 @@ def padding_oracle_encrypt(decrypt, plain, bs, unknown=b"\x00"):
         )
         for i in range(bs):
             cipher_block[i] = cipher_block[i] ^ ord(unknown) ^ plain[bs * (k - 1) + i]
-        dump(
-            "encrypted a block {}/{}: {}".format(k, len(cipher_blocks), cipher_block[k - 1]), "success"
-        )
         cipher_blocks[k - 1] = cipher_block
+        dump(
+            "encrypted a block {}/{}: {}".format(
+                k, len(cipher_blocks), cipher_block[k - 1]
+            ),
+            "success",
+        )
 
     return b"".join(cipher_blocks)
