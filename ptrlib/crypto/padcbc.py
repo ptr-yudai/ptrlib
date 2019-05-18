@@ -20,9 +20,7 @@ def padding_oracle_block(decrypt, prev_block, cipher_block, bs):
                     "decrypted a byte {}/{}: {}".format(i + 1, bs, plain[bs - i - 1]),
                     "success",
                 )
-                break
-            elif ret is not False:
-                raise ValueError("The function `decrypt` must return True or False")
+                
                 found = True
                 break
             elif ret is not False:
