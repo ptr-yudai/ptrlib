@@ -1,6 +1,10 @@
 from ptrlib.util.encoding import *
 from ptrlib.util.packing import *
 
+def fsb_read(pos, reads, written=0, bits=32):
+    # TODO
+    return
+
 def fsb(pos, writes, bs=1, written=0, bits=32):
     """Craft a Format String Exploit payload
     

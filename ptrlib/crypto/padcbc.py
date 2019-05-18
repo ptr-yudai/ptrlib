@@ -2,11 +2,12 @@ from ptrlib.util.encoding import *
 from ptrlib.debug.debug import dump
 
 
+
 def padding_oracle_block(decrypt, prev_block, cipher_block, bs):
     plain = [b"\x00" for i in range(bs)]
 
     for i in range(bs):
-        flag = False
+        found = False
         for b in range(256):
             dummy_block = b"\x00" * (bs - i - 1) + bytes([b])
             for b2 in plain[bs - i :]:
@@ -15,6 +16,7 @@ def padding_oracle_block(decrypt, prev_block, cipher_block, bs):
             ret = decrypt(dummy_block + cipher_block)
             if ret is True:
                 plain[bs - i - 1] = bytes([b ^ (i + 1) ^ prev_block[bs - i - 1]])
+<<<<<<< HEAD
                 dump(
                     "decrypted a byte {}/{}: {}".format(i + 1, bs, plain[bs - i - 1]),
                     "success",
@@ -22,6 +24,13 @@ def padding_oracle_block(decrypt, prev_block, cipher_block, bs):
                 break
             elif ret is not False:
                 raise ValueError("The function `decrypt` must return True or False")
+=======
+                found = True
+                break
+            elif ret is not False:
+                raise ValueError("The function `decrypt` must return True or False")
+        assert found
+>>>>>>> remotes/theoldmoon0602/ptrlib/padcbc-assert
     return b"".join(plain)
 
 
@@ -59,12 +68,15 @@ def padding_oracle(decrypt, cipher, bs, unknown=b"\x00", iv=None):
         plain_blocks[k] = padding_oracle_block(
             decrypt, cipher_blocks[k - 1], cipher_blocks[k], bs
         )
+<<<<<<< HEAD
         dump(
             "decrypted a block {}/{}: {}".format(
                 k, len(cipher_blocks), plain_blocks[k]
             ),
             "success",
         )
+=======
+>>>>>>> remotes/theoldmoon0602/ptrlib/padcbc-assert
 
     if isinstance(unknown, str):
         unknown = str2bytes(unknown)
@@ -99,11 +111,14 @@ def padding_oracle_encrypt(decrypt, plain, bs, unknown=b"\x00"):
         for i in range(bs):
             cipher_block[i] = cipher_block[i] ^ ord(unknown) ^ plain[bs * (k - 1) + i]
         cipher_blocks[k - 1] = cipher_block
+<<<<<<< HEAD
         dump(
             "encrypted a block {}/{}: {}".format(
                 k, len(cipher_blocks), cipher_block[k - 1]
             ),
             "success",
         )
+=======
+>>>>>>> remotes/theoldmoon0602/ptrlib/padcbc-assert
 
     return b"".join(cipher_blocks)
