@@ -1,10 +1,10 @@
 from ptrlib.debug.debug import dump
+from math import ceil
 try:
-    from gmpy2 import mpz as Fraction
-    from gmpy2 import powmod as pow, ceil
+    from gmpy2 import powmod as pow
+    from gmpy2 import mpq as Fraction
 except ImportError:
     from fractions import Fraction
-    from math import ceil
 
 def lsb_leak_attack(lsb_oracle, n, e, c):
     """RSA LSB Leak Attack

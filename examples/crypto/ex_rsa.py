@@ -34,6 +34,5 @@ def lsb_oracle(c):
     return pow(c, d, n) & 1
 
 m2 = lsb_leak_attack(lsb_oracle, n, e, c)
-assert m2 == m
 print("===== LSB Leak Attack =====")
 print("Plain text: " + repr(long_to_bytes(m2)))
