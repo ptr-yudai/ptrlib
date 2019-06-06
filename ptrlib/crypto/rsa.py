@@ -1,3 +1,4 @@
+from logging import getLogger
 from ptrlib.debug.debug import dump
 from math import ceil
 try:
@@ -20,6 +21,7 @@ def lsb_leak_attack(lsb_oracle, n, e, c):
 
     The function lsb_oracle must return LSB (1 or 0).
     """
+    logger = getLogger(__name__)
 
     L = n.bit_length()
     t = L // 100
@@ -38,6 +40,6 @@ def lsb_leak_attack(lsb_oracle, n, e, c):
             raise ValueError("The function `lsb_oracle` must return 1 or 0")
         i += 1
         if i % t == 0:
-            dump("LSB Leak Attack {}/{}".format(i, L))
+            logger.info("LSB Leak Attack {}/{}".format(i, L))
         assert(i <= L)
     return int(ceil(left))
