@@ -1,5 +1,4 @@
 from logging import getLogger
-from ptrlib.debug.debug import dump
 from math import ceil
 try:
     from gmpy2 import powmod as pow

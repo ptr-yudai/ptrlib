@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-from logging import getLogger, StreamHandler, INFO
 from ptrlib import *
 from Crypto.Util.number import getPrime, inverse, bytes_to_long, long_to_bytes
 
@@ -33,10 +32,6 @@ assert m == decrypt(privkey, c)
 def lsb_oracle(c):
     d, n = privkey
     return pow(c, d, n) & 1
-
-logger = getLogger("ptrlib.crypto.rsa")
-logger.addHandler(StreamHandler())
-logger.setLevel(INFO)
 
 m2 = lsb_leak_attack(lsb_oracle, n, e, c)
 print("===== LSB Leak Attack =====")

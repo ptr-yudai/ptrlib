@@ -1,4 +1,6 @@
-from ptrlib.debug.debug import *
+from logging import getLogger
+
+logger = getLogger(__name__)
 
 def bytes2str(data):
     """Convert bytes to str
@@ -6,7 +8,7 @@ def bytes2str(data):
     if isinstance(data, bytes):
         return ''.join(list(map(chr, data)))
     else:
-        dump("bytes2str: {} given ('bytes' expected)".format(type(data)), "warning")
+        logger.warn("{} given ('bytes' expected)".format(type(data)))
 
 def str2bytes(data):
     """Convert str to bytes
@@ -14,4 +16,4 @@ def str2bytes(data):
     if isinstance(data, str):
         return bytes(list(map(ord, data)))
     else:
-        dump("str2bytes: {} given ('str' expected)".format(type(data)), "warning")
+        logger.warn("{} given ('str' expected)".format(type(data)))

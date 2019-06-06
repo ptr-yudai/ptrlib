@@ -1,10 +1,12 @@
 # coding: utf-8
-from ptrlib.debug.color import *
-from ptrlib.debug.debug import *
 from ptrlib.util.encoding import *
+from ptrlib.console.color import Color
 from abc import ABCMeta, abstractmethod
 import threading
 import time
+from logging import getLogger
+
+logger = getLogger(__name__)
 
 class Tube(metaclass=ABCMeta):
     @abstractmethod
@@ -39,7 +41,7 @@ class Tube(metaclass=ABCMeta):
 
     def recvline(self, timeout=None):
         """Receive a line
-        
+
         Receive a line of raw data through the socket.
 
         Args:
@@ -109,7 +111,7 @@ class Tube(metaclass=ABCMeta):
 
     def sendline(self, data, timeout=None):
         """Send a line
-        
+
         Send a line of data.
 
         Args:
@@ -119,12 +121,12 @@ class Tube(metaclass=ABCMeta):
         if isinstance(data, str):
             data = str2bytes(data)
         self.send(data + b'\n', timeout)
-    
+
     def sendafter(self, delim, data, timeout=None):
         """Send raw data after a deliminater
 
         Send raw data after `delim` is received.
-        
+
         Args:
             delim (bytes): The deliminater
             data (bytes) : Data to send
@@ -149,7 +151,7 @@ class Tube(metaclass=ABCMeta):
                     if data is not None:
                         print(bytes2str(data), end="")
                 except EOFError:
-                    dump("interactive: EOF", "error")
+                    logger.error("interactive: EOF")  # NOTE: error raises exception
                     break
 
         flag = threading.Event()

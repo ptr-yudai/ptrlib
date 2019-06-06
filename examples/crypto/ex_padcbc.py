@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-from logging import getLogger, StreamHandler, INFO
 from ptrlib import *
 from Crypto.Cipher import AES
 
@@ -26,10 +25,6 @@ def decrypt(cipher, iv=None):
         return None
     return unpad(decrypted)
 
-# set logging
-logger = getLogger("ptrlib.crypto.padcbc")
-logger.addHandler(StreamHandler())
-logger.setLevel(INFO)
 
 # Sample data
 plain = b"The quick brown fox jumps over the lazy dog."
