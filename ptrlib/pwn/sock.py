@@ -52,7 +52,7 @@ class Socket(Tube):
         """
         self._settimeout(timeout)
         if size <= 0:
-            logger.error("`size` must be larger than 0")  # NOTE: error raises exception
+            logger.error("`size` must be larger than 0")
             return None
         try:
             data = self.sock.recv(size)
@@ -78,7 +78,7 @@ class Socket(Tube):
         self._settimeout(timeout)
         data = b''
         if size <= 0:
-            logger.error("`size` must be larger than 0")  # NOTE: error raises exception
+            logger.error("`size` must be larger than 0")
             return None
         try:
             read_byte = 0
@@ -88,7 +88,7 @@ class Socket(Tube):
                 read_byte = len(data)
                 recv_size = size - read_byte
         except socket.timeout:
-            logger.error("Timeout") # NOTE: error raises exception
+            logger.error("Timeout")
             return None
         return data
 

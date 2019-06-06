@@ -4,7 +4,7 @@ from ptrlib.elf import *
 from ptrlib.pwn import *
 from ptrlib.crypto import *
 
-from logging import getLogger, Formatter, StreamHandler, INFO, WARNING
+from logging import getLogger, Formatter, StreamHandler, INFO, WARNING, ERROR
 
 class ColoredFormatter(Formatter):
     def format(self, record):
@@ -13,8 +13,10 @@ class ColoredFormatter(Formatter):
         prefix = ''
         if record.levelno == INFO:
             prefix = '{bold}{green}[+]{end}'.format(bold=Color.BOLD, green=Color.GREEN, end=Color.END)
-        elif record.levelno >= WARNING:
-            prefix = '{bold}{red}[-]{end}'.format(bold=Color.BOLD, red=Color.RED, end=Color.END)
+        if record.levelno == WARNING:
+            prefix = '{bold}{red}[+]{end}'.format(bold=Color.BOLD, red=Color.RED, end=Color.END)
+        elif record.levelno >= ERROR:
+            prefix = '{bold}{yellow}[WARN]{end}'.format(bold=Color.BOLD, yellow=Color.YELLOW, end=Color.END)
         else:
             prefix = '{bold}[+]{end}'.format(bold=Color.BOLD, end=Color.END)
 

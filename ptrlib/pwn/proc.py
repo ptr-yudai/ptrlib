@@ -72,7 +72,7 @@ class Process(Tube):
             logger.error(
                 "Process '{}' stopped with exit code {} (PID={})".format(
                     self.filepath, returncode, self.proc.pid
-                ))  # NOTE: error raises exception
+                ))
             self.proc = None
         return returncode
 
@@ -103,7 +103,7 @@ class Process(Tube):
         """
         self._settimeout(timeout)
         if size <= 0:
-            logger.error("`size` must be larger than 0") # NOTE: error raises exception
+            logger.error("`size` must be larger than 0")
             return None
 
         self._poll()
@@ -120,7 +120,7 @@ class Process(Tube):
             data = self.proc.stdout.read()
             self.reservoir += data
         except subprocess.TimeoutExpired:
-            logger.error("Timeout") # NOTE: error raises exception
+            logger.error("Timeout")
             return None
 
         if len(self.reservoir) == 0:
@@ -154,7 +154,7 @@ class Process(Tube):
         self._settimeout(timeout)
         data = b''
         if size <= 0:
-            logger.error("`size` must be larger than 0") # NOTE: error raises exception
+            logger.error("`size` must be larger than 0")
             return None
 
         read_byte = 0
@@ -164,7 +164,7 @@ class Process(Tube):
             if recv_data is None:
                 return None
             elif recv_data == b'':
-                logger.error("Received nothing") # NOTE: error raises exception
+                logger.error("Received nothing")
                 return None
             data += recv_data
             read_byte += len(data)

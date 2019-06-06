@@ -151,7 +151,7 @@ class Tube(metaclass=ABCMeta):
                     if data is not None:
                         print(bytes2str(data), end="")
                 except EOFError:
-                    logger.error("interactive: EOF")  # NOTE: error raises exception
+                    logger.error("interactive: EOF")
                     break
 
         flag = threading.Event()
