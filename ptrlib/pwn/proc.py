@@ -1,5 +1,5 @@
 # coding: utf-8
-from ptrlib.debug.debug import *
+from logging import getLogger
 from ptrlib.util.encoding import *
 from ptrlib.pwn.tube import *
 import errno
@@ -8,16 +8,18 @@ import fcntl
 import os
 import subprocess
 
+logger = getLogger(__name__)
+
 class Process(Tube):
     def __init__(self, args, env=None, cwd=None, timeout=None):
         """Create a process
-        
+
         Create a new process and make a pipe.
 
         Args:
             args (list): The arguments to pass
             env (list) : The environment variables
-        
+
         Returns:
             Process: ``Process`` instance.
         """
@@ -44,22 +46,22 @@ class Process(Tube):
                 stderr=subprocess.STDOUT,
                 stdin=subprocess.PIPE
             )
-        except FileNotFoundError as e:
-            dump("Process: Executable not found: '{0}'".format(self.filepath), "warning")
+        except FileNotFoundError:
+            logger.warn("Executable not found: '{0}'".format(self.filepath))
             return
 
         # Set in non-blocking mode
         fd = self.proc.stdout.fileno()
         fl = fcntl.fcntl(fd, fcntl.F_GETFL)
         fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
-        dump("Process: Successfully created new process (PID={})".format(self.proc.pid), "success")
+        logger.info("Successfully created new process (PID={})".format(self.proc.pid))
 
     def _settimeout(self, timeout):
         if timeout is None:
             self.temp_timeout = self.timeout
         else:
             self.temp_timeout = timeout
-   
+
     def _poll(self):
         if self.proc is None:
             return False
@@ -67,12 +69,10 @@ class Process(Tube):
         self.proc.poll()
         returncode = self.proc.returncode
         if returncode is not None:
-            dump(
+            logger.error(
                 "Process '{}' stopped with exit code {} (PID={})".format(
                     self.filepath, returncode, self.proc.pid
-                ),
-                "error"
-            )
+                ))
             self.proc = None
         return returncode
 
@@ -93,7 +93,7 @@ class Process(Tube):
         """Receive raw data
 
         Receive raw data of maximum `size` bytes length through the pipe.
-        
+
         Args:
             size    (int): The data size to receive
             timeout (int): Timeout (in second)
@@ -103,7 +103,7 @@ class Process(Tube):
         """
         self._settimeout(timeout)
         if size <= 0:
-            dump("recvonce: `size` must be larger than 0", "error")
+            logger.error("`size` must be larger than 0")
             return None
 
         self._poll()
@@ -120,7 +120,7 @@ class Process(Tube):
             data = self.proc.stdout.read()
             self.reservoir += data
         except subprocess.TimeoutExpired:
-            dump("recv: Timeout", "error")
+            logger.error("Timeout")
             return None
 
         if len(self.reservoir) == 0:
@@ -138,7 +138,7 @@ class Process(Tube):
 
     def recvonce(self, size=4, timeout=None):
         """Receive raw data
-        
+
         Receive raw data of `size` bytes length through the pipe.
 
         Args:
@@ -154,7 +154,7 @@ class Process(Tube):
         self._settimeout(timeout)
         data = b''
         if size <= 0:
-            dump("recvonce: `size` must be larger than 0", "error")
+            logger.error("`size` must be larger than 0")
             return None
 
         read_byte = 0
@@ -164,7 +164,7 @@ class Process(Tube):
             if recv_data is None:
                 return None
             elif recv_data == b'':
-                dump("recvonce: Received nothing", "error")
+                logger.error("Received nothing")
                 return None
             data += recv_data
             read_byte += len(data)
@@ -173,9 +173,9 @@ class Process(Tube):
 
     def send(self, data, timeout=None):
         """Send raw data
-        
+
         Send raw data through the socket
-        
+
         Args:
             data (bytes) : Data to send
             timeout (int): Timeout (in second)
@@ -188,7 +188,7 @@ class Process(Tube):
             self.proc.stdin.write(data)
             self.proc.stdin.flush()
         except IOError:
-            dump("send: Broken pipe", "warning")
+            logger.warning("Broken pipe")
 
     def close(self):
         """Close the socket
@@ -198,7 +198,7 @@ class Process(Tube):
         """
         if self.proc:
             self.proc.kill()
-            dump("close: '{0}' killed".format(self.filepath), "success")
+            logger.info("close: '{0}' killed".format(self.filepath))
 
     def __del__(self):
         self.close()

@@ -25,6 +25,7 @@ def decrypt(cipher, iv=None):
         return None
     return unpad(decrypted)
 
+
 # Sample data
 plain = b"The quick brown fox jumps over the lazy dog."
 

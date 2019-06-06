@@ -1,7 +1,9 @@
-from ptrlib.debug.color import *
-from ptrlib.debug.debug import *
+from ptrlib.console.color import Color
 from ptrlib.util.encoding import *
 from ptrlib.elf.elfstruct import *
+from logging import getLogger
+
+logger = getLogger(__name__)
 
 class ELF(object):
     def __init__(self, filepath):
@@ -27,7 +29,7 @@ class ELF(object):
         """Get the address of a symbol
 
         Find the address corresponding to a given symbol.
-        
+
         Args:
             name (str): The symbol name to find
 
@@ -122,9 +124,7 @@ class ELF(object):
         if isinstance(name, str):
             name = str2bytes(name)
 
-        dump("Not implemented yet!", "debug")
-
-        return None
+        raise NotImplementedError()
 
     def got(self, name):
         """Get a GOT address
@@ -161,7 +161,7 @@ class ELF(object):
                         self.structs.Elf_Rela,
                         stream_pos = rel_offset
                     )
-                
+
                 if self.structs.elfclass == 32:
                     sym_idx = rel.r_info >> 8
                 else:
@@ -175,7 +175,7 @@ class ELF(object):
 
     def checksec(self):
         """Check security
-        
+
         Returns:
             dict: Dictionary of all security information: NX, SSP, RELRO
         """
@@ -214,7 +214,7 @@ class ELF(object):
                     ret += "    SSP:\t{bold}{red}SSP disabled{end} (No canary found)\n".format(
                         bold=Color.BOLD, red=Color.RED, end=Color.END
                     )
-            
+
                 # RELRO
                 if self.relro == 2:
                     ret += "    RELRO:\t{bold}{green}Full RELRO{end}\n".format(
@@ -239,7 +239,7 @@ class ELF(object):
                         bold=Color.BOLD, red=Color.RED, end=Color.END
                     )
                 return ret
-                
+
         return _SecurityInfo(
             elf   = self,
             nx    = self.nx(),
@@ -250,7 +250,7 @@ class ELF(object):
 
     def ssp(self):
         """Check SSP
-        
+
         Check if the binary is protected with canary.
 
         Returns:
@@ -359,7 +359,7 @@ class ELF(object):
         self.stream.seek(0)
         magic = self.stream.read(4)
         if magic != b'\x7fELF':
-            dump("Invalid ELF header", "warning")
+            logger.warning("Invalid ELF header")
             return False
 
         ei_class = self.stream.read(1)
@@ -368,7 +368,7 @@ class ELF(object):
         elif ei_class == b'\x02':
             self.elfclass = 64
         else:
-            dump("Invalid EI_CLASS", "warning")
+            logger.warning("Invalid EI_CLASS")
             return False
 
         ei_data = self.stream.read(1)
@@ -377,7 +377,7 @@ class ELF(object):
         elif ei_data == b'\x02':
             self.little_endian = False
         else:
-            dump("Invalid EI_DATA", "warning")
+            logger.warning("Invalid EI_DATA")
             return False
 
         return True
@@ -413,6 +413,6 @@ class ELF(object):
             if stream_pos is not None:
                 self.stream.seek(stream_pos)
             return struct.parse_stream(self.stream)
-        except ConstructError as e:
-            dump("Parse Error", "warning")
-            exit(1)
+        except ConstructError:
+            logger.warning("Parse Error")
+            exit(1)  # CHECK:
