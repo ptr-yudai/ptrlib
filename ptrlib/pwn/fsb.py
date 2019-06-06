@@ -128,7 +128,7 @@ def fsb(pos, writes, bs=1, written=0, bits=32, null=True):
             payload += p64(addr)
         
     else:
-        dump("fsb: Invalid bits specified", "warning")
+        logger.error("Invalid bits specified")
         return None
     
     return payload
