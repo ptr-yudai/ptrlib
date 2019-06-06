@@ -1,5 +1,4 @@
 from ptrlib.util.encoding import *
-from ptrlib.debug.debug import dump
 
 
 def padding_oracle_block(decrypt, prev_block, cipher_block, bs):
@@ -31,9 +30,9 @@ def padding_oracle_block(decrypt, prev_block, cipher_block, bs):
 """Padding Oracle Attack on CBC encryption"""
 
 
-def padding_oracle(decrypt, cipher, bs, unknown=b"\x00", iv=None):
+def padding_oracle(decrypt, cipher, *, bs, unknown=b"\x00", iv=None):
     """Padding Oracle Attack
-    
+
     Given a ciphersystem such that:
     - The padding follows the format of PKCS7
     - The mode of the block cipher is CBC
@@ -84,11 +83,11 @@ def padding_oracle(decrypt, cipher, bs, unknown=b"\x00", iv=None):
 """Padding Oracle Enctyption Attack on CBC encryption"""
 
 
-def padding_oracle_encrypt(decrypt, plain, bs, unknown=b"\x00"):
+def padding_oracle_encrypt(decrypt, plain, *, bs, unknown=b"\x00"):
     """Padding Oracle Encryption Attack
 
     Usage:
-        cipher = padding_oracle_encrypt(decrypt, plain, bs, unknown)
+        iv, cipher = padding_oracle_encrypt(decrypt, plain, bs, unknown)
     """
     if len(plain) % bs != 0:
         raise ValueError("The length of `plain` must be a multiple of `bs`")
@@ -109,4 +108,4 @@ def padding_oracle_encrypt(decrypt, plain, bs, unknown=b"\x00"):
             "success",
         )
 
-    return b"".join(cipher_blocks)
+    return bytes(cipher_blocks[0]), b"".join(cipher_blocks[1:])
