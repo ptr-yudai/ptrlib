@@ -41,7 +41,7 @@ def try_decrypt(cipher):
 cracked = padding_oracle(
     try_decrypt,
     cipher,
-    AES.block_size,
+    bs=AES.block_size,
     unknown=b'?',
 )
 print("===== Padding Oracle Attack =====")
@@ -50,7 +50,7 @@ print("Plain text: " + repr(cracked))
 cracked = padding_oracle(
     try_decrypt,
     cipher,
-    AES.block_size,
+    bs=AES.block_size,
     unknown=b'?',
     iv = b'd34db33fc4f3b4b3'
 )
@@ -61,12 +61,12 @@ def pad(s):
     l = AES.block_size - len(s) % AES.block_size
     return s + bytes(l for _ in range(l))
 
-cracked = padding_oracle_encrypt(
+iv, cipher = padding_oracle_encrypt(
     try_decrypt,
     pad(plain),
-    AES.block_size,
+    bs=AES.block_size,
     unknown=b'?',
 )
 print("===== Padding Oracle Encryption Attack =====")
-print("Plain text: " + repr(decrypt(cracked[AES.block_size:], cracked[:AES.block_size])))
+print("Plain text: " + repr(decrypt(cipher, iv=iv)))
 
