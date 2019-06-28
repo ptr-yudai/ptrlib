@@ -39,13 +39,14 @@ class Tube(metaclass=ABCMeta):
             data += part
         return data
 
-    def recvline(self, timeout=None):
+    def recvline(self, timeout=None, drop=True):
         """Receive a line
 
         Receive a line of raw data through the socket.
 
         Args:
             timeout (int): Timeout (in second)
+            drop (bool)  : Whether or not to strip the newline
 
         Returns:
             bytes: The received data
@@ -59,7 +60,10 @@ class Tube(metaclass=ABCMeta):
                 break
             else:
                 data += c
-        return data
+        if drop:
+            return data.rstrip()
+        else:
+            return data
 
     def recvuntil(self, delim, timeout=None):
         """Receive raw data until `delim` comes
@@ -139,6 +143,25 @@ class Tube(metaclass=ABCMeta):
             data = str2bytes(data)
         recv_data = self.recvuntil(delim, timeout)
         self.send(data, timeout)
+        return recv_data
+
+    def sendlineafter(self, delim, data, timeout=None):
+        """Send raw data after a deliminater
+
+        Send raw data with newline after `delim` is received.
+
+        Args:
+            delim (bytes): The deliminater
+            data (bytes) : Data to send
+            timeout (int): Timeout (in second)
+
+        Returns:
+            bytes: Received bytes before `delim` comes.
+        """
+        if isinstance(data, str):
+            data = str2bytes(data)
+        recv_data = self.recvuntil(delim, timeout)
+        self.sendline(data, timeout)
         return recv_data
 
     def interactive(self, timeout=None):
