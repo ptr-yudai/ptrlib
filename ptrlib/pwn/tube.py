@@ -1,10 +1,12 @@
 # coding: utf-8
-from ptrlib.debug.color import *
-from ptrlib.debug.debug import *
 from ptrlib.util.encoding import *
+from ptrlib.console.color import Color
 from abc import ABCMeta, abstractmethod
 import threading
 import time
+from logging import getLogger
+
+logger = getLogger(__name__)
 
 class Tube(metaclass=ABCMeta):
     @abstractmethod
@@ -37,13 +39,14 @@ class Tube(metaclass=ABCMeta):
             data += part
         return data
 
-    def recvline(self, timeout=None):
+    def recvline(self, timeout=None, drop=True):
         """Receive a line
-        
+
         Receive a line of raw data through the socket.
 
         Args:
             timeout (int): Timeout (in second)
+            drop (bool)  : Whether or not to strip the newline
 
         Returns:
             bytes: The received data
@@ -57,7 +60,10 @@ class Tube(metaclass=ABCMeta):
                 break
             else:
                 data += c
-        return data
+        if drop:
+            return data.rstrip()
+        else:
+            return data
 
     def recvuntil(self, delim, timeout=None):
         """Receive raw data until `delim` comes
@@ -109,7 +115,7 @@ class Tube(metaclass=ABCMeta):
 
     def sendline(self, data, timeout=None):
         """Send a line
-        
+
         Send a line of data.
 
         Args:
@@ -119,12 +125,12 @@ class Tube(metaclass=ABCMeta):
         if isinstance(data, str):
             data = str2bytes(data)
         self.send(data + b'\n', timeout)
-    
+
     def sendafter(self, delim, data, timeout=None):
         """Send raw data after a deliminater
 
         Send raw data after `delim` is received.
-        
+
         Args:
             delim (bytes): The deliminater
             data (bytes) : Data to send
@@ -139,6 +145,25 @@ class Tube(metaclass=ABCMeta):
         self.send(data, timeout)
         return recv_data
 
+    def sendlineafter(self, delim, data, timeout=None):
+        """Send raw data after a deliminater
+
+        Send raw data with newline after `delim` is received.
+
+        Args:
+            delim (bytes): The deliminater
+            data (bytes) : Data to send
+            timeout (int): Timeout (in second)
+
+        Returns:
+            bytes: Received bytes before `delim` comes.
+        """
+        if isinstance(data, str):
+            data = str2bytes(data)
+        recv_data = self.recvuntil(delim, timeout)
+        self.sendline(data, timeout)
+        return recv_data
+
     def interactive(self, timeout=None):
         """Interactive mode
         """
@@ -149,7 +174,7 @@ class Tube(metaclass=ABCMeta):
                     if data is not None:
                         print(bytes2str(data), end="")
                 except EOFError:
-                    dump("interactive: EOF", "error")
+                    logger.error("interactive: EOF")
                     break
 
         flag = threading.Event()

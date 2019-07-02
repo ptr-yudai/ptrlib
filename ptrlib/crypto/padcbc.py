@@ -1,6 +1,7 @@
+from logging import getLogger
 from ptrlib.util.encoding import *
-from ptrlib.debug.debug import dump
 
+logger = getLogger(__name__)
 
 def padding_oracle_block(decrypt, prev_block, cipher_block, bs):
     plain = [b"\x00" for i in range(bs)]
@@ -15,10 +16,8 @@ def padding_oracle_block(decrypt, prev_block, cipher_block, bs):
             ret = decrypt(dummy_block + cipher_block)
             if ret is True:
                 plain[bs - i - 1] = bytes([b ^ (i + 1) ^ prev_block[bs - i - 1]])
-                dump(
-                    "decrypted a byte {}/{}: {}".format(i + 1, bs, plain[bs - i - 1]),
-                    "success",
-                )
+                logger.info(
+                    "decrypted a byte {}/{}: {}".format(i + 1, bs, plain[bs - i - 1]))
 
                 found = True
                 break
@@ -31,9 +30,9 @@ def padding_oracle_block(decrypt, prev_block, cipher_block, bs):
 """Padding Oracle Attack on CBC encryption"""
 
 
-def padding_oracle(decrypt, cipher, bs, unknown=b"\x00", iv=None):
+def padding_oracle(decrypt, cipher, *, bs, unknown=b"\x00", iv=None):
     """Padding Oracle Attack
-    
+
     Given a ciphersystem such that:
     - The padding follows the format of PKCS7
     - The mode of the block cipher is CBC
@@ -62,19 +61,17 @@ def padding_oracle(decrypt, cipher, bs, unknown=b"\x00", iv=None):
         plain_blocks[k] = padding_oracle_block(
             decrypt, cipher_blocks[k - 1], cipher_blocks[k], bs
         )
-        dump(
+        logger.info(
             "decrypted a block {}/{}: {}".format(
                 len(cipher_blocks) - k + 1, len(cipher_blocks), plain_blocks[k]
-            ),
-            "success",
-        )
+            )        )
 
     if isinstance(unknown, str):
         unknown = str2bytes(unknown)
 
     if iv:
         plain_blocks[0] = padding_oracle_block(decrypt, iv, cipher_blocks[0], bs)
-        dump("decrypted an iv block: {}".format(plain_blocks[0]), "success")
+        logger.info("decrypted an iv block: {}".format(plain_blocks[0]))
     else:
         plain_blocks[0] = unknown * bs
 
@@ -84,11 +81,11 @@ def padding_oracle(decrypt, cipher, bs, unknown=b"\x00", iv=None):
 """Padding Oracle Enctyption Attack on CBC encryption"""
 
 
-def padding_oracle_encrypt(decrypt, plain, bs, unknown=b"\x00"):
+def padding_oracle_encrypt(decrypt, plain, *, bs, unknown=b"\x00"):
     """Padding Oracle Encryption Attack
 
     Usage:
-        cipher = padding_oracle_encrypt(decrypt, plain, bs, unknown)
+        iv, cipher = padding_oracle_encrypt(decrypt, plain, bs, unknown)
     """
     if len(plain) % bs != 0:
         raise ValueError("The length of `plain` must be a multiple of `bs`")
@@ -102,11 +99,9 @@ def padding_oracle_encrypt(decrypt, plain, bs, unknown=b"\x00"):
         for i in range(bs):
             cipher_block[i] = cipher_block[i] ^ ord(unknown) ^ plain[bs * (k - 1) + i]
         cipher_blocks[k - 1] = cipher_block
-        dump(
+        logger.info(
             "encrypted a block {}/{}: {}".format(
                 len(cipher_blocks) - k + 1, len(cipher_blocks), cipher_blocks[k - 1]
-            ),
-            "success",
-        )
+            ))
 
-    return b"".join(cipher_blocks)
+    return bytes(cipher_blocks[0]), b"".join(cipher_blocks[1:])
