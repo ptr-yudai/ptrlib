@@ -1,7 +1,7 @@
 ptrlib
 ====
 
-A pure Python library which bundles security-related utilities.
+Python library which bundles security-related utilities.
 
 ## Description
 Ptrlib is a Python library for CTF players.
@@ -14,7 +14,7 @@ Supports: Python 3.7
 Basic examples are available at [/examples](https://bitbucket.org/ptr-yudai/ptrlib/src/master/examples/).
 
 ## Install
-Run `python setup.py install` with root privilege.
+Run `pip install ptrlib` or `python setup.py install`.
 
 ## Licence
 

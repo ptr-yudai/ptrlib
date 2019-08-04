@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 from ptrlib import rev_crc32
 from binascii import crc32
 

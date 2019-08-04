@@ -2,6 +2,7 @@
 from ptrlib.util import *
 from ptrlib.elf import *
 from ptrlib.pwn import *
+from ptrlib.asm import *
 from ptrlib.crypto import *
 from ptrlib.console import *
 from logging import getLogger, Formatter, StreamHandler, INFO, WARNING, ERROR
