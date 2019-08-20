@@ -60,13 +60,13 @@ class ELF(object):
                     return sym.st_value
         return None
 
-    def find(self, pattern, stream_pos=0, base=True):
+    def find(self, pattern, stream_pos=0):
         """Alias of ```search```
         """
-        for result in self.search(pattern, stream_pos, base):
+        for result in self.search(pattern, stream_pos):
             yield result
 
-    def search(self, pattern, stream_pos=0, base=True):
+    def search(self, pattern, stream_pos=0):
         """Find a binary data from the ELF
 
         Args:
@@ -87,10 +87,7 @@ class ELF(object):
             if pattern in data:
                 index = data.index(pattern)
                 addr += index
-                if base:
-                    yield addr + self.base()
-                else:
-                    yield addr
+                yield addr
                 addr, index = addr + 2, index + 2
             else:
                 break
