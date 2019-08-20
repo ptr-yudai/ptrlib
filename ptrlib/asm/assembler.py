@@ -102,7 +102,7 @@ def disasm(code,
     else:
         result = []
         for i in md.disasm(code, address):
-            result.append((i.address, i.mnemonic, i.op_str))
+            result.append((i.address, i.bytes, i.mnemonic, i.op_str))
 
     return result
 

@@ -1,7 +1,9 @@
 from ptrlib.console.color import Color
 from ptrlib.util.encoding import *
 from ptrlib.elf.elfstruct import *
+from ptrlib.asm.assembler import *
 from logging import getLogger
+import re
 
 logger = getLogger(__name__)
 
@@ -58,13 +60,13 @@ class ELF(object):
                     return sym.st_value
         return None
 
-    def find(self, pattern, stream_pos=0):
+    def find(self, pattern, stream_pos=0, base=True):
         """Alias of ```search```
         """
-        for result in self.search(pattern, stream_pos):
+        for result in self.search(pattern, stream_pos, base):
             yield result
 
-    def search(self, pattern, stream_pos=0):
+    def search(self, pattern, stream_pos=0, base=True):
         """Find a binary data from the ELF
 
         Args:
@@ -85,7 +87,10 @@ class ELF(object):
             if pattern in data:
                 index = data.index(pattern)
                 addr += index
-                yield addr
+                if base:
+                    yield addr + self.base()
+                else:
+                    yield addr
                 addr, index = addr + 2, index + 2
             else:
                 break
@@ -104,27 +109,63 @@ class ELF(object):
         if isinstance(name, str):
             name = str2bytes(name)
 
-        head = self.section_string.sh_offset
-
-        for i in range(self.header.e_shnum):
-            section_header = self._get_section(i)
-            name_offset = section_header.sh_name
-            section_name = self._get_string(head + name_offset)
-
-            if section_name == name:
-                return section_header.sh_addr
-
+        section_header = self._get_section_by_name(name)
+        if section_header:
+            return section_header.sh_addr
+        
         return None
+
+    def base(self):
+        for i in range(self.header.e_phnum):
+            segment_header = self._get_segment(i)
+            if segment_header.p_type == "PT_LOAD":
+                break
+        else:
+            return 0
+        return segment_header.p_vaddr
 
     def plt(self, name):
         """Get a PLT address
 
         Lookup the PLT table and find the corresponding address
+
+        Args:
+            name (str): The function name to find
+
+        Return:
+            int: The address of the PLT section
         """
         if isinstance(name, str):
             name = str2bytes(name)
 
-        raise NotImplementedError()
+        target_got = self.got(name)
+        if target_got is None:
+            return None
+        
+        section_header = self._get_section_by_name(b".plt")
+        self.stream.seek(section_header.sh_addr - self.base())
+        code = self.stream.read(section_header.sh_size)
+        result = disasm(
+            code,
+            mode = str(self.elfclass),
+            endian = 'little' if self.structs.little_endian else 'big',
+            address = section_header.sh_addr
+        )
+        for addr, bytecode, mnemonic, operand in result:
+            if mnemonic != 'jmp': continue
+            
+            r = re.findall("[e|r]ip \+ 0x([0-9a-f]+)", operand)
+            if not r:
+                r = re.findall("\[0x([0-9a-f]+)\]", operand)
+                if not r: continue
+                addr_got = int(r[0], 16)
+            else:
+                addr_got = addr + len(bytecode) + int(r[0], 16)
+                
+            if addr_got == target_got:
+                return addr
+        
+        return self.section(".plt")
 
     def got(self, name):
         """Get a GOT address
@@ -353,6 +394,19 @@ class ELF(object):
             stream_pos = self.header.e_shoff + n * self.header.e_shentsize
         )
 
+    def _get_section_by_name(self, name):
+        head = self.section_string.sh_offset
+
+        for i in range(self.header.e_shnum):
+            section_header = self._get_section(i)
+            name_offset = section_header.sh_name
+            section_name = self._get_string(head + name_offset)
+
+            if section_name == name:
+                return section_header
+
+        return None
+    
     def _identify(self):
         """Check the endian and class of the ELF
         """
