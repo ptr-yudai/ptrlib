@@ -10,7 +10,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='ptrlib',
-    version='1.1.0',
+    version='1.1.2',
     description='CTF library',
     long_description=long_description,
     long_description_content_type='text/markdown',

@@ -138,29 +138,30 @@ class ELF(object):
         target_got = self.got(name)
         if target_got is None:
             return None
-        
-        section_header = self._get_section_by_name(b".plt")
-        self.stream.seek(section_header.sh_addr - self.base())
-        code = self.stream.read(section_header.sh_size)
-        result = disasm(
-            code,
-            mode = str(self.elfclass),
-            endian = 'little' if self.structs.little_endian else 'big',
-            address = section_header.sh_addr
-        )
-        for addr, bytecode, mnemonic, operand in result:
-            if mnemonic != 'jmp': continue
-            
-            r = re.findall("[e|r]ip \+ 0x([0-9a-f]+)", operand)
-            if not r:
-                r = re.findall("\[0x([0-9a-f]+)\]", operand)
-                if not r: continue
-                addr_got = int(r[0], 16)
-            else:
-                addr_got = addr + len(bytecode) + int(r[0], 16)
-                
-            if addr_got == target_got:
-                return addr
+
+        for section_name in (b".plt", b".plt.got"):
+            section_header = self._get_section_by_name(section_name)
+            self.stream.seek(section_header.sh_addr - self.base())
+            code = self.stream.read(section_header.sh_size)
+            result = disasm(
+                code,
+                mode = str(self.elfclass),
+                endian = 'little' if self.structs.little_endian else 'big',
+                address = section_header.sh_addr
+            )
+            for addr, bytecode, mnemonic, operand in result:
+                if mnemonic != 'jmp': continue
+
+                r = re.findall("[e|r]ip \+ 0x([0-9a-f]+)", operand)
+                if not r:
+                    r = re.findall("\[0x([0-9a-f]+)\]", operand)
+                    if not r: continue
+                    addr_got = int(r[0], 16)
+                else:
+                    addr_got = addr + len(bytecode) + int(r[0], 16)
+
+                if addr_got == target_got:
+                    return addr
         
         return self.section(".plt")
 
