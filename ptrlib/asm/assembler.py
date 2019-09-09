@@ -98,7 +98,7 @@ def disasm(code,
     if returns == str:
         result = ''
         for i in md.disasm(code, address):
-            result += "{:x}:\t{}\t{}".format(i.address, i.mnemonic, i.op_str)
+            result += "{:x}:\t{}\t{}\n".format(i.address, i.mnemonic, i.op_str)
     else:
         result = []
         for i in md.disasm(code, address):
