@@ -1,10 +1,41 @@
 from logging import getLogger
 from math import ceil
+import gmpy2
 try:
     from gmpy2 import powmod as pow
     from gmpy2 import mpq as Fraction
 except ImportError:
     from fractions import Fraction
+from ptrlib.crypto.number import *
+
+def hastads_broadcast_attack(e, pairs):
+    """Hastad's Broadcast Attack
+
+    If we have e ciphertext of same plaintext with different N,
+    we can find the plaintext using Chinese Remainder Theorem.
+    """
+    x, n = chinese_remainder_theorem(pairs)
+    return int(gmpy2.root(x, e))
+
+def common_modulus_attack(cpair, epair, n):
+    """Common Modulus Attack
+
+    Given 2 (or more) ciphertext of same plaintext with different e,
+    we can decrypt the ciphertext using Extended Euclid Algorithm.
+    """
+    if len(cpair) < 2 or len(epair) < 2:
+        logger.warn("cpair and epair must have 2 or more elements.")
+        return None
+
+    c1, c2 = cpair[0], cpair[1]
+    _, s1, s2 = xgcd(epair[0], epair[1])
+    if s1 < 0:
+        s1 = -s1
+        c1 = inverse(c1, n)
+    elif s2 < 0:
+        s2 = -s2
+        c2 = inverse(c2, n)
+    return (pow(c1, s1, n) * pow(c2, s2, n)) % n
 
 def lsb_leak_attack(lsb_oracle, n, e, c):
     """RSA LSB Leak Attack
