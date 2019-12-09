@@ -176,6 +176,7 @@ class Tube(metaclass=ABCMeta):
                 except EOFError:
                     logger.error("interactive: EOF")
                     break
+                time.sleep(0.5)
 
         flag = threading.Event()
         th = threading.Thread(target=thread_recv)
@@ -191,12 +192,13 @@ class Tube(metaclass=ABCMeta):
                     flag.set()
                 else:
                     self.sendline(data)
-                time.sleep(0.1)
+                time.sleep(0.5)
         except KeyboardInterrupt:
             flag.set()
 
         while th.is_alive():
             th.join(timeout = 0.1)
+            time.sleep(0.5)
 
     @abstractmethod
     def close(self):

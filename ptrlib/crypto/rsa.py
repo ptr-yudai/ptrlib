@@ -8,6 +8,8 @@ except ImportError:
     from fractions import Fraction
 from ptrlib.crypto.number import *
 
+logger = getLogger(__name__)
+
 def hastads_broadcast_attack(e, pairs):
     """Hastad's Broadcast Attack
 

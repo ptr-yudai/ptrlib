@@ -1,6 +1,58 @@
+from ptrlib.util.encoding import *
 from logging import getLogger
 
 logger = getLogger(__name__)
+
+def extract_flag(haystack, nee='FLAG{', dle='}'):
+    """Extract a block which matches to the pattern of flag from given text.
+
+    Args:
+        haystack: Target object (list/bytes/str)
+        nee     : Beginning pattern of the flag
+        dle     : End pattern of the flag
+
+    Returns:
+        list: list of found patterns
+    """
+    result = []
+    neeList = []
+    dleList = []
+    target = None
+    if isinstance(haystack, list):
+        target = haystack
+    elif isinstance(haystack, bytes):
+        target = bytes2str(haystack)
+    elif isinstance(haystack, str):
+        target = haystack
+    else:
+        logger.warn("Expected 'list'/'str'/'bytes' but '{}' given for `haystack`".format(type(haystack)))
+
+    if not isinstance(target, list) and isinstance(nee, bytes):
+        nee = bytes2str(nee)
+    if not isinstance(target, list) and isinstance(dle, bytes):
+        dle = bytes2str(dle)
+
+    ofs = 0
+    while nee in target[ofs:]:
+        x = target.index(nee, ofs)
+        neeList.append(x)
+        ofs = x + 1
+    ofs = 0
+    while dle in target[ofs:]:
+        x = target.index(dle, ofs)
+        dleList.append(x)
+        ofs = x + 1
+
+    if neeList != [] and dleList != []:
+        for s in neeList:
+            for e in dleList:
+                if s >= e: continue
+                if isinstance(dle, str):
+                    result.append(target[s:e + len(dle)])
+                else:
+                    result.append(target[s:e + 1])
+                    
+    return result
 
 def consists_of(text, charset, per=1.0, returns=bool):
     """Checks if the text consists of given charset.
