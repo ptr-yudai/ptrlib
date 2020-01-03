@@ -1,20 +1,11 @@
 #!/usr/bin/env python
 from ptrlib import *
 
-elf = ELF("/lib/libc.so.6")
-#print(elf.checksec())
-print(next(elf.find("/bin/sh")))
+elf = ELF("/lib32/libc.so.6")
+print("'/bin/sh' at 0x{:x}".format(next(elf.find("/bin/sh"))))
+print("main_arena at 0x{:x}".format(elf.main_arena()))
+print("__malloc_hook at 0x{:x}".format(elf.symbol('__malloc_hook')))
 
-#elf = ELF("binary/calc_pwnable.tw")
-#print(elf.checksec())
-
-#elf = ELF("binary/babyheap_fireshell")
-#print(elf.checksec())
-
-#elf = ELF("binary/sandbox_interkosenctf")
-#print(elf.checksec())
-
-#elf = ELF("binary/tcache_tear_pwnable.tw")
-#print(elf.checksec())
-
-#print(hex(elf.symbol("memset")))
+elf = ELF("/lib/x86_64-linux-gnu/libc.so.6")
+print("'/bin/sh' at 0x{:x}".format(next(elf.find("/bin/sh"))))
+print("main_arena at 0x{:x}".format(elf.main_arena()))

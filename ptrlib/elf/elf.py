@@ -212,6 +212,23 @@ class ELF(object):
                 if symbol_name == name:
                     return rel.r_offset
 
+    def main_arena(self):
+        """Find main_arena offset
+
+        Returns:
+            int: Offset to main_arena (returns None if it's not libc)
+        """
+        ofs_realloc_hook = self.symbol('__realloc_hook')
+        ofs_malloc_hook = self.symbol('__malloc_hook')
+        if ofs_realloc_hook is None or ofs_malloc_hook is None:
+            logger.warn('main_arena works only for libc binaries')
+            return None
+        
+        if self.elfclass == 32:
+            return ofs_malloc_hook + 0x18
+        else:
+            return ofs_malloc_hook + (ofs_malloc_hook - ofs_realloc_hook) * 2
+
     def checksec(self):
         """Check security
 
