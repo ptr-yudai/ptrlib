@@ -176,7 +176,7 @@ class Tube(metaclass=ABCMeta):
                 except EOFError:
                     logger.error("interactive: EOF")
                     break
-                time.sleep(0.5)
+                time.sleep(0.1)
 
         flag = threading.Event()
         th = threading.Thread(target=thread_recv)
@@ -188,17 +188,20 @@ class Tube(metaclass=ABCMeta):
                 data = input("{bold}{blue}[ptrlib]${end} ".format(
                     bold=Color.BOLD, blue=Color.BLUE, end=Color.END
                 ))
+                if self.proc is None:
+                    logger.error("Connection already closed")
+                    break
                 if data is None:
                     flag.set()
                 else:
                     self.sendline(data)
-                time.sleep(0.5)
+                time.sleep(0.1)
         except KeyboardInterrupt:
             flag.set()
 
         while th.is_alive():
             th.join(timeout = 0.1)
-            time.sleep(0.5)
+            time.sleep(0.1)
 
     @abstractmethod
     def close(self):

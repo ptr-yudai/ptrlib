@@ -106,7 +106,6 @@ class Process(Tube):
             logger.error("`size` must be larger than 0")
             return None
 
-        self._poll()
         if size <= len(self.reservoir):
             # Use the buffer
             data = self.reservoir[:size]
@@ -123,6 +122,8 @@ class Process(Tube):
             logger.error("Timeout")
             return None
 
+        self._poll() # poll after received all data
+        
         if len(self.reservoir) == 0:
             # No data received
             data = None
