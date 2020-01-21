@@ -38,6 +38,9 @@ class Socket(Tube):
         else:
             self.sock.settimeout(timeout)
 
+    def _socket(self):
+        return self.sock
+    
     def recv(self, size=4096, timeout=None):
         """Receive raw data
 

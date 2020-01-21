@@ -62,6 +62,9 @@ class Process(Tube):
         else:
             self.temp_timeout = timeout
 
+    def _socket(self):
+        return self.proc
+    
     def _poll(self):
         if self.proc is None:
             return False

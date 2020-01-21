@@ -188,7 +188,7 @@ class Tube(metaclass=ABCMeta):
                 data = input("{bold}{blue}[ptrlib]${end} ".format(
                     bold=Color.BOLD, blue=Color.BLUE, end=Color.END
                 ))
-                if self.proc is None:
+                if self._socket() is None:
                     logger.error("Connection already closed")
                     break
                 if data is None:
