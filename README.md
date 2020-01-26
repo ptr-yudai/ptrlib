@@ -9,6 +9,12 @@ It's designed to make it easy to write a complex program of cryptohraphy, networ
 
 ## Requirement
 Supports: Python 3.7
+Library Dependency: gmpy2
+
+Install GMP library by running
+```
+$ apt-get install libgmp-dev
+```
 
 ## Usage
 Basic examples are available at [/examples](https://bitbucket.org/ptr-yudai/ptrlib/src/master/examples/).

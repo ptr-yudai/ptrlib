@@ -1,11 +1,8 @@
 from logging import getLogger
 from math import ceil
 import gmpy2
-try:
-    from gmpy2 import powmod as pow
-    from gmpy2 import mpq as Fraction
-except ImportError:
-    from fractions import Fraction
+from gmpy2 import powmod as pow
+from gmpy2 import mpq as Fraction
 from ptrlib.crypto.number import *
 
 logger = getLogger(__name__)
