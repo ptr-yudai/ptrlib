@@ -5,7 +5,7 @@ Python library which bundles security-related utilities.
 
 ## Description
 Ptrlib is a Python library for CTF players.
-It's designed to make it easy to write a complex program of cryptohraphy, networking, exploit and so on.
+It's designed to make it easy to write a complex program of cryptography, networking, exploit and so on.
 
 ## Requirement
 Supports: Python 3.7
