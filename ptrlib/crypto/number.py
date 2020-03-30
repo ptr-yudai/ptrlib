@@ -2,6 +2,7 @@ import gmpy2
 import random
 
 _ctx = gmpy2.get_context().precision = 4096
+logger = getLogger(__name__)
 
 def gen_prime(bits):
     """ Generate a random prime """
