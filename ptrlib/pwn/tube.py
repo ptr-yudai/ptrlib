@@ -206,3 +206,7 @@ class Tube(metaclass=ABCMeta):
     @abstractmethod
     def close(self):
         pass
+
+    @abstractmethod
+    def shutdown(self, target):
+        pass

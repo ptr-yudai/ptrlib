@@ -122,5 +122,22 @@ class Socket(Tube):
         self.sock.close()
         logger.info("Connection to {0}:{1} closed".format(self.host, self.port))
 
+    def shutdown(self, target):
+        """Kill one connection
+
+        Close send/recv socket.
+
+        Args:
+            target (str): Connection to close (`send` or `recv`)
+        """
+        if target in ['write', 'send', 'stdin']:
+            self.sock.shutdown(socket.SHUT_WR)
+        
+        elif target in ['read', 'recv', 'stdout', 'stderr']:
+            self.sock.shutdown(socket.SHUT_RD)
+
+        else:
+            logger.error("You must specify `send` or `recv` as target.")
+
     def __del__(self):
         self.close()

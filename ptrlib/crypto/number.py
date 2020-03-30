@@ -1,3 +1,4 @@
+from logging import getLogger
 import gmpy2
 import random
 

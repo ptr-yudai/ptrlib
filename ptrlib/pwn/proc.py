@@ -204,5 +204,22 @@ class Process(Tube):
             self.proc.kill()
             logger.info("close: '{0}' killed".format(self.filepath))
 
+    def shutdown(self, target):
+        """Kill one connection
+
+        Close send/recv pipe.
+
+        Args:
+            target (str): Connection to close (`send` or `recv`)
+        """
+        if target in ['write', 'send', 'stdin']:
+            self.proc.stdin.close()
+        
+        elif target in ['read', 'recv', 'stdout', 'stderr']:
+            self.proc.stdout.close()
+
+        else:
+            logger.error("You must specify `send` or `recv` as target.")
+
     def __del__(self):
         self.close()
