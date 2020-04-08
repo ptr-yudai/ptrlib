@@ -119,8 +119,10 @@ class Socket(Tube):
         Close the socket.
         This method is called from the destructor.
         """
-        self.sock.close()
-        logger.info("Connection to {0}:{1} closed".format(self.host, self.port))
+        if self.sock:
+            self.sock.close()
+            self.sock = None
+            logger.info("Connection to {0}:{1} closed".format(self.host, self.port))
 
     def shutdown(self, target):
         """Kill one connection

@@ -202,6 +202,7 @@ class Process(Tube):
         """
         if self.proc:
             self.proc.kill()
+            self.proc = None
             logger.info("close: '{0}' killed".format(self.filepath))
 
     def shutdown(self, target):

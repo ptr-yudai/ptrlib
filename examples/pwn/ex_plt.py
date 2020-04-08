@@ -1,8 +1,14 @@
 #!/usr/bin/env python
 from ptrlib import *
 
-elf = ELF("/bin/ls")
+# 64-bit binary
+elf = ELF("sample/test1")
+print(hex(elf.got("read")))
+print(hex(elf.plt("read")))
+print(hex(elf.symbol("main")))
 
-print(hex(elf.got("calloc")))
-print(hex(elf.plt("calloc")))
-print(hex(elf.plt("calloc")))
+# 32-bit binary
+elf = ELF("sample/test2")
+print(hex(elf.got("read")))
+print(hex(elf.plt("read")))
+print(hex(elf.symbol("main")))
