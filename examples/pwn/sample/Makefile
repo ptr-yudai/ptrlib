@@ -1,3 +1,3 @@
 all:
-	gcc -Wl,-z,lazy,-z,relro test1.c -o test1 -fno-stack-protector -no-pie
-	gcc -Wl,-z,lazy,-z,relro test2.c -o test2 -fno-stack-protector -no-pie -m32
+	gcc -Wl,-z,lazy,-z,relro test-robot.c -o test-robot -fno-stack-protector -no-pie
+	gcc -Wl,-z,now,-z,relro test-robot.c -o test-robot.relro -fno-stack-protector -no-pie
