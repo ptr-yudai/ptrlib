@@ -40,10 +40,12 @@ def fsb(pos, writes, bs=1, written=0, bits=32, null=True):
         if bs == 1:
             for addr in writes:
                 for i in range(4):
+                    if not null and writes[addr] >> (i * 8) == 0: continue
                     table[addr + i] = (writes[addr] >> (i * 8)) & 0xff
         elif bs == 2:
             for addr in writes:
                 for i in range(2):
+                    if not null and writes[addr] >> (i * 16) == 0: continue
                     table[addr + i * 2] = (writes[addr] >> (i * 16)) & 0xffff
             
         n = written + len(table) * 4
@@ -71,17 +73,17 @@ def fsb(pos, writes, bs=1, written=0, bits=32, null=True):
         if bs == 1:
             for addr in writes:
                 for i in range(8):
-                    if not null and (writes[addr] >> (i * 8)) & 0xff == 0: continue
+                    if not null and writes[addr] >> (i * 8) == 0: continue
                     table[addr + i] = (writes[addr] >> (i * 8)) & 0xff
         elif bs == 2:
             for addr in writes:
                 for i in range(4):
-                    if not null and (writes[addr] >> (i * 16)) & 0xffff == 0: continue
+                    if not null and writes[addr] >> (i * 16) == 0: continue
                     table[addr + i * 2] = (writes[addr] >> (i * 16)) & 0xffff
         elif bs == 4:
             for addr in writes:
                 for i in range(2):
-                    if not null and (writes[addr] >> (i * 32)) & 0xffffffff == 0: continue
+                    if not null and writes[addr] >> (i * 32) == 0: continue
                     table[addr + i * 4] = (writes[addr] >> (i * 32)) & 0xffffffff
 
         n = written

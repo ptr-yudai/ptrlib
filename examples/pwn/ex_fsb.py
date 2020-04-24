@@ -30,3 +30,21 @@ payload = fsb(
     7, writes, bs=2, bits=64, written=8
 )
 print(payload)
+
+# 32-bit no null
+writes = {
+    0x806040: 0xde00ad
+}
+payload = fsb(
+    7, writes, bs=1, bits=32, null=False
+)
+print(payload)
+
+# 64-bit no null
+writes = {
+    0x604020: 0x410041
+}
+payload = fsb(
+    7, writes, bs=1, bits=64, null=False
+)
+print(payload)
