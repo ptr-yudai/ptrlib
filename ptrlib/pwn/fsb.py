@@ -5,7 +5,7 @@ def fsb_read(pos, reads, written=0, bits=32):
     # TODO
     return
 
-def fsb(pos, writes, bs=1, written=0, bits=32, null=True):
+def fsb(pos, writes, bs=1, written=0, bits=32, size=8, null=True):
     """Craft a Format String Exploit payload
     
     Args:
@@ -14,7 +14,8 @@ def fsb(pos, writes, bs=1, written=0, bits=32, null=True):
         bs (int)     : The bytes to write at once (must be 1, 2, 4)
         written (int): The byte length to be written before this payload
         bits (int)   : The address bits (32 or 64)
-        null (bool)  : Weather write 0 or not
+        size (int)   : Bytes to write
+        null (bool)  : Weather write 0 or not (deprecated, for compatibility)
 
     Returns:
         bytes: crafted payload
@@ -41,11 +42,13 @@ def fsb(pos, writes, bs=1, written=0, bits=32, null=True):
             for addr in writes:
                 for i in range(4):
                     if not null and writes[addr] >> (i * 8) == 0: continue
+                    if size <= i: continue
                     table[addr + i] = (writes[addr] >> (i * 8)) & 0xff
         elif bs == 2:
             for addr in writes:
                 for i in range(2):
                     if not null and writes[addr] >> (i * 16) == 0: continue
+                    if size <= i: continue
                     table[addr + i * 2] = (writes[addr] >> (i * 16)) & 0xffff
             
         n = written + len(table) * 4
@@ -74,16 +77,19 @@ def fsb(pos, writes, bs=1, written=0, bits=32, null=True):
             for addr in writes:
                 for i in range(8):
                     if not null and writes[addr] >> (i * 8) == 0: continue
+                    if size <= i: continue
                     table[addr + i] = (writes[addr] >> (i * 8)) & 0xff
         elif bs == 2:
             for addr in writes:
                 for i in range(4):
                     if not null and writes[addr] >> (i * 16) == 0: continue
+                    if size <= i: continue
                     table[addr + i * 2] = (writes[addr] >> (i * 16)) & 0xffff
         elif bs == 4:
             for addr in writes:
                 for i in range(2):
                     if not null and writes[addr] >> (i * 32) == 0: continue
+                    if size <= i: continue
                     table[addr + i * 4] = (writes[addr] >> (i * 32)) & 0xffffffff
 
         n = written
