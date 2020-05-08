@@ -55,7 +55,7 @@ class Tube(metaclass=ABCMeta):
     def recvonce(self, size, timeout):
         """Receive raw data with buffering
 
-        Receive raw data of `size` bytes length through the socket.
+        Receive raw data of size `size` bytes length through the socket.
 
         Args:
             size    (int): The data size to receive
@@ -71,24 +71,6 @@ class Tube(metaclass=ABCMeta):
         if len(data) > size:
             self.unget(data[size:])
         return data[:size]
-
-    def recvall(self, size=4096, timeout=None):
-        """Receive all data
-
-        Receive all data through the socket.
-
-        Args:
-            size (int)   : Data size to receive at once
-            timeout (int): Timeout (in second)
-
-        Returns:
-            bytes: The received data
-        """
-        data = b''
-        while True:
-            part = self.recv(size)
-            data += part
-        return data
 
 
     def recvuntil(self, size=4096, delim, timeout=None):
