@@ -46,8 +46,10 @@ class Tube(metaclass=ABCMeta):
         Returns:
             bytes: The received data
         """
-        if size > len(self.bufsize):
-            self.buf += self._recv(size, timeout)
+        if not self.buf:
+            data = self._recv(size, timeout)
+            if data is not None:
+                self.buf += data
 
         data, self.buf = self.buf[:size], self.buf[size:]
         return data
@@ -73,7 +75,7 @@ class Tube(metaclass=ABCMeta):
         return data[:size]
 
 
-    def recvuntil(self, size=4096, delim, timeout=None):
+    def recvuntil(self, delim, size=4096, timeout=None):
         """Receive raw data until `delim` comes
 
         Args:
@@ -91,6 +93,7 @@ class Tube(metaclass=ABCMeta):
 
         while data.find(delim) == -1:
             data += self.recv(size, timeout)
+
         pos = data.find(delim) + len(delim)
         self.unget(data[pos:])
         return data[:pos]
@@ -133,7 +136,7 @@ class Tube(metaclass=ABCMeta):
         """
         if isinstance(data, str):
             data = str2bytes(data)
-        recv_data = self.recvuntil(delim, timeout)
+        recv_data = self.recvuntil(delim, timeout=timeout)
         self.send(data, timeout)
         return recv_data
 
@@ -152,7 +155,7 @@ class Tube(metaclass=ABCMeta):
         """
         if isinstance(data, str):
             data = str2bytes(data)
-        recv_data = self.recvuntil(delim, timeout)
+        recv_data = self.recvuntil(delim, timeout=timeout)
         self.sendline(data, timeout)
         return recv_data
 
@@ -162,7 +165,7 @@ class Tube(metaclass=ABCMeta):
         def thread_recv():
             while not flag.isSet():
                 try:
-                    data = self.recv(timeout=0.1)
+                    data = self.recv(size=4096, timeout=0.1)
                     if data is not None:
                         print(bytes2str(data), end="")
                 except EOFError:

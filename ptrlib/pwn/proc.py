@@ -23,6 +23,8 @@ class Process(Tube):
         Returns:
             Process: ``Process`` instance.
         """
+        super().__init__()
+
         if isinstance(args, list):
             self.args = args
             self.filepath = args[0]
@@ -92,7 +94,7 @@ class Process(Tube):
             if v[0] == errno.EINTR:
                 return False
 
-    def recv(self, size=4096, timeout=None):
+    def _recv(self, size=4096, timeout=None):
         """Receive raw data
 
         Receive raw data of maximum `size` bytes length through the pipe.

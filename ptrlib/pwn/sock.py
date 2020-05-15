@@ -20,6 +20,8 @@ class Socket(Tube):
         Returns:
             Socket: ``Socket`` instance.
         """
+        super().__init__()
+
         self.host = host
         self.port = port
         self.timeout = timeout
