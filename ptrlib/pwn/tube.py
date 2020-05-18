@@ -9,97 +9,105 @@ from logging import getLogger
 logger = getLogger(__name__)
 
 class Tube(metaclass=ABCMeta):
-    def __init__(self):
-        self.buf = b''
-
     @abstractmethod
     def _settimeout(self, timeout):
         pass
 
     @abstractmethod
-    def _recv(self, size, timeout):
-        """Receive raw data
-
-        Receive raw data of maximum `size` bytes length through the socket.
-
-        Args:
-            size    (int): The data size to receive
-            timeout (int): Timeout (in second)
-
-        Returns:
-            bytes: The received data
-        """
+    def recv(self, size, timeout):
         pass
 
-    def unget(self, data):
-        self.buf = data + self.buf
-
-    def recv(self, size, timeout):
-        """Receive raw data with buffering
-
-        Receive raw data of maximum `size` bytes length through the socket.
-
-        Args:
-            size    (int): The data size to receive
-            timeout (int): Timeout (in second)
-
-        Returns:
-            bytes: The received data
-        """
-        if size > len(self.bufsize):
-            self.buf += self._recv(size, timeout)
-
-        data, self.buf = self.buf[:size], self.buf[size:]
-        return data
-
+    @abstractmethod
     def recvonce(self, size, timeout):
-        """Receive raw data with buffering
+        pass
 
-        Receive raw data of size `size` bytes length through the socket.
+    def recvall(self, size=4096, timeout=None):
+        """Receive all data
+
+        Receive all data through the socket.
 
         Args:
-            size    (int): The data size to receive
+            size (int)   : Data size to receive at once
             timeout (int): Timeout (in second)
 
         Returns:
             bytes: The received data
         """
         data = b''
-        while len(data) < size:
-            data += self.recv(size - len(data))
+        while True:
+            part = self.recv(size)
+            data += part
+        return data
 
-        if len(data) > size:
-            self.unget(data[size:])
-        return data[:size]
+    def recvline(self, timeout=None, drop=True):
+        """Receive a line
 
+        Receive a line of raw data through the socket.
 
-    def recvuntil(self, size=4096, delim, timeout=None):
+        Args:
+            timeout (int): Timeout (in second)
+            drop (bool)  : Whether or not to strip the newline
+
+        Returns:
+            bytes: The received data
+        """
+        data = b''
+        c = None
+        while c != b'\n':
+            c = self.recvonce(1, timeout)
+            if c is None:
+                # Timeout
+                break
+            else:
+                data += c
+        if drop:
+            return data.rstrip()
+        else:
+            return data
+
+    def recvuntil(self, delim, timeout=None):
         """Receive raw data until `delim` comes
 
         Args:
-            size (int)   : The data size to receive at once
             delim (bytes): The delimiter bytes
             timeout (int): Timeout (in second)
 
         Returns:
             bytes: The received data
         """
-
         if isinstance(delim, str):
             delim = str2bytes(delim)
         data = b''
+        length = len(delim)
 
-        while data.find(delim) == -1:
-            data += self.recv(size, timeout)
-        pos = data.find(delim) + len(delim)
-        self.unget(data[pos:])
-        return data[:pos]
+        # Create the Boyer-Moore table
+        bm_table = [length for i in range(0x100)]
+        for (i, c) in enumerate(delim):
+            bm_table[c] = length - i - 1
 
-    def recvline(self, size=4096, timeout=None, drop=True):
-        line = self.recvuntil(b'\n')
-        if drop:
-            return line.rstrip()
-        return line
+        # Receive data until the delimiter comes
+        recv_size = length
+        obj = None
+        while True:
+            # Receive
+            obj = self.recvonce(recv_size, timeout)
+            if obj is None:
+                # Timeout
+                break
+            else:
+                data += obj
+            # Search
+            i = -1
+            j = length - 1
+            while j >= 0:
+                if data[i] != delim[j]: break
+                i, j = i - 1, j - 1
+            if j < 0:
+                # Delimiter found
+                break
+            recv_size = max(bm_table[data[i]], length - j)
+            i += recv_size
+        return data
 
     @abstractmethod
     def send(self, data, timeout):
