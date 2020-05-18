@@ -42,8 +42,8 @@ class Socket(Tube):
 
     def _socket(self):
         return self.sock
-
-    def _recv(self, size=4096, timeout=None):
+    
+    def recv(self, size=4096, timeout=None):
         """Receive raw data
 
         Receive raw data of maximum `size` bytes length through the socket.
@@ -66,6 +66,35 @@ class Socket(Tube):
         # No data received
         if len(data) == 0:
             data = None
+        return data
+
+    def recvonce(self, size=4, timeout=None):
+        """Receive raw data at once
+
+        Receive raw data of `size` bytes length through the socket.
+
+        Args:
+            size    (int): The data size to receive
+            timeout (int): Timeout (in second)
+
+        Returns:
+            bytes: The received data
+        """
+        self._settimeout(timeout)
+        data = b''
+        if size <= 0:
+            logger.error("`size` must be larger than 0")
+            return None
+        try:
+            read_byte = 0
+            recv_size = size
+            while read_byte < size:
+                data += self.sock.recv(recv_size)
+                read_byte = len(data)
+                recv_size = size - read_byte
+        except socket.timeout:
+            logger.error("Timeout")
+            return None
         return data
 
     def send(self, data, timeout=None):
@@ -107,7 +136,7 @@ class Socket(Tube):
         """
         if target in ['write', 'send', 'stdin']:
             self.sock.shutdown(socket.SHUT_WR)
-
+        
         elif target in ['read', 'recv', 'stdout', 'stderr']:
             self.sock.shutdown(socket.SHUT_RD)
 
