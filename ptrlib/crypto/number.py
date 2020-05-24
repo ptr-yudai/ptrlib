@@ -1,20 +1,7 @@
 from logging import getLogger
-import gmpy2
 import random
 
-_ctx = gmpy2.get_context().precision = 4096
 logger = getLogger(__name__)
-
-def gen_prime(bits):
-    """ Generate a random prime """
-    while True:
-        n = random.getrandbits(bits)
-        if gmpy2.is_prime(n):
-            return n
-
-def is_prime(n):
-    """ Check if a number is prime """
-    return gmpy2.is_prime(n)
 
 def chinese_remainder_theorem(pairs):
     """ Chinese Remainder Theorem """

@@ -1,8 +1,6 @@
 from logging import getLogger
 from math import ceil
-import gmpy2
-from gmpy2 import powmod as pow
-from gmpy2 import mpq as Fraction
+from fractions import Fraction
 from ptrlib.crypto.number import *
 
 logger = getLogger(__name__)
@@ -13,8 +11,7 @@ def hastads_broadcast_attack(e, pairs):
     If we have e ciphertext of same plaintext with different N,
     we can find the plaintext using Chinese Remainder Theorem.
     """
-    x, n = chinese_remainder_theorem(pairs)
-    return int(gmpy2.root(x, e))
+    logger.warn("hastads_broadcast_attack is temporarily unavailable")
 
 def common_modulus_attack(cpair, epair, n):
     """Common Modulus Attack
