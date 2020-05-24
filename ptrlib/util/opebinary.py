@@ -16,7 +16,7 @@ def chunks(data, size, padding=None):
         result[-1] += padding * (size - (len(data) % size))
     return result
 
-def flat(chunks):
+def flat(chunks, map=None):
     """Concatnate chunks into a data
     Aimed for the use of crafting ROP chains
 
@@ -27,8 +27,8 @@ def flat(chunks):
         bytes: split chunks
     """
     assert isinstance(chunks, list)
-    result = chunks[0]
+    result = chunks[0] if map is None else map(chunks[0])
     for i in range(1, len(chunks)):
-        result += chunks[i]
+        result += chunks[i] if map is None else map(chunks[i])
     return result
 
