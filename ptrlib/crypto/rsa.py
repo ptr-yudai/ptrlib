@@ -11,8 +11,7 @@ def hastads_broadcast_attack(e, pairs):
     If we have e ciphertext of same plaintext with different N,
     we can find the plaintext using Chinese Remainder Theorem.
     """
-    x, n = chinese_remainder_theorem(pairs)
-    return int(pow(x, 1/e))
+    logger.warn("hastads_broadcast_attack is temporarily unavailable")
 
 def common_modulus_attack(cpair, epair, n):
     """Common Modulus Attack
