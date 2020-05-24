@@ -10,7 +10,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='ptrlib',
-    version='1.2.3',
+    version='1.2.6',
     description='CTF library',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -26,7 +26,7 @@ setup(
     keywords='pwn crypto',
     packages=find_packages(exclude=['examples']),
     python_requires='!=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, <4',
-    install_requires=['pycryptodome', 'capstone', 'gmpy2'],
+    install_requires=['pycryptodome'],
     entry_points={  # Optional
         'console_scripts': [
             'ptrlib=ptrlib.__init__:main',

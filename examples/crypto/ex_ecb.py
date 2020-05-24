@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 from hashlib import sha256

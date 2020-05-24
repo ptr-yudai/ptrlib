@@ -32,11 +32,13 @@ payload = fsb(
 print(payload)
 
 # 32-bit (only write the least significant byte: 0xef)
+# This time the address contains '\x00', which is not printable
+# In such cases you can set rear=True to put address list after format string
 writes = {
     0x806040: 0xdeadbeef
 }
 payload = fsb(
-    7, writes, bs=1, bits=32, size=1
+    7, writes, bs=1, bits=32, size=1, rear=True
 )
 print(payload)
 
