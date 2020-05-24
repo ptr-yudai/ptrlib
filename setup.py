@@ -26,7 +26,7 @@ setup(
     keywords='pwn crypto',
     packages=find_packages(exclude=['examples']),
     python_requires='!=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, <4',
-    install_requires=['pycryptodome', 'capstone'],
+    install_requires=['pycryptodome'],
     entry_points={  # Optional
         'console_scripts': [
             'ptrlib=ptrlib.__init__:main',

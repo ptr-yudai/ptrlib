@@ -1,11 +1,104 @@
 from ptrlib.util.encoding import *
+from ptrlib.util.opebinary import *
 from ptrlib.util.packing import *
 
 def fsb_read(pos, reads, written=0, bits=32):
     # TODO
     return
 
-def fsb(pos, writes, bs=1, written=0, bits=32, size=8, null=True):
+def _fsb_fmtstr(pos, table, bs, written, prefix):
+    payload = b''
+    for addr in table:
+        cnum = ((table[addr]-written-1) & ((1<<8*bs)-1)) + 1
+        fmtstr = "%{}c%{}${}".format(cnum, pos, prefix)
+        payload += str2bytes(fmtstr)
+        written += cnum
+        pos += 1
+    return payload
+
+def fsb64(pos, writes, bs=1, written=0, size=8, delta=0):
+    assert bs in [1, 2, 4]
+
+    prefix = {1:"hhn", 2:"hn", 4:"n"}[bs]
+
+    # create dict to hold where/what to write
+    table = {}
+    for addr in writes:
+        for i in range(8 // bs):
+            if size <= i: continue
+            table[addr + i*bs] = (writes[addr]>>i*8*bs) & ((1<<8*bs)-1)
+
+    addrList = list(table.keys())
+    payload = b''
+
+    # speculate where the address list would come
+    speculated_pos = pos
+    while True:
+        fmtstr = _fsb_fmtstr(speculated_pos, table, bs, delta+written, prefix)
+        fmtstr += b'A' * (((speculated_pos-pos) * 8 - len(fmtstr)) % 8)
+        if speculated_pos >= pos + len(fmtstr) // 8:
+            break
+        else:
+            speculated_pos = pos + len(fmtstr) // 8
+
+    # create format string
+    payload += _fsb_fmtstr(speculated_pos, table, bs, delta+written, prefix)
+
+    # put padding
+    payload += b'A' * (((speculated_pos-pos) * 8 - len(payload)) % 8)
+
+    # create address list
+    payload += flat(addrList, map=p64)
+
+    return payload
+
+def fsb32(pos, writes, bs=1, written=0, size=4, rear=False, delta=0):
+    assert bs in [1, 2, 4]
+
+    prefix = {1:"hhn", 2:"hn", 4:"n"}[bs]
+
+    # create dict to hold where/what to write
+    table = {}
+    for addr in writes:
+        for i in range(4 // bs):
+            if size <= i: continue
+            table[addr + i*bs] = (writes[addr]>>i*8*bs) & ((1<<8*bs)-1)
+
+    addrList = list(table.keys())
+
+    payload = b''
+    if rear: # put address list after format string
+        # speculate where the address list would come
+        speculated_pos = pos
+        while True:
+            fmtstr = _fsb_fmtstr(speculated_pos, table, bs, delta+written, prefix)
+            fmtstr += b'A' * (((speculated_pos-pos) * 4 - len(fmtstr)) % 4)
+            if speculated_pos >= pos + len(fmtstr) // 4:
+                break
+            else:
+                speculated_pos = pos + len(fmtstr) // 4
+
+        # create format string
+        payload += _fsb_fmtstr(speculated_pos, table, bs, delta+written, prefix)
+
+        # put padding
+        payload += b'A' * (((speculated_pos-pos) * 4 - len(payload)) % 4)
+
+        # create address list
+        payload += flat(addrList, map=p32)
+
+    else:    # put address list before format string
+        # create address list
+        payload += flat(addrList, map=p32)
+        if b'\0' in payload:
+            logger.warn("'\\x00' found in address list. Set `rear=True` to put address list after format string.")
+
+        # create format string
+        payload += _fsb_fmtstr(pos, table, bs, delta+written+len(payload), prefix)
+
+    return payload
+
+def fsb(pos, writes, bs=1, written=0, bits=32, size=8, rear=None, null=None):
     """Craft a Format String Exploit payload
     
     Args:
@@ -15,128 +108,24 @@ def fsb(pos, writes, bs=1, written=0, bits=32, size=8, null=True):
         written (int): The byte length to be written before this payload
         bits (int)   : The address bits (32 or 64)
         size (int)   : Bytes to write
-        null (bool)  : Weather write 0 or not (deprecated, for compatibility)
+        rear (bool)  : Whether put address list after format string or before
+        delta (int)  : Set this value when you somehow want to change the start number
+        null (bool)  : [no longer works, for compatibility]
 
     Returns:
         bytes: crafted payload
     """
-    assert bs == 1 or bs == 2 or bs == 4
-    
-    # set prefix
-    if bs == 1:
-        prefix = "hhn"
-        len_data = 3
-    elif bs == 2:
-        prefix = "hn"
-        len_data = 5
-    else:
-        prefix = "n"
-        len_data = 10
-        
-    # craft payload
-    payload = b''
+    if null is not None:
+        raise DeprecationWarning("Deprecated keyword `null` is removed. Use `size` instead.")
+
     if bits == 32:
-        # 32bit mode
-        table = {}
-        if bs == 1:
-            for addr in writes:
-                for i in range(4):
-                    if not null and writes[addr] >> (i * 8) == 0: continue
-                    if size <= i: continue
-                    table[addr + i] = (writes[addr] >> (i * 8)) & 0xff
-        elif bs == 2:
-            for addr in writes:
-                for i in range(2):
-                    if not null and writes[addr] >> (i * 16) == 0: continue
-                    if size <= i: continue
-                    table[addr + i * 2] = (writes[addr] >> (i * 16)) & 0xffff
-            
-        n = written + len(table) * 4
-        i = 0
-        
-        for addr in table:
-            payload += p32(addr)
-            
-        for addr in table:
-            if bs == 1:
-                l = ((table[addr] - n - 1) & 0xff) + 1
-            elif bs == 2:
-                l = ((table[addr] - n - 1) & 0xffff) + 1
-            elif bs == 4:
-                l = ((table[addr] - n - 1) & 0xffffffff) + 1
-            payload += str2bytes("%{0}c%{1}${2}".format(
-                l, pos + i, prefix
-            ))
-            n += l
-            i += 1
-            
-    elif bits == 64:
-        # 64bit mode
-        table = {}
-        if bs == 1:
-            for addr in writes:
-                for i in range(8):
-                    if not null and writes[addr] >> (i * 8) == 0: continue
-                    if size <= i: continue
-                    table[addr + i] = (writes[addr] >> (i * 8)) & 0xff
-        elif bs == 2:
-            for addr in writes:
-                for i in range(4):
-                    if not null and writes[addr] >> (i * 16) == 0: continue
-                    if size <= i: continue
-                    table[addr + i * 2] = (writes[addr] >> (i * 16)) & 0xffff
-        elif bs == 4:
-            for addr in writes:
-                for i in range(2):
-                    if not null and writes[addr] >> (i * 32) == 0: continue
-                    if size <= i: continue
-                    table[addr + i * 4] = (writes[addr] >> (i * 32)) & 0xffffffff
-
-        n = written
-        poslen_list = [len(str(pos + i)) for i in range(len(table))]
-        paylen = written + (4 + len_data + len(prefix)) * len(table) + sum(poslen_list)
-        if paylen % 8 != 0:
-            paylen += 8 - (paylen % 8)
-        post_pos = pos + paylen // 8
-
-        # adjust
-        while True:
-            post_poslen_list = [len(str(post_pos + i)) for i in range(len(table))]
-            post_paylen = written + (4 + len_data + len(prefix)) * len(table) + sum(post_poslen_list)
-            if post_paylen % 8 != 0:
-                post_paylen += 8 - (post_paylen % 8)
-            if post_paylen == paylen:
-                break
-            paylen = post_paylen
-            post_pos = pos + post_paylen // 8
-
-        i = 0
-        payload = b''
-        for addr in table:
-            if bs == 1:
-                l = ((table[addr] - n - 1) & 0xff) + 1
-                payload += str2bytes("%{0:03}c%{1}${2}".format(
-                    l, post_pos + i, prefix
-                ))
-            elif bs == 2:
-                l = ((table[addr] - n - 1) & 0xffff) + 1
-                payload += str2bytes("%{0:05}c%{1}${2}".format(
-                    l, post_pos + i, prefix
-                ))
-            elif bs == 4:
-                l = ((table[addr] - n - 1) & 0xffffffff) + 1
-                payload += str2bytes("%{0:010}c%{1}${2}".format(
-                    l, post_pos + i, prefix
-                ))
-            n += l
-            i += 1
-
-        payload += b'A' * (post_paylen - len(payload) - written)
-        for addr in table:
-            payload += p64(addr)
-        
-    else:
-        logger.error("Invalid bits specified")
-        return None
+        if rear is None:
+            rear = False
+        return fsb32(pos, writes, bs, written, size, rear)
     
-    return payload
+    elif bits == 64:
+        assert rear is None or rear == True
+        return fsb64(pos, writes, bs, written, size)
+    
+    else:
+        raise ValueError("`bits` must be 32 or 64")
