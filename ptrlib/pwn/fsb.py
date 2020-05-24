@@ -25,8 +25,9 @@ def fsb64(pos, writes, bs=1, written=0, size=8, delta=0):
     table = {}
     for addr in writes:
         for i in range(8 // bs):
-            if size <= i: continue
+            if size // bs <= i: continue
             table[addr + i*bs] = (writes[addr]>>i*8*bs) & ((1<<8*bs)-1)
+    print(table)
 
     addrList = list(table.keys())
     payload = b''
