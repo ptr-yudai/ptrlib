@@ -1,6 +1,8 @@
 ptrlib
 ====
 
+![Python application](https://github.com/ptr-yudai/ptrlib/workflows/Python%20application/badge.svg)
+
 Python library which bundles security-related utilities.
 
 ## Description
@@ -8,7 +10,7 @@ Ptrlib is a Python library for CTF players.
 It's designed to make it easy to write a complex program of cryptography, networking, exploit and so on.
 
 ## Requirement
-Supports: Python 3.x
+Supports: Python 3.x  
 Library Dependency: pycryptodome
 
 ## Usage
