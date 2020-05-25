@@ -104,6 +104,10 @@ class Tube(metaclass=ABCMeta):
             return line.rstrip()
         return line
 
+    def recvlineafter(self, delim, size=4096, timeout=None, drop=True):
+        self.recvuntil(delim, size, timeout)
+        return self.recvline(size, timeout, drop)
+
     @abstractmethod
     def send(self, data, timeout):
         pass
