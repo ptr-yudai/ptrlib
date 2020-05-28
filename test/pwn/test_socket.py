@@ -7,6 +7,7 @@ class TestSocket(unittest.TestCase):
         getLogger("ptrlib").setLevel(FATAL)
 
     def test_socket(self):
+        print("[!] Socket: test_socket")
         # connect
         sock = Socket("www.example.com", 80)
 
@@ -24,6 +25,7 @@ class TestSocket(unittest.TestCase):
         self.assertEqual(result, True)
 
     def test_timeout(self):
+        print("[!] Socket: test_timeout")
         sock = Socket("www.example.com", 80)
         try:
             sock.recvuntil("never", timeout=1)

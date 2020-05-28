@@ -8,6 +8,7 @@ class TestProcess(unittest.TestCase):
         getLogger("ptrlib").setLevel(FATAL)
 
     def test_process(self):
+        print("[!] Process: test_process")
         while True:
             msg = os.urandom(16)
             if b'\n' not in msg:
