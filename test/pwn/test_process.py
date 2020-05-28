@@ -13,7 +13,7 @@ class TestProcess(unittest.TestCase):
             msg = os.urandom(16)
             if b'\n' not in msg:
                 break
-        sock = Process("/bin/cat")
+        sock = Process("./test/pwn/testbin/test_echo.x64")
 
         # send / recv
         sock.sendline(b"Message : " + msg)
