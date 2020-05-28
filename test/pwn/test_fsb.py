@@ -58,9 +58,8 @@ class TestFSB(unittest.TestCase):
                 bs = 1,
                 bits = 64
             )
-            p.sendline(payload + b'XXXXXXXX')
-            p.recvuntil("XXXXXXXX\n")
-            result |= b'OK' in p.recvline()
+            p.sendline(payload)
+            result |= b'OK' in p.recvuntil("OK")
             p.close()
         self.assertEqual(result, True)
 
