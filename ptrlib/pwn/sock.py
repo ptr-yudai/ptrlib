@@ -20,6 +20,8 @@ class Socket(Tube):
         Returns:
             Socket: ``Socket`` instance.
         """
+        super().__init__()
+
         self.host = host
         self.port = port
         self.timeout = timeout
@@ -30,7 +32,9 @@ class Socket(Tube):
             self.sock.connect((self.host, self.port))
             logger.info("Successfully connected to {0}:{1}".format(self.host, self.port))
         except ConnectionRefusedError as e:
-            logger.warning("Connection to {0}:{1} refused".format(self.host, self.port))
+            err = "Connection to {0}:{1} refused".format(self.host, self.port)
+            logger.warning(err)
+            raise e
 
     def _settimeout(self, timeout):
         if timeout is None:
@@ -40,8 +44,8 @@ class Socket(Tube):
 
     def _socket(self):
         return self.sock
-    
-    def recv(self, size=4096, timeout=None):
+
+    def _recv(self, size=4096, timeout=None):
         """Receive raw data
 
         Receive raw data of maximum `size` bytes length through the socket.
@@ -57,42 +61,15 @@ class Socket(Tube):
         if size <= 0:
             logger.error("`size` must be larger than 0")
             return None
+        
         try:
             data = self.sock.recv(size)
         except socket.timeout:
-            return None
+            raise TimeoutError("recv timeout")
+        
         # No data received
         if len(data) == 0:
             data = None
-        return data
-
-    def recvonce(self, size=4, timeout=None):
-        """Receive raw data at once
-
-        Receive raw data of `size` bytes length through the socket.
-
-        Args:
-            size    (int): The data size to receive
-            timeout (int): Timeout (in second)
-
-        Returns:
-            bytes: The received data
-        """
-        self._settimeout(timeout)
-        data = b''
-        if size <= 0:
-            logger.error("`size` must be larger than 0")
-            return None
-        try:
-            read_byte = 0
-            recv_size = size
-            while read_byte < size:
-                data += self.sock.recv(recv_size)
-                read_byte = len(data)
-                recv_size = size - read_byte
-        except socket.timeout:
-            logger.error("Timeout")
-            return None
         return data
 
     def send(self, data, timeout=None):
@@ -134,7 +111,7 @@ class Socket(Tube):
         """
         if target in ['write', 'send', 'stdin']:
             self.sock.shutdown(socket.SHUT_WR)
-        
+
         elif target in ['read', 'recv', 'stdout', 'stderr']:
             self.sock.shutdown(socket.SHUT_RD)
 

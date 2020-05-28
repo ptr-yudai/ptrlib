@@ -9,105 +9,104 @@ from logging import getLogger
 logger = getLogger(__name__)
 
 class Tube(metaclass=ABCMeta):
+    def __init__(self):
+        self.buf = b''
+
     @abstractmethod
     def _settimeout(self, timeout):
         pass
 
     @abstractmethod
-    def recv(self, size, timeout):
-        pass
+    def _recv(self, size, timeout):
+        """Receive raw data
 
-    @abstractmethod
-    def recvonce(self, size, timeout):
-        pass
-
-    def recvall(self, size=4096, timeout=None):
-        """Receive all data
-
-        Receive all data through the socket.
+        Receive raw data of maximum `size` bytes length through the socket.
 
         Args:
-            size (int)   : Data size to receive at once
+            size    (int): The data size to receive
             timeout (int): Timeout (in second)
 
         Returns:
             bytes: The received data
         """
-        data = b''
-        while True:
-            part = self.recv(size)
-            data += part
+        pass
+
+    def unget(self, data):
+        self.buf = data + self.buf
+
+    def recv(self, size=4096, timeout=None):
+        """Receive raw data with buffering
+
+        Receive raw data of maximum `size` bytes length through the socket.
+
+        Args:
+            size    (int): The data size to receive
+            timeout (int): Timeout (in second)
+
+        Returns:
+            bytes: The received data
+        """
+        if not self.buf:
+            data = self._recv(size, timeout)
+            if data is not None:
+                self.buf += data
+
+        data, self.buf = self.buf[:size], self.buf[size:]
         return data
 
-    def recvline(self, timeout=None, drop=True):
-        """Receive a line
+    def recvonce(self, size, timeout=None):
+        """Receive raw data with buffering
 
-        Receive a line of raw data through the socket.
+        Receive raw data of size `size` bytes length through the socket.
 
         Args:
+            size    (int): The data size to receive
             timeout (int): Timeout (in second)
-            drop (bool)  : Whether or not to strip the newline
 
         Returns:
             bytes: The received data
         """
         data = b''
-        c = None
-        while c != b'\n':
-            c = self.recvonce(1, timeout)
-            if c is None:
-                # Timeout
-                break
-            else:
-                data += c
-        if drop:
-            return data.rstrip()
-        else:
-            return data
+        while len(data) < size:
+            data += self.recv(size - len(data), timeout)
 
-    def recvuntil(self, delim, timeout=None):
+        if len(data) > size:
+            self.unget(data[size:])
+        return data[:size]
+
+
+    def recvuntil(self, delim, size=4096, timeout=None):
         """Receive raw data until `delim` comes
 
         Args:
+            size (int)   : The data size to receive at once
             delim (bytes): The delimiter bytes
             timeout (int): Timeout (in second)
 
         Returns:
             bytes: The received data
         """
+
         if isinstance(delim, str):
             delim = str2bytes(delim)
         data = b''
-        length = len(delim)
 
-        # Create the Boyer-Moore table
-        bm_table = [length for i in range(0x100)]
-        for (i, c) in enumerate(delim):
-            bm_table[c] = length - i - 1
+        while data.find(delim) == -1:
+            data += self.recv(size, timeout)
 
-        # Receive data until the delimiter comes
-        recv_size = length
-        obj = None
-        while True:
-            # Receive
-            obj = self.recvonce(recv_size, timeout)
-            if obj is None:
-                # Timeout
-                break
-            else:
-                data += obj
-            # Search
-            i = -1
-            j = length - 1
-            while j >= 0:
-                if data[i] != delim[j]: break
-                i, j = i - 1, j - 1
-            if j < 0:
-                # Delimiter found
-                break
-            recv_size = max(bm_table[data[i]], length - j)
-            i += recv_size
-        return data
+        pos = data.find(delim) + len(delim)
+        self.unget(data[pos:])
+        return data[:pos]
+
+    def recvline(self, size=4096, timeout=None, drop=True):
+        line = self.recvuntil(b'\n', size, timeout)
+        if drop:
+            return line.rstrip()
+        return line
+
+    def recvlineafter(self, delim, size=4096, timeout=None, drop=True):
+        self.recvuntil(delim, size, timeout)
+        return self.recvline(size, timeout, drop)
 
     @abstractmethod
     def send(self, data, timeout):
@@ -141,7 +140,7 @@ class Tube(metaclass=ABCMeta):
         """
         if isinstance(data, str):
             data = str2bytes(data)
-        recv_data = self.recvuntil(delim, timeout)
+        recv_data = self.recvuntil(delim, timeout=timeout)
         self.send(data, timeout)
         return recv_data
 
@@ -160,7 +159,7 @@ class Tube(metaclass=ABCMeta):
         """
         if isinstance(data, str):
             data = str2bytes(data)
-        recv_data = self.recvuntil(delim, timeout)
+        recv_data = self.recvuntil(delim, timeout=timeout)
         self.sendline(data, timeout)
         return recv_data
 
@@ -170,7 +169,7 @@ class Tube(metaclass=ABCMeta):
         def thread_recv():
             while not flag.isSet():
                 try:
-                    data = self.recv(timeout=0.1)
+                    data = self.recv(size=4096, timeout=0.1)
                     if data is not None:
                         print(bytes2str(data), end="")
                 except EOFError:

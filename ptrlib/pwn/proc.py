@@ -23,6 +23,8 @@ class Process(Tube):
         Returns:
             Process: ``Process`` instance.
         """
+        super().__init__()
+
         if isinstance(args, list):
             self.args = args
             self.filepath = args[0]
@@ -47,7 +49,7 @@ class Process(Tube):
                 stdin=subprocess.PIPE
             )
         except FileNotFoundError:
-            logger.warn("Executable not found: '{0}'".format(self.filepath))
+            logger.warning("Executable not found: '{0}'".format(self.filepath))
             return
 
         # Set in non-blocking mode
@@ -64,7 +66,7 @@ class Process(Tube):
 
     def _socket(self):
         return self.proc
-    
+
     def _poll(self):
         if self.proc is None:
             return False
@@ -92,7 +94,7 @@ class Process(Tube):
             if v[0] == errno.EINTR:
                 return False
 
-    def recv(self, size=4096, timeout=None):
+    def _recv(self, size=4096, timeout=None):
         """Receive raw data
 
         Receive raw data of maximum `size` bytes length through the pipe.
@@ -126,7 +128,7 @@ class Process(Tube):
             return None
 
         self._poll() # poll after received all data
-        
+
         if len(self.reservoir) == 0:
             # No data received
             data = None
@@ -138,41 +140,6 @@ class Process(Tube):
             # Too little data received
             data = self.reservoir
             self.reservoir = b''
-        return data
-
-    def recvonce(self, size=4, timeout=None):
-        """Receive raw data
-
-        Receive raw data of `size` bytes length through the pipe.
-
-        Args:
-            size    (int): The data size to receive
-            timeout (int): Timeout (in second)
-
-        Returns:
-            bytes: The received data
-
-        Raises:
-            SocketException: If the socket is broken.
-        """
-        self._settimeout(timeout)
-        data = b''
-        if size <= 0:
-            logger.error("`size` must be larger than 0")
-            return None
-
-        read_byte = 0
-        recv_size = size
-        while read_byte < size:
-            recv_data = self.recv(recv_size, timeout)
-            if recv_data is None:
-                return None
-            elif recv_data == b'':
-                logger.error("Received nothing")
-                return None
-            data += recv_data
-            read_byte += len(data)
-            recv_size = size - read_byte
         return data
 
     def send(self, data, timeout=None):
@@ -215,7 +182,7 @@ class Process(Tube):
         """
         if target in ['write', 'send', 'stdin']:
             self.proc.stdin.close()
-        
+
         elif target in ['read', 'recv', 'stdout', 'stderr']:
             self.proc.stdout.close()
 
