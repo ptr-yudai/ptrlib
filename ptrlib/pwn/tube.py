@@ -34,7 +34,7 @@ class Tube(metaclass=ABCMeta):
     def unget(self, data):
         self.buf = data + self.buf
 
-    def recv(self, size, timeout):
+    def recv(self, size=4096, timeout=None):
         """Receive raw data with buffering
 
         Receive raw data of maximum `size` bytes length through the socket.
@@ -54,7 +54,7 @@ class Tube(metaclass=ABCMeta):
         data, self.buf = self.buf[:size], self.buf[size:]
         return data
 
-    def recvonce(self, size, timeout):
+    def recvonce(self, size, timeout=None):
         """Receive raw data with buffering
 
         Receive raw data of size `size` bytes length through the socket.
@@ -68,7 +68,7 @@ class Tube(metaclass=ABCMeta):
         """
         data = b''
         while len(data) < size:
-            data += self.recv(size - len(data))
+            data += self.recv(size - len(data), timeout)
 
         if len(data) > size:
             self.unget(data[size:])
@@ -99,7 +99,7 @@ class Tube(metaclass=ABCMeta):
         return data[:pos]
 
     def recvline(self, size=4096, timeout=None, drop=True):
-        line = self.recvuntil(b'\n')
+        line = self.recvuntil(b'\n', size, timeout)
         if drop:
             return line.rstrip()
         return line

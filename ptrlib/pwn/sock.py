@@ -32,7 +32,9 @@ class Socket(Tube):
             self.sock.connect((self.host, self.port))
             logger.info("Successfully connected to {0}:{1}".format(self.host, self.port))
         except ConnectionRefusedError as e:
-            logger.warning("Connection to {0}:{1} refused".format(self.host, self.port))
+            err = "Connection to {0}:{1} refused".format(self.host, self.port)
+            logger.warning(err)
+            raise e
 
     def _settimeout(self, timeout):
         if timeout is None:
@@ -59,10 +61,12 @@ class Socket(Tube):
         if size <= 0:
             logger.error("`size` must be larger than 0")
             return None
+        
         try:
             data = self.sock.recv(size)
         except socket.timeout:
-            return None
+            raise TimeoutError("recv timeout")
+        
         # No data received
         if len(data) == 0:
             data = None
