@@ -49,7 +49,7 @@ class Process(Tube):
                 stdin=subprocess.PIPE
             )
         except FileNotFoundError:
-            logger.warn("Executable not found: '{0}'".format(self.filepath))
+            logger.warning("Executable not found: '{0}'".format(self.filepath))
             return
 
         # Set in non-blocking mode
