@@ -9,6 +9,7 @@ class TestELF(unittest.TestCase):
         self.elf64 = ELF("./test/pwn/testbin/test_fsb.x64")
         self.pie32 = ELF("./test/pwn/testbin/test_echo.x86")
         self.pie64 = ELF("./test/pwn/testbin/test_echo.x64")
+        self.new64 = ELF("./test/pwn/testbin/test_plt.x64")
         self.libc64 = ELF("./test/pwn/testbin/libc-2.27.so")
         getLogger("ptrlib").setLevel(FATAL)
 
@@ -17,12 +18,14 @@ class TestELF(unittest.TestCase):
         self.assertEqual(self.elf64.got('printf'), 0x00601028)
         self.assertEqual(self.pie32.got('read'), 0x00001fdc)
         self.assertEqual(self.pie64.got('read'), 0x00200fd0)
+        self.assertEqual(self.new64.got('free'), 0x404018)
 
     def test_plt(self):
         self.assertEqual(self.elf32.plt('printf'), 0x08048390)
         self.assertEqual(self.elf64.plt('printf'), 0x00400530)
         self.assertEqual(self.pie32.plt('read'), 0x00000410)
         self.assertEqual(self.pie64.plt('read'), 0x000005d0)
+        self.assertEqual(self.new64.plt('free'), 0x00401140)
 
     def test_section(self):
         self.assertEqual(self.elf32.section('.bss'), 0x0804a028)
@@ -61,6 +64,7 @@ class TestELF(unittest.TestCase):
         self.elf64.close()
         self.pie32.close()
         self.pie64.close()
+        self.new64.close()
         self.libc64.close()
 
 if __name__ == '__main__':

@@ -140,7 +140,7 @@ class ELF(object):
         if target_got is None:
             return None
 
-        for section_name in (b".plt", b".plt.got"):
+        for section_name in (b".plt", b".plt.got", b".plt.sec"):
             section_header = self._get_section_by_name(section_name)
             if section_header is None:
                 continue
@@ -180,7 +180,11 @@ class ELF(object):
                 if code[i:i+2] == b'\xff\x25':
                     # jmp QWORD PTR [rip+imm]
                     addr_got = sh.sh_addr + i + 6 + u32(code[i+2:i+6])
-                    xref[addr_got] = sh.sh_addr + i
+                    if i > 4 and code[i-5:i] == b'\xf3\x0f\x1e\xfa\xf2':
+                        # endbr64; bnd jmp ...
+                        xref[addr_got] = sh.sh_addr + i - 5
+                    else:
+                        xref[addr_got] = sh.sh_addr + i
                     i += 6
                 else:
                     i += 1
