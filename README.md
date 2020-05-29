@@ -70,3 +70,10 @@ Run `pip install ptrlib` or `python setup.py install`.
 ## Author
 
 [ptr-yudai](https://github.com/ptr-yudai)
+
+## Contributor
+
+- [theoremoon](https://github.com/theoremoon)
+  - Added several cryptography functions
+  - Added buffering of Socket/Process
+  - Added status check (CI test)

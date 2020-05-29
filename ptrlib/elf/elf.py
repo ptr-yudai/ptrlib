@@ -1,5 +1,6 @@
 from ptrlib.console.color import Color
 from ptrlib.util.encoding import *
+from ptrlib.util.packing import *
 from ptrlib.elf.elfstruct import *
 from ptrlib.asm.assembler import *
 from logging import getLogger
@@ -141,29 +142,50 @@ class ELF(object):
 
         for section_name in (b".plt", b".plt.got"):
             section_header = self._get_section_by_name(section_name)
+            if section_header is None:
+                continue
+
             self.stream.seek(section_header.sh_addr - self.base())
             code = self.stream.read(section_header.sh_size)
-            result = disasm(
-                code,
-                mode = str(self.elfclass),
-                endian = 'little' if self.structs.little_endian else 'big',
-                address = section_header.sh_addr
-            )
-            for addr, bytecode, mnemonic, operand in result:
-                if mnemonic != 'jmp': continue
+            xref = self._plt_ref_list(code, section_header)
 
-                r = re.findall("[e|r]ip \+ 0x([0-9a-f]+)", operand)
-                if not r:
-                    r = re.findall("\[0x([0-9a-f]+)\]", operand)
-                    if not r: continue
-                    addr_got = int(r[0], 16)
-                else:
-                    addr_got = addr + len(bytecode) + int(r[0], 16)
-
-                if addr_got == target_got:
-                    return addr
+            if target_got in xref:
+                return xref[target_got]
         
         return self.section(".plt")
+
+    def _plt_ref_list(self, code, sh):
+        xref = {}
+        i = 0
+        base_got = self.section('.got')
+
+        while i < sh.sh_size - 6:
+            if self.elfclass == 32:
+                # 32-bit
+                if code[i:i+2] == b'\xff\x25':
+                    # jmp DWORD PTR ds:imm
+                    addr_got = u32(code[i+2:i+6])
+                    xref[addr_got] = sh.sh_addr + i
+                    i += 6
+                elif code[i:i+2] == b'\xff\xa3':
+                    # jmp DWORD PTR [ebx+imm]
+                    addr_got = base_got + u32(code[i+2:i+6])
+                    xref[addr_got] = sh.sh_addr + i
+                    i += 6
+                else:
+                    i += 1
+
+            else:
+                # 64-bit
+                if code[i:i+2] == b'\xff\x25':
+                    # jmp QWORD PTR [rip+imm]
+                    addr_got = sh.sh_addr + i + 6 + u32(code[i+2:i+6])
+                    xref[addr_got] = sh.sh_addr + i
+                    i += 6
+                else:
+                    i += 1
+
+        return xref
 
     def got(self, name):
         """Get a GOT address
@@ -485,3 +507,8 @@ class ELF(object):
         except ConstructError:
             logger.warning("Parse Error")
             exit(1)  # CHECK:
+
+    def close(self):
+        if self.stream:
+            self.stream.close()
+        del self
