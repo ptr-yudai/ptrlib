@@ -72,8 +72,9 @@ Run `pip install ptrlib` or `python setup.py install`.
 [ptr-yudai](https://github.com/ptr-yudai)
 
 ## Contributor
+Feel free to make a pull request / issue :)
 
 - [theoremoon](https://github.com/theoremoon)
-  - Added several cryptography functions
+  - Added/fixed several cryptography functions
   - Added buffering of Socket/Process
   - Added status check (CI test)
