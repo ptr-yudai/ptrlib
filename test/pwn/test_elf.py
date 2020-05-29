@@ -9,6 +9,7 @@ class TestELF(unittest.TestCase):
         self.elf64 = ELF("./test/pwn/testbin/test_fsb.x64")
         self.pie32 = ELF("./test/pwn/testbin/test_echo.x86")
         self.pie64 = ELF("./test/pwn/testbin/test_echo.x64")
+        self.libc64 = ELF("./test/pwn/testbin/libc-2.27.so")
         getLogger("ptrlib").setLevel(FATAL)
 
     def test_got(self):
@@ -23,11 +24,44 @@ class TestELF(unittest.TestCase):
         self.assertEqual(self.pie32.plt('read'), 0x00000410)
         self.assertEqual(self.pie64.plt('read'), 0x000005d0)
 
+    def test_section(self):
+        self.assertEqual(self.elf32.section('.bss'), 0x0804a028)
+        self.assertEqual(self.elf64.section('.bss'), 0x00601050)
+        self.assertEqual(self.pie32.section('.bss'), 0x00002008)
+        self.assertEqual(self.pie64.section('.bss'), 0x00201010)
+
+    def test_libc(self):
+        self.assertEqual(self.libc64.main_arena(), 0x3ebc40)
+        self.assertEqual(next(self.libc64.search("/bin/sh")), 0x1b3e9a)
+        self.assertEqual(next(self.libc64.search("/bin/sh")),
+                         next(self.libc64.find("/bin/sh")))
+        self.assertEqual(self.libc64.symbol("_IO_2_1_stdout_"), 0x3ec760)
+        self.assertEqual(self.libc64.symbol("system"), 0x4f440)
+
+    def test_security(self):
+        self.assertEqual(self.elf32.ssp(), False)
+        self.assertEqual(self.elf64.ssp(), False)
+        self.assertEqual(self.pie32.ssp(), True)
+        self.assertEqual(self.pie64.ssp(), True)
+        self.assertEqual(self.elf32.pie(), False)
+        self.assertEqual(self.elf64.pie(), False)
+        self.assertEqual(self.pie32.pie(), True)
+        self.assertEqual(self.pie64.pie(), True)
+        self.assertEqual(self.elf32.relro(), 1)
+        self.assertEqual(self.elf64.relro(), 1)
+        self.assertEqual(self.pie32.relro(), 2)
+        self.assertEqual(self.pie64.relro(), 2)
+        self.assertEqual(self.elf32.nx(), True)
+        self.assertEqual(self.elf64.nx(), True)
+        self.assertEqual(self.pie32.nx(), True)
+        self.assertEqual(self.pie64.nx(), True)
+
     def tearDown(self):
         self.elf32.close()
         self.elf64.close()
         self.pie32.close()
         self.pie64.close()
+        self.libc64.close()
 
 if __name__ == '__main__':
     unittest.main()
