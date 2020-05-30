@@ -32,6 +32,8 @@ class Tube(metaclass=ABCMeta):
         pass
 
     def unget(self, data):
+        if isinstance(data, str):
+            data = str2bytes(data)
         self.buf = data + self.buf
 
     def recv(self, size=4096, timeout=None):
@@ -172,6 +174,8 @@ class Tube(metaclass=ABCMeta):
                     data = self.recv(size=4096, timeout=0.1)
                     if data is not None:
                         print(bytes2str(data), end="")
+                except TimeoutError:
+                    pass
                 except EOFError:
                     logger.error("interactive: EOF")
                     break
