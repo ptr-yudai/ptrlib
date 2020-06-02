@@ -169,6 +169,7 @@ class Process(Tube):
         """
         if self.proc:
             self.proc.kill()
+            self.proc.wait()
             self.proc = None
             logger.info("close: '{0}' killed".format(self.filepath))
 
