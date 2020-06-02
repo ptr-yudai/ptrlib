@@ -3,31 +3,27 @@ from ptrlib.util.encoding import *
 
 logger = getLogger(__name__)
 
-def padding_oracle_block(decrypt, prev_block, cipher_block, bs):
-    plain = [b"\x00" for i in range(bs)]
+def padding_oracle_block(decrypt, prev, block, bs):
+    prev = prev[::-1]
+    plain = bytearray(bs)
 
     for i in range(bs):
-        found = False
         for b in range(256):
-            dummy_block = b"\x00" * (bs - i - 1) + bytes([b])
-            for b2 in plain[bs - i :]:
-                dummy_block += bytes([b2[0] ^ (i + 1) ^ prev_block[len(dummy_block)]])
+            p = plain[:]
+            for j in range(i):
+                p[j] = plain[j] ^ prev[j] ^ (i+1)
+            p[i] = b
 
-            ret = decrypt(dummy_block + cipher_block)
-            if ret is True:
-                plain[bs - i - 1] = bytes([b ^ (i + 1) ^ prev_block[bs - i - 1]])
-                logger.info(
-                    "decrypted a byte {}/{}: {}".format(i + 1, bs, plain[bs - i - 1]))
-
-                found = True
+            oracle = decrypt(p[::-1] + block)
+            if oracle is True:
+                plain[i] = (i+1) ^ prev[i] ^ b
+                logger.info("decrypted a byte {}/{}: {}".format(i + 1, bs, plain[i]))
                 break
-            elif ret is not False:
+            elif oracle is not False:
                 raise ValueError("The function `decrypt` must return True or False")
-        assert found
-    return b"".join(plain)
-
-
-"""Padding Oracle Attack on CBC encryption"""
+        else:
+            raise ValueError("NOT FOUND")
+    return bytes(plain)[::-1]
 
 
 def padding_oracle(decrypt, cipher, *, bs, unknown=b"\x00", iv=None):
