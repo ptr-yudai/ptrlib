@@ -1,5 +1,6 @@
 import unittest
 import os
+import random
 from ptrlib import Process
 from logging import getLogger, FATAL
 
@@ -17,6 +18,14 @@ class TestProcess(unittest.TestCase):
         # send / recv
         p.sendline(b"Message : " + msg)
         self.assertEqual(p.recvlineafter(" : "), msg)
+
+        # send / recvregex
+        a, b = random.randrange(1<<32), random.randrange(1<<32)
+        p.sendline("Hello 0x{:08x}, 0x{:08x}".format(a, b))
+        r = p.recvregex("0x([0-9a-f]+), 0x([0-9a-f]+)")
+        p.recvline()
+        self.assertEqual(int(r[0], 16), a)
+        self.assertEqual(int(r[1], 16), b)
 
         # shutdown
         p.send(msg[::-1])
