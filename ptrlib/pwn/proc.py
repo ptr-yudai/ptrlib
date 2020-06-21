@@ -6,7 +6,9 @@ import errno
 import select
 import fcntl
 import os
+import pty
 import subprocess
+import tty
 
 logger = getLogger(__name__)
 
@@ -37,6 +39,11 @@ class Process(Tube):
         self.reservoir = b''
         self.proc = None
 
+        # Open pty
+        master, self.slave = pty.openpty()
+        tty.setraw(master)
+        tty.setraw(self.slave)
+
         # Create a new process
         try:
             self.proc = subprocess.Popen(
@@ -44,13 +51,17 @@ class Process(Tube):
                 cwd = cwd,
                 env = self.env,
                 shell = False,
-                stdout=subprocess.PIPE,
+                stdout=self.slave,
                 stderr=subprocess.STDOUT,
                 stdin=subprocess.PIPE
             )
         except FileNotFoundError:
             logger.warning("Executable not found: '{0}'".format(self.filepath))
             return
+
+        # Duplicate master
+        self.proc.stdout = os.fdopen(os.dup(master), 'r+b', 0)
+        os.close(master)
 
         # Set in non-blocking mode
         fd = self.proc.stdout.fileno()
@@ -168,6 +179,7 @@ class Process(Tube):
         This method is called from the destructor.
         """
         if self.proc:
+            os.close(self.slave)
             self.proc.kill()
             self.proc.wait()
             self.proc = None
