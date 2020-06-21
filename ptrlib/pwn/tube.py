@@ -2,6 +2,7 @@
 from ptrlib.util.encoding import *
 from ptrlib.console.color import Color
 from abc import ABCMeta, abstractmethod
+import re
 import threading
 import time
 from logging import getLogger
@@ -110,6 +111,48 @@ class Tube(metaclass=ABCMeta):
         self.recvuntil(delim, size, timeout)
         return self.recvline(size, timeout, drop)
 
+    def recvregex(self, regex, size=4096, discard=True, timeout=None):
+        """Receive until a pattern comes
+
+        Receive data until a specified regex pattern matches.
+
+        Args:
+            regex (bytes): Regex
+            size (int)   : Size to read at once
+            timeout (int): Timeout (in second)
+
+        Returns:
+            tuple: If the given regex has multiple patterns to find,
+                   it returns all matches. Otherwise, it returns the
+                   match string. If discard is false, it also returns
+                   all data received so far along with the matches.
+        """
+        if not isinstance(regex, bytes):
+            regex = str2bytes(regex)
+
+        p = re.compile(regex)
+        data = b''
+
+        while p.search(data) is None:
+            data += self.recv(size, timeout)
+
+        r = p.search(data)
+        pos = r.end()
+        self.unget(data[pos:])
+
+        group = r.group()
+        groups = r.groups()
+        if groups:
+            if discard:
+                return groups
+            else:
+                return groups, data[:pos]
+        else:
+            if discard:
+                return group
+            else:
+                return group, data[:pos]
+
     @abstractmethod
     def send(self, data, timeout):
         pass
@@ -205,6 +248,12 @@ class Tube(metaclass=ABCMeta):
         while th.is_alive():
             th.join(timeout = 0.1)
             time.sleep(0.1)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, e_type, e_value, traceback):
+        self.close()
 
     @abstractmethod
     def close(self):
