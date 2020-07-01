@@ -17,3 +17,17 @@ def str2bytes(data):
         return bytes(list(map(ord, data)))
     else:
         logger.warn("{} given ('str' expected)".format(type(data)))
+
+def has_space(data):
+    """Check if payload has "space" of C locale
+    """
+    if isinstance(data, str):
+        data = str2bytes(data)
+
+    # SPC, TAB, LF, VT, FF, CR
+    whitespace = [0x20, 0x09, 0x0a, 0x0b, 0x0c, 0x0d]
+    for c in data:
+        if c in whitespace:
+            return True
+
+    return False

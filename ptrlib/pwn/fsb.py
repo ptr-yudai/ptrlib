@@ -98,7 +98,7 @@ def fsb32(pos, writes, bs=1, written=0, size=4, rear=False, delta=0):
 
     return payload
 
-def fsb(pos, writes, bs=1, written=0, bits=32, size=8, rear=None, null=None):
+def fsb(pos, writes, bs=1, written=0, bits=32, size=8, rear=None, delta=0, null=None):
     """Craft a Format String Exploit payload
     
     Args:
@@ -121,11 +121,11 @@ def fsb(pos, writes, bs=1, written=0, bits=32, size=8, rear=None, null=None):
     if bits == 32:
         if rear is None:
             rear = False
-        return fsb32(pos, writes, bs, written, size, rear)
+        return fsb32(pos, writes, bs, written, size, rear, delta)
     
     elif bits == 64:
         assert rear is None or rear == True
-        return fsb64(pos, writes, bs, written, size)
+        return fsb64(pos, writes, bs, written, size, delta)
     
     else:
         raise ValueError("`bits` must be 32 or 64")
