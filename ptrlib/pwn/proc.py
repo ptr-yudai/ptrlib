@@ -204,3 +204,6 @@ class Process(Tube):
 
     def __del__(self):
         self.close()
+
+# alias
+process = Process
