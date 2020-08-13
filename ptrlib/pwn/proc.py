@@ -117,6 +117,7 @@ class Process(Tube):
         Returns:
             bytes: The received data
         """
+        self._poll()
         self._settimeout(timeout)
         if size <= 0:
             logger.error("`size` must be larger than 0")
@@ -162,6 +163,7 @@ class Process(Tube):
             data (bytes) : Data to send
             timeout (int): Timeout (in second)
         """
+        self._poll()
         self._settimeout(timeout)
         if isinstance(data, str):
             data = str2bytes(data)

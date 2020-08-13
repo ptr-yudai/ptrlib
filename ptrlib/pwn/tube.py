@@ -208,6 +208,11 @@ class Tube(metaclass=ABCMeta):
         self.sendline(data, timeout)
         return recv_data
 
+    def sh(self, timeout=None):
+        """Alias for interactive
+        """
+        self.interactive(timeout)
+
     def interactive(self, timeout=None):
         """Interactive mode
         """
