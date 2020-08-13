@@ -8,7 +8,7 @@ logger = getLogger(__name__)
 
 
 class Socket(Tube):
-    def __init__(self, host, port, timeout=None):
+    def __init__(self, host, port=None, timeout=None):
         """Create a socket
 
         Create a new socket and establish a connection to the host.
@@ -21,6 +21,23 @@ class Socket(Tube):
             Socket: ``Socket`` instance.
         """
         super().__init__()
+
+        if isinstance(host, bytes):
+            host = bytes2str(host)
+
+        if port is None:
+            host = host.strip()
+            if host.startswith('nc '):
+                _, a, b = host.split()
+                host, port = a, int(b)
+            elif host.count(':') == 1:
+                a, b = host.split(':')
+                host, port = a, int(b)
+            elif host.count(' ') == 1:
+                a, b = host.split()
+                host, port = a, int(b)
+            else:
+                raise ValueError("Specify port number")
 
         self.host = host
         self.port = port
@@ -120,3 +137,6 @@ class Socket(Tube):
 
     def __del__(self):
         self.close()
+
+# alias
+remote = Socket
