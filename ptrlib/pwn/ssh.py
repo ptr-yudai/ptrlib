@@ -5,7 +5,10 @@ from logging import getLogger
 from ptrlib.util.encoding import *
 from ptrlib.pwn.proc import *
 
-def SSH(host, port, username, password=None, identity=None, option=''):
+def SSH(host, port, username,
+        password=None, identity=None,
+        ssh_path=None, expect_path=None,
+        option=''):
     """Create an SSH shell
 
     Create a new process to connect to SSH server
@@ -25,13 +28,21 @@ def SSH(host, port, username, password=None, identity=None, option=''):
     if password is None and identity is None:
         raise ValueError("You must give either password or identity")
 
-    if not os.path.isfile('/usr/bin/expect'):
-        raise FileNotFoundError("'/usr/bin/expect' not found")
+    if ssh_path is None:
+        ssh_path = '/usr/bin/ssh'
+    if expect_path is None:
+        expect_path = '/usr/bin/expect'
+
+    if not os.path.isfile(ssh_path):
+        raise FileNotFoundError("{}: SSH not found".format(ssh_path))
+    if not os.path.isfile(expect_path):
+        raise FileNotFoundError("{}: 'expect' not found".format(expect_path))
 
     if identity is not None:
         option += ' -i {}'.format(shlex.quote(identity))
 
-    script = 'eval spawn ssh -oStrictHostKeyChecking=no -oCheckHostIP=no {}@{} -p{} {}; interact'.format(
+    script = 'eval spawn {} -oStrictHostKeyChecking=no -oCheckHostIP=no {}@{} -p{} {}; interact'.format(
+        ssh_path,
         shlex.quote(username),
         shlex.quote(host),
         port,
@@ -39,7 +50,7 @@ def SSH(host, port, username, password=None, identity=None, option=''):
     )
 
     proc = Process(
-        ["/usr/bin/expect", "-c", script],
+        [expect_path, '-c', script],
     )
     if identity is None:
         proc.sendlineafter("password: ", password)
