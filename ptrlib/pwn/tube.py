@@ -3,6 +3,7 @@ from ptrlib.util.encoding import *
 from ptrlib.console.color import Color
 from abc import ABCMeta, abstractmethod
 import re
+import sys
 import threading
 import time
 from logging import getLogger
@@ -221,7 +222,8 @@ class Tube(metaclass=ABCMeta):
                 try:
                     data = self.recv(size=4096, timeout=0.1)
                     if data is not None:
-                        print(bytes2str(data), end="")
+                        sys.stdout.write(bytes2str(data))
+                        sys.stdout.flush()
                 except TimeoutError:
                     pass
                 except EOFError:

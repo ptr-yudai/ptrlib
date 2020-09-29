@@ -38,6 +38,7 @@ class Process(Tube):
         self.temp_timeout = None
         self.reservoir = b''
         self.proc = None
+        self.returncode = None
 
         # Open pty
         master, self.slave = pty.openpty()
@@ -84,12 +85,12 @@ class Process(Tube):
 
         self.proc.poll()
         returncode = self.proc.returncode
-        if returncode is not None:
+        if returncode is not None and self.returncode is None:
+            self.returncode = returncode
             logger.error(
                 "Process '{}' stopped with exit code {} (PID={})".format(
                     self.filepath, returncode, self.proc.pid
                 ))
-            self.proc = None
         return returncode
 
     def _is_alive(self):
@@ -117,7 +118,6 @@ class Process(Tube):
         Returns:
             bytes: The received data
         """
-        self._poll()
         self._settimeout(timeout)
         if size <= 0:
             logger.error("`size` must be larger than 0")
@@ -133,7 +133,7 @@ class Process(Tube):
             return b''
 
         try:
-            data = self.proc.stdout.read()
+            data = self.proc.stdout.read(size)
             self.reservoir += data
         except subprocess.TimeoutExpired:
             logger.error("Timeout")
