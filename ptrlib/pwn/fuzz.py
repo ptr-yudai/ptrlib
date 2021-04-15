@@ -1,5 +1,29 @@
 import random
 
+def random_int(lmin, lmax=None):
+    """Generate a random integer
+
+    Args:
+       lmin (int): Minimum value
+       lmax (int): Maximum value
+    """
+    if lmax is None:
+        lmin, lmax = 0, lmin
+    if lmax < lmin:
+        lmin, lmax = lmax, lmin
+    return random.randint(lmin, lmax)
+
+def random_float(lmin, lmax=None):
+    """Generate a random float value
+
+    Args:
+       lmin (int): Minimum value
+       lmax (int): Maximum value
+    """
+    if lmax is None:
+        lmin, lmax = 0.0, lmin
+    return random.uniform(lmin, lmax)
+
 def random_bytes(lmin, lmax=0, charset=None):
     """Generate a random byte array
 
@@ -17,6 +41,8 @@ def random_bytes(lmin, lmax=0, charset=None):
         lmin, lmax = lmax, lmin
     if charset == None:
         charset = [i for i in range(0x100)]
+    elif isinstance(charset, str):
+        charset = list(map(ord, list(charset)))
 
     return bytes([random.choice(charset)
                   for i in range(lmin)]) \
