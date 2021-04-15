@@ -16,6 +16,7 @@ class ELF(object):
         self.stream = open(filepath, 'rb')
         if not self._identify():
             return
+
         # Register ELF structs
         self.structs = ELFStructs(self.little_endian, self.elfclass)
         self.structs.create_basic_structs()
@@ -25,8 +26,11 @@ class ELF(object):
             self.header.e_machine,
             self.header.e_ident.EI_OSABI
         )
+
         # String table section
         self.section_string = self._get_section(self.header.e_shstrndx)
+
+        self.set_base()
 
     def symbol(self, name):
         """Get the address of a symbol
@@ -58,7 +62,7 @@ class ELF(object):
                 if sym_name == b'':
                     continue
                 if sym_name == name:
-                    return sym.st_value
+                    return sym.st_value + (self.base() if self.pie() else 0)
         return None
 
     def find(self, pattern, stream_pos=0):
@@ -88,8 +92,8 @@ class ELF(object):
             if pattern in data:
                 index = data.index(pattern)
                 addr += index
-                yield addr
-                addr, index = addr + 2, index + 2
+                yield self.base() + addr
+                addr, index = addr + 1, index + 1
             else:
                 break
 
@@ -109,17 +113,36 @@ class ELF(object):
 
         section_header = self._get_section_by_name(name)
         if section_header:
-            return section_header.sh_addr
+            return section_header.sh_addr + (self.base() if self.pie() else 0)
         
         return None
 
+    def set_base(self, base=None):
+        """Set the load address
+
+        Args:
+            int: The base address to be used
+        """
+        self._base = base
+
     def base(self):
+        """Get the load address
+
+        Returns:
+            int: The address where the ELF is loaded
+        """
+        if self._base is None:
+            self._base = self._real_base()
+        return self._base
+
+    def _real_base(self):
         for i in range(self.header.e_phnum):
             segment_header = self._get_segment(i)
             if segment_header.p_type == "PT_LOAD":
                 break
         else:
             return 0
+
         return segment_header.p_vaddr
 
     def plt(self, name):
@@ -136,7 +159,10 @@ class ELF(object):
         if isinstance(name, str):
             name = str2bytes(name)
 
-        target_got = self.got(name)
+        if self.pie():
+            target_got = self.got(name) - self.base()
+        else:
+            target_got = self.got(name)
         if target_got is None:
             return None
 
@@ -145,13 +171,13 @@ class ELF(object):
             if section_header is None:
                 continue
 
-            self.stream.seek(section_header.sh_addr - self.base())
+            self.stream.seek(section_header.sh_addr - self._real_base())
             code = self.stream.read(section_header.sh_size)
             xref = self._plt_ref_list(code, section_header)
 
             if target_got in xref:
-                return xref[target_got]
-        
+                return xref[target_got] + (self.base() if self.pie() else 0)
+
         return self.section(".plt")
 
     def _plt_ref_list(self, code, sh):
@@ -236,7 +262,7 @@ class ELF(object):
 
                 symbol_name = self._get_symbol_name(symbols, sym_idx)
                 if symbol_name == name:
-                    return rel.r_offset
+                    return rel.r_offset + (self.base() if self.pie() else 0)
 
     def main_arena(self):
         """Find main_arena offset
@@ -249,11 +275,13 @@ class ELF(object):
         if ofs_realloc_hook is None or ofs_malloc_hook is None:
             logger.warn('main_arena works only for libc binaries')
             return None
-        
+
+        base = self.base() if self.pie() else 0
         if self.elfclass == 32:
-            return ofs_malloc_hook + 0x18
+            return base + ofs_malloc_hook + 0x18
         else:
-            return ofs_malloc_hook + (ofs_malloc_hook - ofs_realloc_hook) * 2
+            return base + ofs_malloc_hook \
+                + (ofs_malloc_hook - ofs_realloc_hook) * 2
 
     def checksec(self):
         """Check security
