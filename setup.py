@@ -10,13 +10,13 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='ptrlib',
-    version='1.3.5',
+    version='1.3.6',
     description='CTF library',
     long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/ptr-yudai/ptrlib/',
     author='ptr-yudai',
-    author_email='ptr.yudai@gmail.com',
+    author_email='ptr.yudai+dev@gmail.com',
     classifiers=[
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3.5',
