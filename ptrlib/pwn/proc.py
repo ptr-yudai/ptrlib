@@ -9,6 +9,7 @@ import os
 import pty
 import subprocess
 import tty
+import time
 
 logger = getLogger(__name__)
 
@@ -203,6 +204,18 @@ class Process(Tube):
 
         else:
             logger.error("You must specify `send` or `recv` as target.")
+
+    def wait(self):
+        """Wait until the process dies
+
+        Wait until the process exits and get the status code.
+
+        Returns:
+            code (int): Status code of the process
+        """
+        while self._is_alive():
+            time.sleep(0.1)
+        return self.returncode
 
     def __del__(self):
         self.close()
