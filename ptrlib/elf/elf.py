@@ -183,7 +183,7 @@ class ELF(object):
     def _plt_ref_list(self, code, sh):
         xref = {}
         i = 0
-        base_got = self.section('.got')
+        base_got = self.section('.got') - self.base()
 
         while i < sh.sh_size - 6:
             if self.elfclass == 32:
@@ -276,12 +276,10 @@ class ELF(object):
             logger.warn('main_arena works only for libc binaries')
             return None
 
-        base = self.base() if self.pie() else 0
         if self.elfclass == 32:
-            return base + ofs_malloc_hook + 0x18
+            return ofs_malloc_hook + 0x18
         else:
-            return base + ofs_malloc_hook \
-                + (ofs_malloc_hook - ofs_realloc_hook) * 2
+            return ofs_malloc_hook + (ofs_malloc_hook - ofs_realloc_hook) * 2
 
     def checksec(self):
         """Check security

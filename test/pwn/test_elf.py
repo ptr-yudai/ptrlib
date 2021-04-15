@@ -19,6 +19,14 @@ class TestELF(unittest.TestCase):
         self.assertEqual(self.pie32.got('read'), 0x00001fdc)
         self.assertEqual(self.pie64.got('read'), 0x00200fd0)
         self.assertEqual(self.new64.got('free'), 0x404018)
+        self.pie32.set_base(0x55554000)
+        self.pie64.set_base(0x555555554000)
+        self.assertEqual(self.pie32.got('read'),
+                         0x55554000 + 0x00001fdc)
+        self.assertEqual(self.pie64.got('read'),
+                         0x555555554000 + 0x00200fd0)
+        self.pie32.set_base()
+        self.pie64.set_base()
 
     def test_plt(self):
         self.assertEqual(self.elf32.plt('printf'), 0x08048390)
@@ -26,12 +34,28 @@ class TestELF(unittest.TestCase):
         self.assertEqual(self.pie32.plt('read'), 0x00000410)
         self.assertEqual(self.pie64.plt('read'), 0x000005d0)
         self.assertEqual(self.new64.plt('free'), 0x00401140)
+        self.pie32.set_base(0x55554000)
+        self.pie64.set_base(0x555555554000)
+        self.assertEqual(self.pie32.plt('read'),
+                         0x55554000 + 0x00000410)
+        self.assertEqual(self.pie64.plt('read'),
+                         0x555555554000 + 0x000005d0)
+        self.pie32.set_base()
+        self.pie64.set_base()
 
     def test_section(self):
         self.assertEqual(self.elf32.section('.bss'), 0x0804a028)
         self.assertEqual(self.elf64.section('.bss'), 0x00601050)
         self.assertEqual(self.pie32.section('.bss'), 0x00002008)
         self.assertEqual(self.pie64.section('.bss'), 0x00201010)
+        self.pie32.set_base(0x55554000)
+        self.pie64.set_base(0x555555554000)
+        self.assertEqual(self.pie32.section('.bss'),
+                         0x55554000 + 0x00002008)
+        self.assertEqual(self.pie64.section('.bss'),
+                         0x555555554000 + 0x00201010)
+        self.pie32.set_base()
+        self.pie64.set_base()
 
     def test_libc(self):
         self.assertEqual(self.libc64.main_arena(), 0x3ebc40)
@@ -40,6 +64,14 @@ class TestELF(unittest.TestCase):
                          next(self.libc64.find("/bin/sh")))
         self.assertEqual(self.libc64.symbol("_IO_2_1_stdout_"), 0x3ec760)
         self.assertEqual(self.libc64.symbol("system"), 0x4f440)
+        self.libc64.set_base(0x7ffff79e2000)
+        self.assertEqual(self.libc64.main_arena(),
+                         0x7ffff79e2000 + 0x3ebc40)
+        self.assertEqual(next(self.libc64.search("/bin/sh")),
+                         0x7ffff79e2000 + 0x1b3e9a)
+        self.assertEqual(self.libc64.symbol("system"),
+                         0x7ffff79e2000 + 0x4f440)
+        self.libc64.set_base()
 
     def test_security(self):
         self.assertEqual(self.elf32.ssp(), False)
