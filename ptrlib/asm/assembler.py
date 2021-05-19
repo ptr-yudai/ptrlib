@@ -10,7 +10,7 @@ def nasm(code, fmt='bin', bits=None, org=None, nasm_path=None):
     if nasm_path is None:
         try:
             nasm_path = subprocess.check_output(
-                ["/usr/bin/which", "nasm"]
+                ["which", "nasm"]
             ).decode().rstrip()
         except subprocess.CalledProcessError:
             raise FileNotFoundError("'nasm' not found")
@@ -26,19 +26,29 @@ def nasm(code, fmt='bin', bits=None, org=None, nasm_path=None):
     if org is not None:
         code = str2bytes('ORG {}\n'.format(org)) + code
 
-    with tempfile.NamedTemporaryFile() as fin:
-        fin.write(code)
-        fin.flush()
+    fname_s = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())
+    fname_o = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())
+    with open(fname_s, 'wb') as f:
+        f.write(code)
 
-        with tempfile.NamedTemporaryFile() as fout:
-            p = subprocess.Popen([nasm_path, "-f{}".format(fmt),
-                                  fin.name, "-o", fout.name])
-            if p.wait() != 0:
-                logger.warn("Assemble failed")
-                return None
+    with open(fname_o, 'wb+') as f:
+        p = subprocess.Popen([nasm_path, "-f{}".format(fmt),
+                              fname_s, "-o", fname_o])
+        if p.wait() != 0:
+            logger.warn("Assemble failed")
+            return None
 
-            fout.seek(0)
-            output = fout.read()
+        f.seek(0)
+        output = f.read()
+
+    try:
+        os.unlink(fname_s)
+    except:
+        logger.warn("Could not delete temporary file: {}".format(fname_s))
+    try:
+        os.unlink(fname_o)
+    except:
+        logger.warn("Could not delete temporary file: {}".format(fname_s))
 
     return output
 

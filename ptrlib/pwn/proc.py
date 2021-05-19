@@ -4,12 +4,15 @@ from ptrlib.util.encoding import *
 from ptrlib.pwn.tube import *
 import errno
 import select
-import fcntl
 import os
-import pty
 import subprocess
-import tty
 import time
+try:
+    import fcntl
+    import pty
+    import tty
+except ModuleNotFoundError:
+    is_windows = True
 
 logger = getLogger(__name__)
 
@@ -42,9 +45,13 @@ class Process(Tube):
         self.returncode = None
 
         # Open pty
-        master, self.slave = pty.openpty()
-        tty.setraw(master)
-        tty.setraw(self.slave)
+        if not is_windows:
+            master, self.slave = pty.openpty()
+            tty.setraw(master)
+            tty.setraw(self.slave)
+        else:
+            master = None
+            self.slave = subprocess.PIPE
 
         # Create a new process
         try:
@@ -62,13 +69,15 @@ class Process(Tube):
             return
 
         # Duplicate master
-        self.proc.stdout = os.fdopen(os.dup(master), 'r+b', 0)
-        os.close(master)
+        if master is not None:
+            self.proc.stdout = os.fdopen(os.dup(master), 'r+b', 0)
+            os.close(master)
 
         # Set in non-blocking mode
-        fd = self.proc.stdout.fileno()
-        fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-        fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+        if not is_windows:
+            fd = self.proc.stdout.fileno()
+            fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+            fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
         logger.info("Successfully created new process (PID={})".format(self.proc.pid))
 
     def _settimeout(self, timeout):
@@ -100,6 +109,9 @@ class Process(Tube):
     def _can_recv(self):
         if self.proc is None:
             return False
+
+        if is_windows:
+            return True
 
         try:
             return select.select([self.proc.stdout], [], [], self.temp_timeout) == ([self.proc.stdout], [], [])
@@ -182,7 +194,8 @@ class Process(Tube):
         This method is called from the destructor.
         """
         if self.proc:
-            os.close(self.slave)
+            if not is_windows:
+                os.close(self.slave)
             self.proc.kill()
             self.proc.wait()
             self.proc = None
