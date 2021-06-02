@@ -50,8 +50,9 @@ class Tube(metaclass=ABCMeta):
         Returns:
             bytes: The received data
         """
+        self._settimeout(timeout)
         if not self.buf:
-            data = self._recv(size, timeout)
+            data = self._recv(size, timeout=-1)
             if data is not None:
                 self.buf += data
 
@@ -70,9 +71,10 @@ class Tube(metaclass=ABCMeta):
         Returns:
             bytes: The received data
         """
+        self._settimeout(timeout)
         data = b''
         while len(data) < size:
-            data += self.recv(size - len(data), timeout)
+            data += self.recv(size - len(data))
 
         if len(data) > size:
             self.unget(data[size:])
@@ -90,13 +92,13 @@ class Tube(metaclass=ABCMeta):
         Returns:
             bytes: The received data
         """
-
         if isinstance(delim, str):
             delim = str2bytes(delim)
         data = b''
 
+        self._settimeout(timeout)
         while data.find(delim) == -1:
-            data += self.recv(size, timeout)
+            data += self.recv(size, -1)
 
         pos = data.find(delim) + len(delim)
         self.unget(data[pos:])
@@ -134,8 +136,9 @@ class Tube(metaclass=ABCMeta):
         p = re.compile(regex)
         data = b''
 
+        self._settimeout(timeout)
         while p.search(data) is None:
-            data += self.recv(size, timeout)
+            data += self.recv(size, timeout=-1)
 
         r = p.search(data)
         pos = r.end()
@@ -169,7 +172,7 @@ class Tube(metaclass=ABCMeta):
         """
         if isinstance(data, str):
             data = str2bytes(data)
-        self.send(data + b'\n', timeout)
+        self.send(data + b'\n', timeout=timeout)
 
     def sendafter(self, delim, data, timeout=None):
         """Send raw data after a deliminater
@@ -187,7 +190,7 @@ class Tube(metaclass=ABCMeta):
         if isinstance(data, str):
             data = str2bytes(data)
         recv_data = self.recvuntil(delim, timeout=timeout)
-        self.send(data, timeout)
+        self.send(data, timeout=timeout)
         return recv_data
 
     def sendlineafter(self, delim, data, timeout=None):
@@ -206,7 +209,7 @@ class Tube(metaclass=ABCMeta):
         if isinstance(data, str):
             data = str2bytes(data)
         recv_data = self.recvuntil(delim, timeout=timeout)
-        self.sendline(data, timeout)
+        self.sendline(data, timeout=timeout)
         return recv_data
 
     def sh(self, timeout=None):

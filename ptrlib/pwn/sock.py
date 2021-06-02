@@ -56,7 +56,7 @@ class Socket(Tube):
     def _settimeout(self, timeout):
         if timeout is None:
             self.sock.settimeout(self.timeout)
-        else:
+        elif timeout > 0:
             self.sock.settimeout(timeout)
 
     def _socket(self):
@@ -78,12 +78,12 @@ class Socket(Tube):
         if size <= 0:
             logger.error("`size` must be larger than 0")
             return None
-        
+
         try:
             data = self.sock.recv(size)
         except socket.timeout:
-            raise TimeoutError("recv timeout")
-        
+            raise TimeoutError("Receive timeout")
+
         # No data received
         if len(data) == 0:
             data = None

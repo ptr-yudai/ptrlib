@@ -84,7 +84,7 @@ class Process(Tube):
     def _settimeout(self, timeout):
         if timeout is None:
             self.temp_timeout = self.timeout
-        else:
+        elif timeout > 0:
             self.temp_timeout = timeout
 
     def _socket(self):
@@ -115,7 +115,16 @@ class Process(Tube):
             return True
 
         try:
-            return select.select([self.proc.stdout], [], [], self.temp_timeout) == ([self.proc.stdout], [], [])
+            r = select.select(
+                [self.proc.stdout], [], [], self.temp_timeout
+            )
+            if r == ([], [], []):
+                raise TimeoutError("Receive timeout")
+            else:
+                # assert r == ([self.proc.stdout], [], [])
+                return True
+        except TimeoutError as e:
+            raise e
         except select.error as v:
             if v[0] == errno.EINTR:
                 return False
