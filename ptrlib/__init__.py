@@ -1,5 +1,4 @@
 # coding: utf-8
-from ptrlib.timeout import *
 from ptrlib.util import *
 from ptrlib.executable import *
 from ptrlib.pwn import *

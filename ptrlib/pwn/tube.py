@@ -230,7 +230,10 @@ class Tube(metaclass=ABCMeta):
                 except TimeoutError:
                     pass
                 except EOFError:
-                    logger.error("interactive: EOF")
+                    logger.error("Receiver EOF")
+                    break
+                except ConnectionAbortedError:
+                    logger.error("Receiver EOF")
                     break
                 time.sleep(0.1)
 
@@ -250,7 +253,11 @@ class Tube(metaclass=ABCMeta):
                 if data is None:
                     flag.set()
                 else:
-                    self.sendline(data)
+                    try:
+                        self.sendline(data)
+                    except ConnectionAbortedError:
+                        logger.error("Sender EOF")
+                        break
                 time.sleep(0.1)
         except KeyboardInterrupt:
             flag.set()

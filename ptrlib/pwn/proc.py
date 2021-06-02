@@ -45,7 +45,7 @@ class Process(Tube):
         self.proc = None
         self.returncode = None
 
-        # Open pty
+        # Open pty on Unix
         if not is_windows:
             master, self.slave = pty.openpty()
             tty.setraw(master)
@@ -94,6 +94,7 @@ class Process(Tube):
         if self.proc is None:
             return False
 
+        # Check if the process exits
         self.proc.poll()
         returncode = self.proc.returncode
         if returncode is not None and self.returncode is None:
@@ -105,14 +106,13 @@ class Process(Tube):
         return returncode
 
     def _is_alive(self):
+        """Check if the process is alive"""
         return self._poll() is None
 
     def _can_recv(self):
+        """Check if receivable"""
         if self.proc is None:
             return False
-
-        if is_windows:
-            return True
 
         try:
             r = select.select(
