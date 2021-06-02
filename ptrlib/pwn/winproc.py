@@ -83,14 +83,13 @@ class WinPipe(object):
         Returns:
             bytes: The received data
         """
-        if self.size < size:
-            start = time.time()
-            # Wait until enough data arrives
-            while self.size < size:
-                # Check timeout
-                if timeout is not None and time.time() - start > timeout:
-                    raise TimeoutError("Receive timeout")
-                time.sleep(0.01)
+        start = time.time()
+        # Wait until data arrives
+        while self.size == 0:
+            # Check timeout
+            if timeout is not None and time.time() - start > timeout:
+                raise TimeoutError("Receive timeout")
+            time.sleep(0.01)
 
         return self._recv(min(self.size, size))
 
