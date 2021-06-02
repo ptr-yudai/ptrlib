@@ -1,7 +1,7 @@
 from ptrlib.console.color import Color
 from ptrlib.util.encoding import *
 from ptrlib.util.packing import *
-from ptrlib.elf.elfstruct import *
+from ptrlib.executable.elfstruct import *
 from ptrlib.asm.assembler import *
 from logging import getLogger
 import re

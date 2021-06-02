@@ -8,7 +8,7 @@
 # This code is in the public domain
 #-------------------------------------------------------------------------------
 from ptrlib.util.construct import *
-from ptrlib.elf.enums import *
+from ptrlib.executable.enums import *
 
 class ELFStructs(object):
     """ Accessible attributes:

@@ -1,6 +1,6 @@
 # coding: utf-8
 from ptrlib.util import *
-from ptrlib.elf import *
+from ptrlib.executable import *
 from ptrlib.pwn import *
 from ptrlib.asm import *
 from ptrlib.crypto import *

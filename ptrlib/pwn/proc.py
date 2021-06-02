@@ -11,6 +11,7 @@ try:
     import fcntl
     import pty
     import tty
+    is_windows = False
 except ModuleNotFoundError:
     is_windows = True
 
