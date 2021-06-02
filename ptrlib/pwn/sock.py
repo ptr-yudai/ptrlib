@@ -83,6 +83,9 @@ class Socket(Tube):
             data = self.sock.recv(size)
         except socket.timeout:
             raise TimeoutError("recv timeout")
+        except ConnectionAbortedError as e:
+            logger.warning("Connection aborted by the host")
+            raise e
         
         # No data received
         if len(data) == 0:
@@ -106,6 +109,9 @@ class Socket(Tube):
             self.sock.send(data)
         except BrokenPipeError:
             logger.warning("Broken pipe")
+        except ConnectionAbortedError as e:
+            logger.warning("Connection aborted by the host")
+            raise e
 
     def close(self):
         """Close the socket
