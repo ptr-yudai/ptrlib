@@ -104,10 +104,13 @@ class WinPipe(object):
         """
         win32file.WriteFile(self.handle1, data)
 
-    def __del__(self):
+    def close(self):
         """Cleanly close this pipe"""
         win32api.CloseHandle(self.rp)
         win32api.CloseHandle(self.wp)
+
+    def __del__(self):
+        self.close()
 
 class WinProcess(Tube):
     def __init__(self, args, env=None, cwd=None, flags=0, timeout=None):
@@ -139,6 +142,9 @@ class WinProcess(Tube):
                 logger.error("You have to escape the arguments by yourself.")
                 logger.error("Be noted what you are executing is")
                 logger.error("> " + self.args)
+
+        else:
+            self.args = args
 
         # Create pipe
         self.stdin = WinPipe()
@@ -209,8 +215,20 @@ class WinProcess(Tube):
         """
         self.stdin.send(data)
 
-    def shutdown(self):
-        raise NotImplementedError()
+    def shutdown(self, target):
+        """Close a connection
+
+        Args:
+            target (str): Pipe to close (`recv` or `send`)
+        """
+        if target in ['write', 'send', 'stdin']:
+            self.stdin.close()
+
+        elif target in ['read', 'recv', 'stdout', 'stderr']:
+            self.stdout.close()
+
+        else:
+            logger.error("You must specify `send` or `recv` as target.")
 
     def __del__(self):
         self.close()
