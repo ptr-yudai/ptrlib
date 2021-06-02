@@ -14,7 +14,6 @@ def nasm(code, fmt='bin', bits=None, org=None, nasm_path=None):
             ).decode().rstrip()
         except subprocess.CalledProcessError:
             raise FileNotFoundError("'nasm' not found")
-            return None
     elif not os.path.isfile(nasm_path):
         raise FileNotFoundError("{}: nasm not found".format(nasm_path))
 

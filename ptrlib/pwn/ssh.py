@@ -5,6 +5,11 @@ from logging import getLogger
 from ptrlib.util.encoding import *
 from ptrlib.pwn.proc import *
 
+if os.name == 'nt':
+    _is_windows = True
+else:
+    _is_windows = False
+
 def SSH(host, port, username,
         password=None, identity=None,
         ssh_path=None, expect_path=None,
@@ -29,9 +34,19 @@ def SSH(host, port, username,
         raise ValueError("You must give either password or identity")
 
     if ssh_path is None:
-        ssh_path = '/usr/bin/ssh'
+        try:
+            ssh_path = subprocess.check_output(
+                ["which", "ssh"]
+            ).decode().rstrip()
+        except subprocess.CalledProcessError:
+            raise FileNotFoundError("'SSH' not found")
     if expect_path is None:
-        expect_path = '/usr/bin/expect'
+        try:
+            expect_path = subprocess.check_output(
+                ["which", "expect"]
+            ).decode().rstrip()
+        except subprocess.CalledProcessError:
+            raise FileNotFoundError("'expect' not found")
 
     if not os.path.isfile(ssh_path):
         raise FileNotFoundError("{}: SSH not found".format(ssh_path))
