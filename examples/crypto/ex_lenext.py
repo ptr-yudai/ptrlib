@@ -35,3 +35,18 @@ print("known_sha1 = " + known_hash)
 print("new_sha1   = " + new_hash)
 print("*new_sha1  = " + m.hexdigest())
 print("data       = " + repr(data))
+
+# SHA-256
+m = SHA256()
+m.update(SALT + known_message)
+known_hash = m.hexdigest()
+new_hash, data = lenext(
+    SHA256, len(SALT), known_hash, known_message, append_message
+)
+m.reset()
+m.update(SALT + data)
+print("========== SHA-256 ==========")
+print("known_sha256 = " + known_hash)
+print("new_sha256   = " + new_hash)
+print("*new_sha256  = " + m.hexdigest())
+print("data       = " + repr(data))

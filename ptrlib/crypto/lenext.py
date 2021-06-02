@@ -25,7 +25,7 @@ def lenext(hash_class, padlen, known_hash, known_message, append_message):
 
     # Get the last output
     iv = hash_func.convert(known_hash)
-    if iv is None:
+    if not iv:
         raise ValueError('The length of `known_hash` is invalid')
 
     # Set the first data
