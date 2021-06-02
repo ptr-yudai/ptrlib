@@ -158,7 +158,11 @@ class Tube(metaclass=ABCMeta):
                 return group, data[:pos]
 
     @abstractmethod
-    def send(self, data, timeout):
+    def send(self, data):
+        pass
+
+    @abstractmethod
+    def _socket(self):
         pass
 
     def sendline(self, data, timeout=None):
@@ -172,7 +176,7 @@ class Tube(metaclass=ABCMeta):
         """
         if isinstance(data, str):
             data = str2bytes(data)
-        self.send(data + b'\n', timeout=timeout)
+        self.send(data + b'\n')
 
     def sendafter(self, delim, data, timeout=None):
         """Send raw data after a deliminater
@@ -190,7 +194,7 @@ class Tube(metaclass=ABCMeta):
         if isinstance(data, str):
             data = str2bytes(data)
         recv_data = self.recvuntil(delim, timeout=timeout)
-        self.send(data, timeout=timeout)
+        self.send(data)
         return recv_data
 
     def sendlineafter(self, delim, data, timeout=None):

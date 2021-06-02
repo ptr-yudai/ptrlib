@@ -51,7 +51,7 @@ class Socket(Tube):
         except ConnectionRefusedError as e:
             err = "Connection to {0}:{1} refused".format(self.host, self.port)
             logger.warning(err)
-            raise e
+            raise e from None
 
     def _settimeout(self, timeout):
         if timeout is None:
@@ -82,36 +82,35 @@ class Socket(Tube):
         try:
             data = self.sock.recv(size)
         except socket.timeout:
-            raise TimeoutError("Receive timeout")
+            raise TimeoutError("Receive timeout") from None
         except ConnectionAbortedError as e:
             logger.warning("Connection aborted by the host")
-            raise e
+            raise e from None
 
         # No data received
         if len(data) == 0:
             data = None
         return data
 
-    def send(self, data, timeout=None):
+    def send(self, data):
         """Send raw data
 
         Send raw data through the socket
 
         Args:
             data (bytes) : Data to send
-            timeout (int): Timeout (in second)
         """
-        self._settimeout(timeout)
         if isinstance(data, str):
             data = str2bytes(data)
 
         try:
             self.sock.send(data)
-        except BrokenPipeError:
+        except BrokenPipeError as e:
             logger.warning("Broken pipe")
+            raise e from None
         except ConnectionAbortedError as e:
             logger.warning("Connection aborted by the host")
-            raise e
+            raise e from None
 
     def close(self):
         """Close the socket

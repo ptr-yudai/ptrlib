@@ -2,22 +2,28 @@
 from logging import getLogger
 from ptrlib.util.encoding import *
 from ptrlib.pwn.tube import *
+from ptrlib.pwn.winproc import *
 import errno
 import select
 import os
 import subprocess
 import time
-try:
+
+_is_windows = os.name == 'nt'
+if not _is_windows:
     import fcntl
     import pty
     import tty
-    is_windows = False
-except ModuleNotFoundError:
-    is_windows = True
 
 logger = getLogger(__name__)
 
-class Process(Tube):
+def Process(*args, **kwargs):
+    if _is_windows:
+        return WinProcess(*args, **kwargs)
+    else:
+        return UnixProcess(*args, **kwargs)
+
+class UnixProcess(Tube):
     def __init__(self, args, env=None, cwd=None, timeout=None):
         """Create a process
 
@@ -30,6 +36,7 @@ class Process(Tube):
         Returns:
             Process: ``Process`` instance.
         """
+        assert not _is_windows
         super().__init__()
 
         if isinstance(args, list):
@@ -39,20 +46,16 @@ class Process(Tube):
             self.args = [args]
             self.filepath = args
         self.env = env
-        self.timeout = timeout
-        self.temp_timeout = None
+        self.default_timeout = timeout
+        self.timeout = self.default_timeout
         self.reservoir = b''
         self.proc = None
         self.returncode = None
 
         # Open pty on Unix
-        if not is_windows:
-            master, self.slave = pty.openpty()
-            tty.setraw(master)
-            tty.setraw(self.slave)
-        else:
-            master = None
-            self.slave = subprocess.PIPE
+        master, self.slave = pty.openpty()
+        tty.setraw(master)
+        tty.setraw(self.slave)
 
         # Create a new process
         try:
@@ -75,17 +78,16 @@ class Process(Tube):
             os.close(master)
 
         # Set in non-blocking mode
-        if not is_windows:
-            fd = self.proc.stdout.fileno()
-            fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-            fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+        fd = self.proc.stdout.fileno()
+        fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
         logger.info("Successfully created new process (PID={})".format(self.proc.pid))
 
     def _settimeout(self, timeout):
         if timeout is None:
-            self.temp_timeout = self.timeout
+            self.timeout = self.default_timeout
         elif timeout > 0:
-            self.temp_timeout = timeout
+            self.timeout = timeout
 
     def _socket(self):
         return self.proc
@@ -116,7 +118,7 @@ class Process(Tube):
 
         try:
             r = select.select(
-                [self.proc.stdout], [], [], self.temp_timeout
+                [self.proc.stdout], [], [], self.timeout
             )
             if r == ([], [], []):
                 raise TimeoutError("Receive timeout")
@@ -124,7 +126,7 @@ class Process(Tube):
                 # assert r == ([self.proc.stdout], [], [])
                 return True
         except TimeoutError as e:
-            raise e
+            raise e from None
         except select.error as v:
             if v[0] == errno.EINTR:
                 return False
@@ -144,7 +146,7 @@ class Process(Tube):
         self._settimeout(timeout)
         if size <= 0:
             logger.error("`size` must be larger than 0")
-            return None
+            return b''
 
         if size <= len(self.reservoir):
             # Use the buffer
@@ -177,17 +179,15 @@ class Process(Tube):
             self.reservoir = b''
         return data
 
-    def send(self, data, timeout=None):
+    def send(self, data):
         """Send raw data
 
         Send raw data through the socket
 
         Args:
             data (bytes) : Data to send
-            timeout (int): Timeout (in second)
         """
         self._poll()
-        self._settimeout(timeout)
         if isinstance(data, str):
             data = str2bytes(data)
 
@@ -204,12 +204,11 @@ class Process(Tube):
         This method is called from the destructor.
         """
         if self.proc:
-            if not is_windows:
-                os.close(self.slave)
+            os.close(self.slave)
             self.proc.kill()
             self.proc.wait()
             self.proc = None
-            logger.info("close: '{0}' killed".format(self.filepath))
+            logger.info("'{0}' killed".format(self.filepath))
 
     def shutdown(self, target):
         """Kill one connection

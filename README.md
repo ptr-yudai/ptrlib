@@ -14,9 +14,10 @@ Supports: Python 3.x
 
 Library Dependency:
 - pycryptodome
+- pywin32 (If you want to handle Windows process)
 
 External Program:
-- When you use `SSH` function, the following programs are required:
+- If you want to use `SSH` function, the following programs are required:
   - ssh (Default path: `/usr/bin/ssh`)
   - expect (Default path: `/usr/bin/expect`)
 
