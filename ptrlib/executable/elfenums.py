@@ -7,7 +7,7 @@
 from ptrlib.util.construct import Pass
 
 def merge_dicts(*dicts):
-    "Given any number of dicts, merges them into a new one."""
+    """Given any number of dicts, merges them into a new one."""
     result = {}
     for d in dicts:
         result.update(d)

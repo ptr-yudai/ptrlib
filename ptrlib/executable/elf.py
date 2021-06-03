@@ -2,7 +2,6 @@ from ptrlib.console.color import Color
 from ptrlib.util.encoding import *
 from ptrlib.util.packing import *
 from ptrlib.executable.elfstruct import *
-from ptrlib.asm.assembler import *
 from logging import getLogger
 import re
 
@@ -15,7 +14,7 @@ class ELF(object):
         self.filepath = filepath
         self.stream = open(filepath, 'rb')
         if not self._identify():
-            return
+            raise ValueError("Not a valid ELF file")
 
         # Register ELF structs
         self.structs = ELFStructs(self.little_endian, self.elfclass)
@@ -534,9 +533,9 @@ class ELF(object):
             if stream_pos is not None:
                 self.stream.seek(stream_pos)
             return struct.parse_stream(self.stream)
-        except ConstructError:
+        except ConstructError as e:
             logger.warning("Parse Error")
-            exit(1)  # CHECK:
+            raise e from None
 
     def close(self):
         if self.stream:
