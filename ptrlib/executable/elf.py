@@ -39,7 +39,7 @@ class ELF(object):
         Args:
             name (str): The symbol name to find
 
-        Return:
+        Returns:
             int: The address of the symbol
         """
         if isinstance(name, str):
@@ -61,7 +61,7 @@ class ELF(object):
                 if sym_name == b'':
                     continue
                 if sym_name == name:
-                    return sym.st_value + (self.base() if self.pie() else 0)
+                    return sym.st_value + (self.base if self.pie() else 0)
         return None
 
     def find(self, pattern, stream_pos=0):
@@ -91,7 +91,7 @@ class ELF(object):
             if pattern in data:
                 index = data.index(pattern)
                 addr += index
-                yield self.base() + addr
+                yield self.base + addr
                 addr, index = addr + 1, index + 1
             else:
                 break
@@ -104,7 +104,7 @@ class ELF(object):
         Args:
             name (str): The section name to find
 
-        Return:
+        Returns:
             int: The address of the section
         """
         if isinstance(name, str):
@@ -112,7 +112,7 @@ class ELF(object):
 
         section_header = self._get_section_by_name(name)
         if section_header:
-            return section_header.sh_addr + (self.base() if self.pie() else 0)
+            return section_header.sh_addr + (self.base if self.pie() else 0)
         
         return None
 
@@ -124,6 +124,7 @@ class ELF(object):
         """
         self._base = base
 
+    @property
     def base(self):
         """Get the load address
 
@@ -152,14 +153,14 @@ class ELF(object):
         Args:
             name (str): The function name to find
 
-        Return:
+        Returns:
             int: The address of the PLT section
         """
         if isinstance(name, str):
             name = str2bytes(name)
 
         if self.pie():
-            target_got = self.got(name) - self.base()
+            target_got = self.got(name) - self.base
         else:
             target_got = self.got(name)
         if target_got is None:
@@ -175,14 +176,14 @@ class ELF(object):
             xref = self._plt_ref_list(code, section_header)
 
             if target_got in xref:
-                return xref[target_got] + (self.base() if self.pie() else 0)
+                return xref[target_got] + (self.base if self.pie() else 0)
 
         return self.section(".plt")
 
     def _plt_ref_list(self, code, sh):
         xref = {}
         i = 0
-        base_got = self.section('.got') - self.base()
+        base_got = self.section('.got') - self.base
 
         while i < sh.sh_size - 6:
             if self.elfclass == 32:
@@ -224,7 +225,7 @@ class ELF(object):
         Args:
             name (str): The function name to find
 
-        Return:
+        Returns:
             int: The address of the GOT
         """
         if isinstance(name, str):
@@ -261,7 +262,7 @@ class ELF(object):
 
                 symbol_name = self._get_symbol_name(symbols, sym_idx)
                 if symbol_name == name:
-                    return rel.r_offset + (self.base() if self.pie() else 0)
+                    return rel.r_offset + (self.base if self.pie() else 0)
 
     def main_arena(self):
         """Find main_arena offset
