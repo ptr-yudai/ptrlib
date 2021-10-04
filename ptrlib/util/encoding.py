@@ -31,3 +31,24 @@ def has_space(data):
             return True
 
     return False
+
+""" Check if payload is safe for an input function """
+def is_scanf_safe(data):
+    return has_space(data)
+
+def is_stream_safe(data):  # stream
+    return has_space(data)
+
+def is_cin_safe(data):     # cin
+    return has_space(data)
+
+def is_fgets_safe(data):   # fgets
+    if isinstance(data, str):
+        data = str2bytes(data)
+    return b'\n' in data
+
+def is_gets_safe(data):    # gets
+    return is_fgets_safe(data)
+
+def is_getline_safe(data): # getline
+    return is_fgets_safe(data)
