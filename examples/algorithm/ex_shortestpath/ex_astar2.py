@@ -2,7 +2,7 @@ from math import inf
 from random import choice, seed
 from typing import Tuple
 
-from ptrlib.algorith.shortestpath import ShortestPath
+from ptrlib.algorithm.shortestpath import ShortestPath
 
 seed(133333)
 

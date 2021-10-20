@@ -1,7 +1,7 @@
 from random import random, randrange, seed
 from math import inf
 
-from ptrlib.algorith.shortestpath import ShortestPath
+from ptrlib.algorithm.shortestpath import ShortestPath
 
 seed(1337)
 

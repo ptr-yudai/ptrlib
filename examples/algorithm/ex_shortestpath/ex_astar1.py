@@ -2,7 +2,7 @@ from math import inf
 from random import randrange
 import string
 
-from ptrlib.algorith.shortestpath import ShortestPath
+from ptrlib.algorithm.shortestpath import ShortestPath
 
 res = str(randrange(0, 1 << 64))
 
