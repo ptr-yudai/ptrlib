@@ -12,7 +12,7 @@ SEED = 1337
 ALGORITHMS = ["dijkstra", "floydwarshall"]
 
 
-class TestBlockCipher(unittest.TestCase):
+class TestShortestPath(unittest.TestCase):
     def setUp(self):
         getLogger("ptrlib").setLevel(FATAL)
         seed(SEED)
