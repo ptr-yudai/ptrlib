@@ -89,3 +89,5 @@ Feel free to make a pull request / issue :)
   - Added/fixed several cryptography functions
   - Added buffering of Socket/Process
   - Added status check (CI test)
+- [keymoon](https://github.com/key-moon)
+  - Added algorithm package
