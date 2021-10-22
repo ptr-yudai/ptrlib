@@ -21,3 +21,9 @@ print("'/bin/sh' at 0x{:x}".format(
 print("main_arena at 0x{:x}".format(
     elf.main_arena() # main_arena
 ))
+
+elf.set_base(0x555555554020) # shows error
+elf.set_base(0x555555554000)
+print("main_arena at 0x{:x}".format(
+    elf.main_arena()
+))

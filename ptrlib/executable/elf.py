@@ -122,6 +122,10 @@ class ELF(object):
         Args:
             int: The base address to be used
         """
+        if isinstance(base, int):
+            logger.info("New base address: 0x{:x}".format(base))
+            if base & 0xfff != 0:
+                logger.error("The address doesn't look like a valid base address")
         self._base = base
 
     @property
