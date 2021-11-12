@@ -30,7 +30,8 @@ def transition(state):
             l[pos], l[swappos] = l[swappos], l[pos]
             yield (tuple(l), 1, (pos, swappos))
 
-def estimator(state):
+def estimator(state, _goal):
+    assert(_goal == goal)
     cost = 0
     for i in range(len(state)):
         i1, j1 = i // 4, i % 4
