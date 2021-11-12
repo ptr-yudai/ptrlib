@@ -9,8 +9,8 @@ _T = TypeVar('_T')
 class LazyList(Generic[_T]):
     Null: "LazyList"
 
-    def __init__(self, prevEnumerate: "Optional[LazyList[_T]]", elems: Optional[Union[List[_T], "LazyList[_T]"]]):
-        self._prevEnumerate = prevEnumerate
+    def __init__(self, prev_enumerate: "Optional[LazyList[_T]]", elems: Optional[Union[List[_T], "LazyList[_T]"]]):
+        self._prev_enumerate = prev_enumerate
         self._elems = elems
 
     def __add__(self, other: Union[List[_T], "LazyList[_T]"]):
@@ -25,9 +25,9 @@ class LazyList(Generic[_T]):
             raise ValueError("list is null")
         if isinstance(self._elems, LazyList):
             self._elems = self._elems.value
-        if self._prevEnumerate is None:
+        if self._prev_enumerate is None:
             return self._elems[:]
-        res = self._prevEnumerate.value
+        res = self._prev_enumerate.value
         res.extend(self._elems)
         return res
 

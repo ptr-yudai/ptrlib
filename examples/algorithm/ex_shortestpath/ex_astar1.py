@@ -15,7 +15,7 @@ def estimator(state: str):
     cost = len(res) - len(state) if res.startswith(state) else inf
     return cost
 
-sp = ShortestPath(transition, costEstimator=estimator)
+sp = ShortestPath(transition, cost_estimator=estimator)
 
 cost, path = sp[""][res]
 

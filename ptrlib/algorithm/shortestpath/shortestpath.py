@@ -12,29 +12,29 @@ class ShortestPath(ShortestPathBase, Generic[StateT, EdgeT]):
         transition: TransitionFuncT[StateT, EdgeT],
         infinity: NumberT = inf,
         algorithm: Optional[AlgorithmsT] = None,
-        costEstimator: Optional[CostEstimatorT[StateT]] = None
+        cost_estimator: Optional[CostEstimatorT[StateT]] = None
     ):
-        self.Calculator: ShortestPathBase[StateT, EdgeT]
+        self.calculator: ShortestPathBase[StateT, EdgeT]
 
         # select algorithm if not specified
         if algorithm is None:
-            if costEstimator is not None:
+            if cost_estimator is not None:
                 algorithm = "astar"
             else:
                 algorithm = "dijkstra"
 
         if algorithm == "dijkstra":
-            self.Calculator = Dijkstra(transition, infinity)
+            self.calculator = Dijkstra(transition, infinity)
         if algorithm == "floydwarshall":
-            self.Calculator = FloydWarshall(transition, infinity)
+            self.calculator = FloydWarshall(transition, infinity)
         if algorithm == "astar":
-            if costEstimator is None:
+            if cost_estimator is None:
                 raise ValueError(
                     "costEstimator shoud be provided if you want to use A* algorithm")
-            self.Calculator = AStar(transition, costEstimator, infinity)
+            self.calculator = AStar(transition, cost_estimator, infinity)
 
-    def __getitem__(self, initState: StateT) -> SupportsGetItem[StateT, ResultT[EdgeT]]:
-        return self.Calculator[initState]
+    def __getitem__(self, init_state: StateT) -> SupportsGetItem[StateT, ResultT[EdgeT]]:
+        return self.calculator[init_state]
 
 
 __all__ = ["ShortestPath"]

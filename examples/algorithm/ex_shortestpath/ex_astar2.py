@@ -40,7 +40,7 @@ def estimator(state):
 
 print(f'start: {init}')
 
-sp = ShortestPath(transition, costEstimator=estimator)
+sp = ShortestPath(transition, cost_estimator=estimator)
 
 cost, path = sp[init][goal]
 

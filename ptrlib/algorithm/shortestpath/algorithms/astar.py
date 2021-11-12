@@ -16,12 +16,12 @@ class AStar(ShortestPathBase[StateT, EdgeT]):
         def __init__(
             self,
             transition: TransitionFuncT[StateT_Inner, EdgeT_Inner],
-            costEstimator: CostEstimatorT[StateT_Inner],
+            cost_estimator: CostEstimatorT[StateT_Inner],
             infinity: NumberT,
-            initState: StateT_Inner
+            init_state: StateT_Inner
         ) -> None:
             self.transition = transition
-            self.costEstimator = costEstimator
+            self.cost_estimator = cost_estimator
             self.infinity = infinity
             self.res: DefaultDict[StateT_Inner, ResultT[EdgeT_Inner]] = defaultdict(
                 lambda: (self.infinity, LazyList.Null))
@@ -31,8 +31,7 @@ class AStar(ShortestPathBase[StateT, EdgeT]):
             self.heap: List[Tuple[NumberT, NumberT, StateT_Inner]] = [
                 (self._getEstimatedCost(initState), 0, initState)]
 
-            self.res[initState] = (0, LazyList(None, []))
-            self.arrived[initState] = False
+        def __getitem__(self, dest_state: StateT_Inner) -> ResultT[EdgeT_Inner]:
 
         def _getEstimatedCost(self, state: StateT_Inner) -> NumberT:
             if state not in self.estimatorCache:
@@ -66,18 +65,18 @@ class AStar(ShortestPathBase[StateT, EdgeT]):
     def __init__(
         self,
         transition: TransitionFuncT[StateT, EdgeT],
-        costEstimator: CostEstimatorT[StateT],
+        cost_estimator: CostEstimatorT[StateT],
         infinity: NumberT = inf
     ) -> None:
         self.transition = transition
-        self.costEstimator = costEstimator
+        self.cost_estimator = cost_estimator
         self.memo: Dict[StateT, AStar._AStar_Container[StateT, EdgeT]] = dict()
         self.infinity: NumberT = infinity
 
     def __getitem__(self, initState: StateT) -> _AStar_Container[StateT, EdgeT]:
         if initState not in self.memo:
             self.memo[initState] = AStar._AStar_Container(
-                self.transition, self.costEstimator, self.infinity, initState)
+                self.transition, self.cost_estimator, self.infinity, initState)
         return self.memo[initState]
 
 
