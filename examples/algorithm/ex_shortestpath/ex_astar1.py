@@ -11,11 +11,11 @@ def transition(state: str):
         yield (state + d, 1, d)
     if len(state) != 0: yield (state[:-1], 1, "DEL")
 
-def estimator(state: str):
-    cost = len(res) - len(state) if res.startswith(state) else inf
+def estimator(state: str, goal: str):
+    cost = len(goal) - len(state) if res.startswith(state) else inf
     return cost
 
-sp = ShortestPath(transition, costEstimator=estimator)
+sp = ShortestPath(transition, cost_estimator=estimator)
 
 cost, path = sp[""][res]
 

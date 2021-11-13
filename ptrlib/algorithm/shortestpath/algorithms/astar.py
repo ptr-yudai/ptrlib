@@ -16,68 +16,64 @@ class AStar(ShortestPathBase[StateT, EdgeT]):
         def __init__(
             self,
             transition: TransitionFuncT[StateT_Inner, EdgeT_Inner],
-            costEstimator: CostEstimatorT[StateT_Inner],
+            cost_estimator: CostEstimatorT[StateT_Inner],
             infinity: NumberT,
-            initState: StateT_Inner
+            init_state: StateT_Inner
         ) -> None:
             self.transition = transition
-            self.costEstimator = costEstimator
+            self.cost_estimator = cost_estimator
             self.infinity = infinity
-            self.res: DefaultDict[StateT_Inner, ResultT[EdgeT_Inner]] = defaultdict(
-                lambda: (self.infinity, LazyList.Null))
-            self.arrived: Dict[StateT_Inner, bool] = dict()
-            self.estimatorCache: Dict[StateT_Inner, NumberT] = dict()
-            self.fixed: Set[StateT_Inner] = set()
-            self.heap: List[Tuple[NumberT, NumberT, StateT_Inner]] = [
-                (self._getEstimatedCost(initState), 0, initState)]
+            self.res: DefaultDict[StateT_Inner, ResultT[EdgeT_Inner]] = defaultdict(lambda: (self.infinity, LazyList.Null))
+            self.res[init_state] = (0, LazyList(None, []))
 
-            self.res[initState] = (0, LazyList(None, []))
-            self.arrived[initState] = False
+        def __getitem__(self, dest_state: StateT_Inner) -> ResultT[EdgeT_Inner]:
+            arrived: Dict[StateT_Inner, bool] = dict()
+            fixed: Set[StateT_Inner] = set()
+            cur_res: DefaultDict[StateT_Inner, ResultT[EdgeT_Inner]] = defaultdict(lambda: (self.infinity, LazyList.Null))
+            heap: List[Tuple[NumberT, NumberT, StateT_Inner]] = []
 
-        def _getEstimatedCost(self, state: StateT_Inner) -> NumberT:
-            if state not in self.estimatorCache:
-                self.estimatorCache[state] = self.costEstimator(state)
-                if self.estimatorCache[state] < 0:
-                    raise ValueError(
-                        "Estimated cost should not be lower than zero.")
-            return self.estimatorCache[state]
-
-        def __getitem__(self, destState: StateT_Inner) -> ResultT[EdgeT_Inner]:
-            assert(self._getEstimatedCost(destState) == 0)
-            while len(self.heap) != 0 and destState not in self.fixed:
-                _, cost, state = heapq.heappop(self.heap)
-                if self.arrived[state]:
-                    continue
-                if state == destState:
-                    self.fixed.add(state)
-                self.arrived[state] = True
+            for state in self.res.keys():
                 cost, path = self.res[state]
+                arrived[state] = False
+                fixed.add(state)
+                cur_res[state] = (cost, path)
+                heap.append((cost + self.cost_estimator(state, dest_state), cost, state))
+            heapq.heapify(heap)
+
+            while len(heap) != 0 and dest_state not in fixed:
+                _, cost, state = heapq.heappop(heap)
+                if arrived[state]:
+                    continue
+                if state == dest_state:
+                    fixed.add(state)
+                arrived[state] = True
+                cost, path = cur_res[state]
                 assert(path is not None)
                 for (next, d, edge) in self.transition(state):
-                    nextCost = cost + d
-                    if (next in self.res) and (self.res[next][0] <= nextCost):
+                    next_cost = cost + d
+                    if (next in cur_res) and (cur_res[next][0] <= next_cost):
                         continue
-                    self.arrived[next] = False
-                    self.res[next] = (nextCost, path.append(edge))
-                    heapq.heappush(
-                        self.heap, (nextCost + self._getEstimatedCost(next), nextCost, next))
-            return self.res[destState]
+                    arrived[next] = False
+                    cur_res[next] = (next_cost, path.append(edge))
+                    heapq.heappush(heap, (next_cost + self.cost_estimator(next, dest_state), next_cost, next))
+            self.res[dest_state] = cur_res[dest_state]
+            return self.res[dest_state]
 
     def __init__(
         self,
         transition: TransitionFuncT[StateT, EdgeT],
-        costEstimator: CostEstimatorT[StateT],
+        cost_estimator: CostEstimatorT[StateT],
         infinity: NumberT = inf
     ) -> None:
         self.transition = transition
-        self.costEstimator = costEstimator
+        self.cost_estimator = cost_estimator
         self.memo: Dict[StateT, AStar._AStar_Container[StateT, EdgeT]] = dict()
         self.infinity: NumberT = infinity
 
     def __getitem__(self, initState: StateT) -> _AStar_Container[StateT, EdgeT]:
         if initState not in self.memo:
             self.memo[initState] = AStar._AStar_Container(
-                self.transition, self.costEstimator, self.infinity, initState)
+                self.transition, self.cost_estimator, self.infinity, initState)
         return self.memo[initState]
 
 

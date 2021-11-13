@@ -41,7 +41,7 @@ class TestShortestPath(unittest.TestCase):
                         continue
                     yield (nxt, self.graph[state][nxt], (state, nxt))
             sp = ShortestPath(transition, algorithm=algo)
-            self.assertIsInstance(sp.Calculator, expectClass)
+            self.assertIsInstance(sp.calculator, expectClass)
             for i in range(NODE_COUNT):
                 for j in range(NODE_COUNT):
                     cost, route = sp[i][j]
@@ -61,31 +61,30 @@ class TestShortestPath(unittest.TestCase):
         test_algorithm("floydwarshall", FloydWarshall)
 
     def test_astar(self):
-        goal = NODE_COUNT - 1
-
         def transition(state):
             for nxt in range(NODE_COUNT):
                 if self.graph[state][nxt] == inf:
                     continue
                 yield (nxt, self.graph[state][nxt], (state, nxt))
 
-        def estimator(state):
+        def estimator(state, goal):
             return self.ans[state][goal]
 
         with self.assertRaises(ValueError):
             ShortestPath(transition, algorithm="astar")
 
-        sp = ShortestPath(transition, costEstimator=estimator)
-        self.assertIsInstance(sp.Calculator, AStar)
-        cost, route = sp[0][goal]
-        self.assertEqual(cost, self.ans[0][goal])
-        if self.ans[0][goal] == inf:
-            with self.assertRaises(ValueError):
-                route.value
-            return
-        self.assertIsNotNone(route)
-        prev = 0
-        for s, t in route.value:
-            self.assertEqual(prev, s)
-            prev = t
-        self.assertEqual(prev, goal)
+        sp = ShortestPath(transition, cost_estimator=estimator)
+        self.assertIsInstance(sp.calculator, AStar)
+        for goal in range(NODE_COUNT):
+            cost, route = sp[0][goal]
+            self.assertEqual(cost, self.ans[0][goal])
+            if self.ans[0][goal] == inf:
+                with self.assertRaises(ValueError):
+                    route.value
+                return
+            self.assertIsNotNone(route)
+            prev = 0
+            for s, t in route.value:
+                self.assertEqual(prev, s)
+                prev = t
+            self.assertEqual(prev, goal)
