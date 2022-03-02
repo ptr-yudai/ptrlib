@@ -13,7 +13,7 @@ else:
 def SSH(host, port, username,
         password=None, identity=None,
         ssh_path=None, expect_path=None,
-        option=''):
+        option='', command=''):
     """Create an SSH shell
 
     Create a new process to connect to SSH server
@@ -25,6 +25,7 @@ def SSH(host, port, username,
         password (str): SSH password
         identity (str): Path of identity file
         option (str)  : Parameters to pass to SSH
+        command (str) : Initial command to execute on remote
 
     Returns:
         Process: ``Process`` instance.
@@ -56,12 +57,13 @@ def SSH(host, port, username,
     if identity is not None:
         option += ' -i {}'.format(shlex.quote(identity))
 
-    script = 'eval spawn {} -oStrictHostKeyChecking=no -oCheckHostIP=no {}@{} -p{} {}; interact'.format(
+    script = 'eval spawn {} -oStrictHostKeyChecking=no -oCheckHostIP=no {}@{} -p{} {} {}; interact'.format(
         ssh_path,
         shlex.quote(username),
         shlex.quote(host),
         port,
-        option
+        option,
+        command
     )
 
     proc = Process(
