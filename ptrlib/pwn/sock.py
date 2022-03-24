@@ -140,6 +140,18 @@ class Socket(Tube):
         else:
             logger.error("You must specify `send` or `recv` as target.")
 
+    def is_alive(self, timeout=None):
+        try:
+            self._settimeout(timeout)
+            data = self.sock.recv(1, socket.MSG_PEEK)
+            return True
+        except BlockingIOError:
+            return False
+        except ConnectionResetError:
+            return False
+        except socket.timeout:
+            return False
+
     def __del__(self):
         self.close()
 

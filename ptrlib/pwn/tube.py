@@ -277,6 +277,10 @@ class Tube(metaclass=ABCMeta):
         self.close()
 
     @abstractmethod
+    def is_alive(self):
+        pass
+
+    @abstractmethod
     def close(self):
         pass
 

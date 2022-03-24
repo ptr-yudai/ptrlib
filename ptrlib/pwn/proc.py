@@ -107,7 +107,7 @@ class UnixProcess(Tube):
                 ))
         return returncode
 
-    def _is_alive(self):
+    def is_alive(self):
         """Check if the process is alive"""
         return self._poll() is None
 
@@ -235,7 +235,7 @@ class UnixProcess(Tube):
         Returns:
             code (int): Status code of the process
         """
-        while self._is_alive():
+        while self.is_alive():
             time.sleep(0.1)
         return self.returncode
 

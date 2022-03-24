@@ -29,6 +29,11 @@ class ELF(object):
         # String table section
         self.section_string = self._get_section(self.header.e_shstrndx)
 
+        # Cache
+        self.cache_symbol = {}
+        self.cache_plt = {}
+        self.cache_got = {}
+
         self.set_base()
 
     def symbol(self, name):
@@ -44,6 +49,9 @@ class ELF(object):
         """
         if isinstance(name, str):
             name = str2bytes(name)
+
+        if (self.pie(), name) in self.cache_symbol:
+            return self.cache_symbol[self.pie(), name]
 
         # Find symbol
         for i in range(self.header.e_shnum):
@@ -61,7 +69,10 @@ class ELF(object):
                 if sym_name == b'':
                     continue
                 if sym_name == name:
-                    return sym.st_value + (self.base if self.pie() else 0)
+                    r = sym.st_value + (self.base if self.pie() else 0)
+                    self.cache_symbol[(self.pie(), name)] = r
+                    return r
+
         return None
 
     def find(self, pattern, stream_pos=0):
@@ -70,7 +81,7 @@ class ELF(object):
         for result in self.search(pattern, stream_pos):
             yield result
 
-    def search(self, pattern, stream_pos=0):
+    def search(self, pattern, stream_pos=0, writable=None, executable=None):
         """Find a binary data from the ELF
 
         Args:
@@ -149,7 +160,7 @@ class ELF(object):
 
         return segment_header.p_vaddr
 
-    def plt(self, name):
+    def plt(self, name=None):
         """Get a PLT address
 
         Lookup the PLT table and find the corresponding address
@@ -160,8 +171,14 @@ class ELF(object):
         Returns:
             int: The address of the PLT section
         """
+        if not name:
+            return self.section(".plt")
+
         if isinstance(name, str):
             name = str2bytes(name)
+
+        if (self.pie(), name) in self.cache_plt:
+            return self.cache_plt[self.pie(), name]
 
         if self.pie():
             target_got = self.got(name) - self.base
@@ -180,9 +197,11 @@ class ELF(object):
             xref = self._plt_ref_list(code, section_header)
 
             if target_got in xref:
-                return xref[target_got] + (self.base if self.pie() else 0)
+                r = xref[target_got] + (self.base if self.pie() else 0)
+                self.cache_plt[(self.pie(), name)] = r
+                return r
 
-        return self.section(".plt")
+        return None
 
     def _plt_ref_list(self, code, sh):
         xref = {}
@@ -235,6 +254,9 @@ class ELF(object):
         if isinstance(name, str):
             name = str2bytes(name)
 
+        if (self.pie(), name) in self.cache_got:
+            return self.cache_got[self.pie(), name]
+
         for i in range(self.header.e_shnum):
             section_header = self._get_section(i)
             if section_header.sh_type != 'SHT_REL':
@@ -266,7 +288,11 @@ class ELF(object):
 
                 symbol_name = self._get_symbol_name(symbols, sym_idx)
                 if symbol_name == name:
-                    return rel.r_offset + (self.base if self.pie() else 0)
+                    r = rel.r_offset + (self.base if self.pie() else 0)
+                    self.cache_got[(self.pie(), name)] = r
+                    return r
+
+        return None
 
     def main_arena(self):
         """Find main_arena offset
@@ -433,6 +459,17 @@ class ELF(object):
                     return False
                 return True
         return False
+
+    def gadget(self, asm):
+        """Find ROP/COP gadget
+        Args:
+            asm (str): Assembly representation of ROP gadget
+
+        Returns:
+            generator: Generator to yield the addresses of the found gadgets
+        """
+        
+        raise NotImplementedError("Coming soon...")
 
     def _get_tag(self, key):
         for i in range(self.header.e_shnum):
