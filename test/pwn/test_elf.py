@@ -15,6 +15,7 @@ class TestELF(unittest.TestCase):
 
     def test_got(self):
         self.assertEqual(self.elf32.got('printf'), 0x0804a010)
+        self.assertEqual(self.elf32.got('printf'), 0x0804a010) # cache
         self.assertEqual(self.elf64.got('printf'), 0x00601028)
         self.assertEqual(self.pie32.got('read'), 0x00001fdc)
         self.assertEqual(self.pie64.got('read'), 0x00200fd0)
@@ -30,6 +31,7 @@ class TestELF(unittest.TestCase):
 
     def test_plt(self):
         self.assertEqual(self.elf32.plt('printf'), 0x08048390)
+        self.assertEqual(self.elf32.plt('printf'), 0x08048390) # cache
         self.assertEqual(self.elf64.plt('printf'), 0x00400530)
         self.assertEqual(self.pie32.plt('read'), 0x00000410)
         self.assertEqual(self.pie64.plt('read'), 0x000005d0)
@@ -72,6 +74,8 @@ class TestELF(unittest.TestCase):
         self.assertEqual(self.libc64.symbol("system"),
                          0x7ffff79e2000 + 0x4f440)
         self.libc64.set_base()
+
+    # TODO: Add test for gadget
 
     def test_security(self):
         self.assertEqual(self.elf32.ssp(), False)

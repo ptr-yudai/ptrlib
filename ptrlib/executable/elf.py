@@ -48,8 +48,8 @@ class ELF(object):
 
         if not hasattr(self, 'cache_symbol'):
             self.cache_symbol = {}
-        elif (self.pie(), name) in self.cache_symbol:
-            return self.cache_symbol[self.pie(), name]
+        elif (self.base, name) in self.cache_symbol:
+            return self.cache_symbol[self.base, name]
 
         # Find symbol
         for i in range(self.header.e_shnum):
@@ -68,7 +68,7 @@ class ELF(object):
                     continue
                 if sym_name == name:
                     r = sym.st_value + (self.base if self.pie() else 0)
-                    self.cache_symbol[(self.pie(), name)] = r
+                    self.cache_symbol[(self.base, name)] = r
                     return r
 
         return None
@@ -183,8 +183,8 @@ class ELF(object):
 
         if not hasattr(self, 'cache_plt'):
             self.cache_plt = {}
-        if (self.pie(), name) in self.cache_plt:
-            return self.cache_plt[self.pie(), name]
+        if (self.base, name) in self.cache_plt:
+            return self.cache_plt[self.base, name]
 
         if self.pie():
             target_got = self.got(name) - self.base
@@ -204,7 +204,7 @@ class ELF(object):
 
             if target_got in xref:
                 r = xref[target_got] + (self.base if self.pie() else 0)
-                self.cache_plt[(self.pie(), name)] = r
+                self.cache_plt[(self.base, name)] = r
                 return r
 
         return None
@@ -262,8 +262,8 @@ class ELF(object):
 
         if not hasattr(self, 'cache_got'):
             self.cache_got = {}
-        if (self.pie(), name) in self.cache_got:
-            return self.cache_got[self.pie(), name]
+        if (self.base, name) in self.cache_got:
+            return self.cache_got[self.base, name]
 
         for i in range(self.header.e_shnum):
             section_header = self._get_section(i)
@@ -297,7 +297,7 @@ class ELF(object):
                 symbol_name = self._get_symbol_name(symbols, sym_idx)
                 if symbol_name == name:
                     r = rel.r_offset + (self.base if self.pie() else 0)
-                    self.cache_got[(self.pie(), name)] = r
+                    self.cache_got[(self.base, name)] = r
                     return r
 
         return None
@@ -477,9 +477,6 @@ class ELF(object):
         Returns:
             generator: Generator to yield the addresses of the found gadgets
         """
-        if not hasattr(self, 'cache_gadget'):
-            self.cache_gadget = {}
-
         if isinstance(code, str):
             # Assemble
             if self.header.e_machine == 'EM_386':
