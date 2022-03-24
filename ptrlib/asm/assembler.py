@@ -124,6 +124,9 @@ def assemble(code, bits=None, arch='intel', syntax='intel', entry=None):
     if isinstance(code, str):
         code = str2bytes(code)
 
+    if code[-1] != 0x0a:
+        code += b'\n'
+
     if entry is None:
         entry = 'ptrlib_main'
         code = b'.global ptrlib_main\nptrlib_main:\n' + code

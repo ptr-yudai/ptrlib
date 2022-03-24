@@ -2,6 +2,7 @@ from ptrlib.console.color import Color
 from ptrlib.util.encoding import *
 from ptrlib.util.packing import *
 from ptrlib.executable.elfstruct import *
+from ptrlib.asm.assembler import *
 from logging import getLogger
 import re
 
@@ -108,6 +109,7 @@ class ELF(object):
                     break
 
                 yield (self.base + addr + offset)
+                offset += 1
 
     def section(self, name):
         """Get a section by name
@@ -466,17 +468,39 @@ class ELF(object):
                 return True
         return False
 
-    def gadget(self, asm):
+    def gadget(self, code, syntax='intel'):
         """Find ROP/COP gadget
         Args:
-            asm (str): Assembly representation of ROP gadget
+            code (str/bytes): Assembly or machine code of ROP gadget
+            syntax (str): Syntax of code (default to intel)
 
         Returns:
             generator: Generator to yield the addresses of the found gadgets
         """
-        self.search(asm, executable=True)
+        if not hasattr(self, 'cache_gadget'):
+            self.cache_gadget = {}
 
-        raise NotImplementedError("Coming soon...")
+        if isinstance(code, str):
+            # Assemble
+            if self.header.e_machine == 'EM_386':
+                arch = 'x86'
+            elif self.header.e_machine == 'EM_X86_64':
+                arch = 'amd64'
+            elif self.header.e_machine == 'EM_ARM':
+                arch = 'arm'
+            elif self.header.e_machine == 'EM_AARCH64':
+                arch = 'aarch64'
+            else:
+                raise NotImplementedError(
+                    "The current architecture (e_machine={})".format(
+                        self.header.e_machine
+                    ) + \
+                    " is not supported by assembler."
+                )
+
+            code = assemble(code, bits=self.elfclass, arch=arch, syntax=syntax)
+
+        return self.search(code, executable=True)
 
     def _segments(self, writable=None, executable=None):
         if not hasattr(self, 'cache_segments'):
