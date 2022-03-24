@@ -270,6 +270,9 @@ ENUM_E_MACHINE = dict(
     _default_=Pass,
 )
 
+# e_machine in the ELF header
+
+
 # sh_type in the section header
 #
 # This is the "base" dict that doesn't hold processor-specific values; from it
@@ -417,6 +420,11 @@ ENUM_P_TYPE_AARCH64 = merge_dicts(
 ENUM_P_TYPE_MIPS = merge_dicts(
         ENUM_P_TYPE_BASE,
         dict(PT_MIPS_ABIFLAGS=0x70000003))
+
+# p_flags in the program header
+ENUM_P_FLAGS = dict(
+    PF_X=1, PF_W=2, PF_R=4, PF_MASKPROC=0xf0000000
+)
 
 # st_info bindings in the symbol header
 ENUM_ST_INFO_BIND = dict(

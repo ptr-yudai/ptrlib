@@ -29,11 +29,6 @@ class ELF(object):
         # String table section
         self.section_string = self._get_section(self.header.e_shstrndx)
 
-        # Cache
-        self.cache_symbol = {}
-        self.cache_plt = {}
-        self.cache_got = {}
-
         self.set_base()
 
     def symbol(self, name):
@@ -50,7 +45,9 @@ class ELF(object):
         if isinstance(name, str):
             name = str2bytes(name)
 
-        if (self.pie(), name) in self.cache_symbol:
+        if not hasattr(self, 'cache_symbol'):
+            self.cache_symbol = {}
+        elif (self.pie(), name) in self.cache_symbol:
             return self.cache_symbol[self.pie(), name]
 
         # Find symbol
@@ -75,13 +72,13 @@ class ELF(object):
 
         return None
 
-    def find(self, pattern, stream_pos=0):
+    def find(self, pattern):
         """Alias of ```search```
         """
-        for result in self.search(pattern, stream_pos):
+        for result in self.search(pattern):
             yield result
 
-    def search(self, pattern, stream_pos=0, writable=None, executable=None):
+    def search(self, pattern, writable=None, executable=None):
         """Find a binary data from the ELF
 
         Args:
@@ -93,19 +90,24 @@ class ELF(object):
         if isinstance(pattern, str):
             pattern = str2bytes(pattern)
 
-        self.stream.seek(stream_pos)
-        data = self.stream.read()
-        length = len(data)
-        addr, index = 0, 0
-        while addr < length:
-            data = data[index:]
-            if pattern in data:
-                index = data.index(pattern)
-                addr += index
-                yield self.base + addr
-                addr, index = addr + 1, index + 1
-            else:
-                break
+        segments = self._segments(writable=writable, executable=executable)
+        for seg in segments:
+            addr   = seg.p_vaddr
+            memsz  = seg.p_memsz
+            zeroed = memsz - seg.p_filesz
+            offset = seg.p_offset
+
+            self.stream.seek(offset)
+            data = self.stream.read(memsz)
+            data += b'\x00' * zeroed
+
+            offset = 0
+            while True:
+                offset = data.find(pattern, offset)
+                if offset == -1:
+                    break
+
+                yield (self.base + addr + offset)
 
     def section(self, name):
         """Get a section by name
@@ -177,6 +179,8 @@ class ELF(object):
         if isinstance(name, str):
             name = str2bytes(name)
 
+        if not hasattr(self, 'cache_plt'):
+            self.cache_plt = {}
         if (self.pie(), name) in self.cache_plt:
             return self.cache_plt[self.pie(), name]
 
@@ -254,6 +258,8 @@ class ELF(object):
         if isinstance(name, str):
             name = str2bytes(name)
 
+        if not hasattr(self, 'cache_got'):
+            self.cache_got = {}
         if (self.pie(), name) in self.cache_got:
             return self.cache_got[self.pie(), name]
 
@@ -468,8 +474,38 @@ class ELF(object):
         Returns:
             generator: Generator to yield the addresses of the found gadgets
         """
-        
+        self.search(asm, executable=True)
+
         raise NotImplementedError("Coming soon...")
+
+    def _segments(self, writable=None, executable=None):
+        if not hasattr(self, 'cache_segments'):
+            self.cache_segments = []
+            self.cache_w_segments = []
+            self.cache_x_segments = []
+
+            # Collect segments
+            for i in range(self.header.e_phnum):
+                seg = self._get_segment(i)
+                self.cache_segments.append(seg)
+                if seg.p_flags & ENUM_P_FLAGS['PF_X']:
+                    self.cache_x_segments.append(seg)
+                if seg.p_flags & ENUM_P_FLAGS['PF_W']:
+                    self.cache_w_segments.append(seg)
+
+        if writable is None and executable is None:
+            return self.cache_segments
+        elif writable and executable is None:
+            return self.cache_w_segments
+        elif writable is None and executable:
+            return self.cache_x_segments
+        else:
+            wx = []
+            for w in self.cache_w_segments:
+                for x in self.cache_x_segments:
+                    if w == x:
+                        wx.append(w)
+            return wx
 
     def _get_tag(self, key):
         for i in range(self.header.e_shnum):
