@@ -59,6 +59,35 @@ class TestELF(unittest.TestCase):
         self.pie32.set_base()
         self.pie64.set_base()
 
+    def test_search(self):
+        self.assertEqual(next(self.elf32.search("A")),
+                         0x80481a1)
+        self.assertEqual(next(self.elf32.search("\x00", writable=True)),
+                         0x8049f0d)
+        self.assertEqual(next(self.elf32.search("\xcc", executable=True)),
+                         0x8048698)
+        self.assertEqual(next(self.elf64.search("A")),
+                         0x4006e0)
+        self.assertEqual(next(self.elf64.search("\x00", writable=True)),
+                         0x600e13)
+        self.assertEqual(next(self.elf64.search("\x77", executable=True)),
+                         0x400829)
+        self.assertEqual(next(self.pie32.search("A")),
+                         0x788)
+        self.assertEqual(next(self.pie32.search("\x00", writable=True)),
+                         0x1ed2)
+        self.assertEqual(next(self.pie32.search("\x77", executable=True)),
+                         0x1ec)
+        self.assertEqual(next(self.pie64.search("A")),
+                         0x780)
+        self.assertEqual(next(self.pie64.search("\x00", writable=True)),
+                         0x200daa)
+        g = self.pie64.search("\x77", executable=True)
+        self.assertEqual(next(g), 0x3d2)
+        self.pie64.set_base(0x555555540000)
+        self.assertEqual(next(g), 0x555555540000 + 0x8a1)
+        self.pie64.set_base()
+
     def test_libc(self):
         self.assertEqual(self.libc64.main_arena(), 0x3ebc40)
         self.assertEqual(next(self.libc64.search("/bin/sh")), 0x1b3e9a)

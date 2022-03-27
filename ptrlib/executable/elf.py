@@ -108,7 +108,10 @@ class ELF(object):
                 if offset == -1:
                     break
 
-                yield (self.base + addr + offset)
+                if self.pie():
+                    yield self.base + addr + offset
+                else:
+                    yield addr + offset
                 offset += 1
 
     def section(self, name):
