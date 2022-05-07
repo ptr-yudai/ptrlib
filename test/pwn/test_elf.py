@@ -104,6 +104,11 @@ class TestELF(unittest.TestCase):
                          0x7ffff79e2000 + 0x4f440)
         self.libc64.set_base()
 
+        libc231 = ELF("./test/pwn/testbin/libc-2.31.so")
+        libc234 = ELF("./test/pwn/testbin/libc-2.34.so")
+        self.assertEqual(libc231.main_arena(), 0x1ecb80)
+        self.assertEqual(libc234.main_arena(), 0x218c60)
+
     # TODO: Add test for gadget
 
     def test_security(self):

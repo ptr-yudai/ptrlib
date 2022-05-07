@@ -311,16 +311,30 @@ class ELF(object):
         Returns:
             int: Offset to main_arena (returns None if it's not libc)
         """
+        ofs_stdin = self.symbol('_IO_2_1_stdin_')
         ofs_realloc_hook = self.symbol('__realloc_hook')
         ofs_malloc_hook = self.symbol('__malloc_hook')
-        if ofs_realloc_hook is None or ofs_malloc_hook is None:
+        if ofs_realloc_hook is None \
+           or ofs_malloc_hook is None \
+           or ofs_stdin is None:
             logger.warn('main_arena works only for libc binaries')
             return None
 
-        if self.elfclass == 32:
-            return ofs_malloc_hook + 0x18
+        if 0 < ofs_malloc_hook - ofs_stdin < 0x1000:
+            # libc-2.33 or older
+            if self.elfclass == 32:
+                return ofs_malloc_hook + 0x18
+            else:
+                return ofs_malloc_hook + (ofs_malloc_hook-ofs_realloc_hook)*2
+
         else:
-            return ofs_malloc_hook + (ofs_malloc_hook - ofs_realloc_hook) * 2
+            # libc-2.34 removed hooks
+            ofs_tzname = self.symbol('tzname')
+            if ofs_tzname is None: return None
+            if self.elfclass == 32:
+                return ofs_tzname - 0x8a0
+            else:
+                return ofs_tzname - 0x460
 
     def checksec(self):
         """Check security
