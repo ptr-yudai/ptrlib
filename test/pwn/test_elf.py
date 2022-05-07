@@ -108,6 +108,8 @@ class TestELF(unittest.TestCase):
         libc234 = ELF("./test/pwn/testbin/libc-2.34.so")
         self.assertEqual(libc231.main_arena(), 0x1ecb80)
         self.assertEqual(libc234.main_arena(), 0x218c60)
+        libc231.close()
+        libc234.close()
 
     # TODO: Add test for gadget
 

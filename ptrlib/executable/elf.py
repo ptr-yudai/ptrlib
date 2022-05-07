@@ -332,9 +332,9 @@ class ELF(object):
             ofs_tzname = self.symbol('tzname')
             if ofs_tzname is None: return None
             if self.elfclass == 32:
-                return ofs_tzname - 0x8a0
-            else:
                 return ofs_tzname - 0x460
+            else:
+                return ofs_tzname - 0x8a0
 
     def checksec(self):
         """Check security
