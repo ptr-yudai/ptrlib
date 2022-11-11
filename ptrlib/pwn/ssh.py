@@ -41,6 +41,7 @@ def SSH(host, port, username,
             ).decode().rstrip()
         except subprocess.CalledProcessError:
             raise FileNotFoundError("'SSH' not found")
+
     if expect_path is None:
         try:
             expect_path = subprocess.check_output(
@@ -57,7 +58,7 @@ def SSH(host, port, username,
     if identity is not None:
         option += ' -i {}'.format(shlex.quote(identity))
 
-    script = 'eval spawn {} -oStrictHostKeyChecking=no -oCheckHostIP=no {}@{} -p{} {} {}; interact'.format(
+    script = 'eval spawn {} -oStrictHostKeyChecking=no -oCheckHostIP=no {}@{} -p{} {} {}; interact; lassign [wait] pid spawnid err value; exit "$value"'.format(
         ssh_path,
         shlex.quote(username),
         shlex.quote(host),
