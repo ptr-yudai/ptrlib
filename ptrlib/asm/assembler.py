@@ -18,20 +18,21 @@ def which(s):
     return s
 
 def assemble_intel(code, bits, entry):
-    as_path = which('as')
-    ld_path = which('ld')
+    if bits == 32:
+        gcc_path = which('gcc')
+        objcopy_path = which('objcopy')
+    else:
+        gcc_path = which('gcc')
+        objcopy_path = which('objcopy')
 
-    fname_s   = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())
+    fname_s   = os.path.join(tempfile.gettempdir(), os.urandom(24).hex()) + '.S'
     fname_o   = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())
     fname_bin = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())
     with open(fname_s, 'wb') as f:
         f.write(code)
 
-    cmd = [as_path, fname_s, '-o', fname_o]
-    if bits == 32:
-        cmd.append('--32')
-    else:
-        cmd.append('--64')
+    cmd = [gcc_path, '-nostdlib', '-c', fname_s, '-o', fname_o]
+    cmd.append('-Wl,--entry={}'.format(entry))
 
     if subprocess.Popen(cmd).wait() != 0:
         logger.warn("Assemble failed")
@@ -41,12 +42,8 @@ def assemble_intel(code, bits, entry):
             pass
         return None
 
-    cmd = [ld_path, fname_o, '-o', fname_bin, '--oformat=binary']
-    cmd.append('--entry={}'.format(entry))
-    if bits == 32:
-        cmd += ['-m', 'elf_i386']
-    else:
-        cmd += ['-m', 'elf_x86_64']
+    cmd = [objcopy_path, '--remove-section=.note.gnu.property',
+           '-O', 'binary', fname_o, fname_bin]
 
     if subprocess.Popen(cmd).wait() != 0:
         logger.warn("Linking failed")
@@ -94,7 +91,8 @@ def assemble_arm(code, bits, entry):
             pass
         return None
 
-    cmd = [objcopy_path, '-O', 'binary', fname_o, fname_bin]
+    cmd = [objcopy_path, '--remove-section=.note.gnu.property',
+           '-O', 'binary', fname_o, fname_bin]
 
     if subprocess.Popen(cmd).wait() != 0:
         logger.warn("Linking failed")
