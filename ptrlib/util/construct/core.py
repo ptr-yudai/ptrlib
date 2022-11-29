@@ -1,6 +1,17 @@
 # -*- coding: utf-8 -*-
 
-import struct, io, binascii, itertools, collections, pickle, sys, os, tempfile, hashlib, importlib, imp
+import binascii
+import collections
+import hashlib
+import importlib
+import io
+import itertools
+import os
+import pickle
+import struct
+import sys
+import tempfile
+import types
 
 from ptrlib.util.construct.lib import *
 from ptrlib.util.construct.expr import *
@@ -455,7 +466,7 @@ class Construct(object):
                 f.write(source)
 
         modulename = hexlify(hashlib.sha1(source.encode()).digest()).decode()
-        module = imp.new_module(modulename)
+        module = types.ModuleType(modulename)
         c = compile(source, '', 'exec')
         exec(c, module.__dict__)
 
