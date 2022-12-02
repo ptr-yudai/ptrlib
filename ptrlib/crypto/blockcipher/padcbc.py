@@ -1,7 +1,8 @@
 from logging import getLogger
-from ptrlib.util.encoding import *
+from ptrlib.binary.encoding import str2bytes
 
 logger = getLogger(__name__)
+
 
 def padding_oracle_block(decrypt, prev, block, bs):
     prev = prev[::-1]

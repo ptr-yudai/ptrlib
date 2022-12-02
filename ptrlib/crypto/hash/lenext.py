@@ -1,9 +1,4 @@
 """Length Extension Attack"""
-from ptrlib.crypto.md5 import MD5
-# import sha1
-# import sha256
-# import sha512
-
 def lenext(hash_class, padlen, known_hash, known_message, append_message):
     """Length Extension Attack
     
@@ -36,4 +31,5 @@ def lenext(hash_class, padlen, known_hash, known_message, append_message):
     hash_func = hash_class(len(data))
     hash_func.set_iv(iv)
     hash_func.update(append_message)
+
     return hash_func.hexdigest(), data[padlen:] + append_message

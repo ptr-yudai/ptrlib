@@ -1,6 +1,7 @@
 """Calculate SHA-256 sum"""
 import struct
-from ptrlib.util.encoding import *
+from ptrlib.binary.encoding import str2bytes
+
 
 class SHA256(object):
     """Calculate SHA-256 sum with the initialization vector specified.

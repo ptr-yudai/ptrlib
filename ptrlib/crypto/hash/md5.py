@@ -1,6 +1,7 @@
 """Calculate MD5 sum."""
 import struct
-from ptrlib.util.encoding import *
+from ptrlib.binary.encoding.bytes import str2bytes
+
 
 class MD5(object):
     """Calculate MD5 sum with the initialization vector specified.

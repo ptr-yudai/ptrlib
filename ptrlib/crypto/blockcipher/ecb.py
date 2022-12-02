@@ -39,4 +39,5 @@ def ecb_chosenplaintext(encryptor, prefix, plaintext_length, *, bs=16, unknown=b
             )
         )
         assert found
+
     return plaintext
