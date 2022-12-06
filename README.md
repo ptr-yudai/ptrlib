@@ -10,16 +10,18 @@ Ptrlib is a Python library for CTF players.
 It's designed to make it easy to write a complex program of cryptography, networking, exploit and so on.
 
 ## Requirements
-Supports: Python 3.x
+Supports: Python 3.5 or later
 
 Library Dependency:
 - pycryptodome
-- pywin32 (If you want to handle Windows process)
+- pywin32 (when handling Windows process)
 
 External Program:
-- If you want to use `SSH` function, the following programs are required:
-  - ssh (Default path: `/usr/bin/ssh`)
-  - expect (Default path: `/usr/bin/expect`)
+- When using `SSH` function:
+  - ssh
+  - expect
+- When using `nasm` function:
+  - nasm
 
 ## Usage
 Basic examples are available at [/examples](https://bitbucket.org/ptr-yudai/ptrlib/src/master/examples/).
