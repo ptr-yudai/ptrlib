@@ -20,6 +20,12 @@ External Program:
 - If you want to use `SSH` function, the following programs are required:
   - ssh (Default path: `/usr/bin/ssh`)
   - expect (Default path: `/usr/bin/expect`)
+- If you want to use `nasm` function, the following program is required:
+  - nasm (Install by `apt-get install nasm`)
+- If you want to use `assemble` function, the following programs are required:
+  - amd: gcc (Install by `apt-get install build-essential`)
+  - arm32: arm-linux-gnueabi-gcc (`apt-get install crossbuild-essential-armel`)
+  - arm64: arm-linux-gnueabi-gcc (`apt-get install crossbuild-essential-arm64`)
 
 ## Usage
 Basic examples are available at [/examples](https://bitbucket.org/ptr-yudai/ptrlib/src/master/examples/).
