@@ -2,6 +2,7 @@ import unittest
 from ptrlib import Socket
 from logging import getLogger, FATAL
 
+
 class TestSocket(unittest.TestCase):
     def setUp(self):
         getLogger("ptrlib").setLevel(FATAL)
