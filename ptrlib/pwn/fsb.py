@@ -91,7 +91,7 @@ def fsb32(pos, writes, bs=1, written=0, size=4, rear=False, delta=0, endian='lit
         # create address list
         payload += flat(addrList, map=lambda addr: p32(addr, endian))
         if b'\0' in payload:
-            logger.warn("'\\x00' found in address list. Set `rear=True` to put address list after format string.")
+            logger.warning("'\\x00' found in address list. Set `rear=True` to put address list after format string.")
 
         # create format string
         payload += _fsb_fmtstr(pos, table, bs, delta+written+len(payload), prefix)

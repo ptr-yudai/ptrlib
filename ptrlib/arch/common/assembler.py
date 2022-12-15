@@ -56,7 +56,7 @@ def nasm(code, fmt='bin', bits=None, org=None, nasm_path=None):
         p = subprocess.Popen([nasm_path, "-f{}".format(fmt),
                               fname_s, "-o", fname_o])
         if p.wait() != 0:
-            logger.warn("Assemble failed")
+            logger.warning("Assemble failed")
             os.unlink(fname_s)
             return None
 

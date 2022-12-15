@@ -11,7 +11,7 @@ def common_modulus_attack(cpair, epair, n):
     we can decrypt the ciphertext using Extended Euclid Algorithm.
     """
     if len(cpair) < 2 or len(epair) < 2:
-        logger.warn("cpair and epair must have 2 or more elements.")
+        logger.warning("cpair and epair must have 2 or more elements.")
         return None
 
     c1, c2 = cpair[0], cpair[1]

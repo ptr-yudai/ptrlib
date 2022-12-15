@@ -8,6 +8,6 @@ def inverse(a, n):
     """ Inverse modulo """
     g, x, y = xgcd(a, n)
     if g != 1:
-        logger.warn("No modular inverse")
+        logger.warning("No modular inverse")
         return None
     return x % n

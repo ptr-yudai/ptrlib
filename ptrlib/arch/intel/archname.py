@@ -16,7 +16,7 @@ def is_arch_intel(arch, bits=None):
     arch = arch.lower().replace(' ', '').replace('_', '-')
 
     if bits is not None and bits != 16 and bits != 32 and bits != 64:
-        logger.warn(f"Unknown bits: expected 16/32/64 but {bits} is given")
+        logger.warning(f"Unknown bits: expected 16/32/64 but {bits} is given")
         raise ValueError("Unknown architecture '{}:{}'".format(arch, bits))
 
     if arch in ('intel', 'intel32', 'i386', 'x86'):

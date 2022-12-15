@@ -13,7 +13,7 @@ def crt_internal(pairs):
         m = N // n
         d, r, s = xgcd(n, m)
         if d != 1:
-            logger.warn("Not pairwise co-prime")
+            logger.warning("Not pairwise co-prime")
             return None
         result += c * s * m
     return result % N, N

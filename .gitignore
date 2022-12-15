@@ -4,4 +4,5 @@
 /examples/*/ptrlib
 /dist
 /build
+/ptrlib.egg-info
 */__pycache__

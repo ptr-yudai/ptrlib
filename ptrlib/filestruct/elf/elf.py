@@ -289,7 +289,7 @@ class ELF(object):
         """
         offset = self._offset_main_arena()
         if offset is None:
-            logger.warn('`main_arena` only works for libc binary.')
+            logger.warning('`main_arena` only works for libc binary.')
             return None
         else:
             return self._pie_add_base + offset

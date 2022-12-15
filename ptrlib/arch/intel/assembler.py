@@ -43,14 +43,14 @@ def assemble_intel(code, bits, entry, gcc_path=None, objcopy_path=None):
         cmd = [gcc_path, '-nostdlib', '-c', fname_s, '-o', fname_o]
         cmd.append('-Wl,--entry={}'.format(entry))
         if subprocess.Popen(cmd).wait() != 0:
-            logger.warn("Assemble failed")
+            logger.warning("Assemble failed")
             os.unlink(fname_s)
             return
 
         # Extract
         cmd = [objcopy_path, '-O', 'binary', '-j', '.text', fname_o, fname_bin]
         if subprocess.Popen(cmd).wait() != 0:
-            logger.warn("Extract failed")
+            logger.warning("Extract failed")
             os.unlink(fname_s)
             os.unlink(fname_o)
             return

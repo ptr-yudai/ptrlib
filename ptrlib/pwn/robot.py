@@ -22,7 +22,7 @@ class Robot(object):
         # Assertion
         """
         if self.leak(self.proc_base, 4) != b'\x7fELF':
-            logger.warn("proc base or leak function is wrong")
+            logger.warning("proc base or leak function is wrong")
         else:
             logger.info("proc base is correct")
         """
@@ -39,7 +39,7 @@ class Robot(object):
         for i in range(size):
             r = self.internal_leak(address + len(output))
             if len(r) == 0:
-                logger.warn("`leak` is not working!")
+                logger.warning("`leak` is not working!")
                 return None
             output += r
             if len(output) >= size:
@@ -65,7 +65,7 @@ class Robot(object):
             symb (int): Symbol name
             base (int): Base address of the library
         """
-        logger.warn("Not implemented yet!")
+        logger.warning("Not implemented yet!")
         return None
 
     def find_base(self, address, delta=0):
@@ -89,7 +89,7 @@ class Robot(object):
             
             ptr -= pagesize
             if ptr < 0:
-                logger.warn("Out of memory. Could not find base address.")
+                logger.warning("Out of memory. Could not find base address.")
                 return None
         
         return ptr

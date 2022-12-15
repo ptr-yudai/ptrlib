@@ -9,7 +9,7 @@ def bytes2str(data):
     if isinstance(data, bytes):
         return ''.join(list(map(chr, data)))
     else:
-        logger.warn("{} given ('bytes' expected)".format(type(data)))
+        logger.warning("{} given ('bytes' expected)".format(type(data)))
 
 def str2bytes(data):
     """Convert str to bytes
