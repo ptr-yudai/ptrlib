@@ -119,6 +119,7 @@ class ELFParser(object):
 
     @cache
     def segments(self, writable=None, executable=None):
+        # TODO: Support writable/executable=False
         result = []
         for i in range(self.ehdr['e_phnum']):
             seghdr = self.segment_at(i)
