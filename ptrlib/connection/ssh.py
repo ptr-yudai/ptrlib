@@ -2,7 +2,7 @@
 import shlex
 import os
 from ptrlib.binary.encoding import *
-from ptrlib.arch.linux.ospath import linux_which
+from ptrlib.arch.common import which
 from .proc import *
 
 if os.name == 'nt':
@@ -36,9 +36,9 @@ def SSH(host, port, username,
         raise ValueError("You must give either password or identity")
 
     if ssh_path is None:
-        ssh_path = linux_which('ssh')
+        ssh_path = which('ssh')
     if expect_path is None:
-        expect_path = linux_which('expect')
+        expect_path = which('expect')
 
     if not os.path.isfile(ssh_path):
         raise FileNotFoundError("{}: SSH not found".format(ssh_path))

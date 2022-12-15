@@ -1,5 +1,5 @@
 from logging import getLogger
-from ptrlib.crypto.number.crt import chinese_remainder_theorem
+from ptrlib.crypto.number import chinese_remainder_theorem, root
 
 logger = getLogger(__name__)
 

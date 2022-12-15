@@ -1,3 +1,4 @@
+from .byteconv import str2bytes
 from logging import getLogger
 
 logger = getLogger(__name__)
