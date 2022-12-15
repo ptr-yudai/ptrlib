@@ -1,7 +1,7 @@
 import subprocess
 
 
-def linux_which(s):
+def which_linux(s):
     if '/' not in s:
         try:
             s = subprocess.check_output(["which", s]).decode().rstrip()
