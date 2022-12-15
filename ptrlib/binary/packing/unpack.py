@@ -9,7 +9,7 @@ def u8(data, signed=False):
     if not isinstance(data, bytes):
         raise ValueError("u8: {} given ('bytes' expected)".format(type(data)))
 
-    return int.from_bytes(data[0], 'big', signed=signed)
+    return int.from_bytes(data, 'big', signed=signed)
 
 def u16(data, byteorder='little', signed=False):
     if isinstance(data, str):

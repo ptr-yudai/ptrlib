@@ -1,11 +1,16 @@
 import unittest
-from ptrlib import p16, p32, p64
+from ptrlib import p8, p16, p32, p64
 from logging import getLogger, FATAL
 
 
 class TestPack(unittest.TestCase):
     def setUp(self):
         getLogger("ptrlib").setLevel(FATAL)
+
+    def test_p8(self):
+        v = 0x1
+        self.assertEqual(p8(v), b'\x01')
+        self.assertEqual(p8(-v), b'\xff')
 
     def test_p16(self):
         v = 0x1234

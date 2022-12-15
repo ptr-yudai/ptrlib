@@ -1,11 +1,16 @@
 import unittest
-from ptrlib import u16, u32, u64
+from ptrlib import u8, u16, u32, u64
 from logging import getLogger, FATAL
 
 
 class TestUnpack(unittest.TestCase):
     def setUp(self):
         getLogger("ptrlib").setLevel(FATAL)
+
+    def test_p8(self):
+        v = '\xff'
+        self.assertEqual(u8(v), 0xff)
+        self.assertEqual(u8(v, signed=True), -1)
 
     def test_u16(self):
         v = b'\xcc\xed'

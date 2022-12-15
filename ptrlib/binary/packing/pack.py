@@ -6,7 +6,7 @@ def p8(data):
     if not isinstance(data, int):
         raise ValueError("p8: {} given ('int' expected)".format(type(data)))
 
-    return (data & 0xff).to_bytes(1, byteorder=byteorder)
+    return (data & 0xff).to_bytes(1, byteorder='little')
 
 def p16(data, byteorder='little'):
     if not isinstance(data, int):
