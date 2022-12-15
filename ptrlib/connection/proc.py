@@ -67,7 +67,8 @@ class UnixProcess(Tube):
                 shell = False,
                 stdout=self.slave,
                 stderr=subprocess.STDOUT,
-                stdin=subprocess.PIPE
+                stdin=subprocess.PIPE,
+                close_fds=True
             )
         except FileNotFoundError:
             logger.warning("Executable not found: '{0}'".format(self.filepath))
@@ -210,6 +211,7 @@ class UnixProcess(Tube):
         """
         if self.proc:
             os.close(self.slave)
+            self.proc.stdout.close()
             self.proc.kill()
             self.proc.wait()
             self.proc = None
