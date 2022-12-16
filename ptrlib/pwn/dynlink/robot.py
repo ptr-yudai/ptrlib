@@ -1,4 +1,6 @@
-from ptrlib.util.packing import *
+# TODO: This feature is under development
+from ptrlib.binary.packing import *
+
 
 class Robot(object):
     """Dynamically find function in loaded libc

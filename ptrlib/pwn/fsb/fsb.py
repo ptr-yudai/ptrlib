@@ -1,10 +1,13 @@
-from ptrlib.util.encoding import *
-from ptrlib.util.opebinary import *
-from ptrlib.util.packing import *
+from ptrlib.binary.encoding import *
+from ptrlib.binary.packing import *
+from logging import getLogger
+
+logger = getLogger(__name__)
+
 
 def fsb_read(pos, reads, written=0, bits=32):
-    # TODO
-    return
+    # TODO: Not implemented
+    raise NotImplementedError()
 
 def _fsb_fmtstr(pos, table, bs, written, prefix):
     payload = b''
@@ -91,14 +94,14 @@ def fsb32(pos, writes, bs=1, written=0, size=4, rear=False, delta=0, endian='lit
         # create address list
         payload += flat(addrList, map=lambda addr: p32(addr, endian))
         if b'\0' in payload:
-            logger.warning("'\\x00' found in address list. Set `rear=True` to put address list after format string.")
+            logger.error("'\\x00' found in address list. Set `rear=True` to put address list after format string.")
 
         # create format string
         payload += _fsb_fmtstr(pos, table, bs, delta+written+len(payload), prefix)
 
     return payload
 
-def fsb(pos, writes, bs=1, written=0, bits=32, size=8, rear=None, delta=0, endian='little', null=None):
+def fsb(pos, writes, bs=1, written=0, bits=32, size=8, rear=None, delta=0, endian='little'):
     """Craft a Format String Exploit payload
     
     Args:
@@ -116,9 +119,6 @@ def fsb(pos, writes, bs=1, written=0, bits=32, size=8, rear=None, delta=0, endia
     Returns:
         bytes: crafted payload
     """
-    if null is not None:
-        raise DeprecationWarning("Deprecated keyword `null` is removed. Use `size` instead.")
-
     if bits == 32:
         if rear is None:
             rear = False

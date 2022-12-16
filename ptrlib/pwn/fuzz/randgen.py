@@ -1,6 +1,7 @@
 import random
 import string
 
+
 def random_primitive():
     """Generate a random primitive object
     """

@@ -1,7 +1,8 @@
 from logging import getLogger
-from ptrlib.util.packing import *
+from ptrlib.binary.packing import *
 
 logger = getLogger(__name__)
+
 
 def struct_ret2dl(addrList, elf, base=None):
     """
@@ -17,7 +18,7 @@ def struct_ret2dl(addrList, elf, base=None):
     else:
         logger.warning("PIE base is unknown. Set 0 if you handle it by yourself.")
         logger.warning("In that case make sure `reloc` is offset from PIE base.")
-        return None
+        raise ValueError("Lack of information")
     
     addr_dynsym = proc_base + elf.section('.dynsym')
     addr_dynstr = proc_base + elf.section('.dynstr')
@@ -29,9 +30,9 @@ def struct_ret2dl(addrList, elf, base=None):
     addr_got    = addrList['got']
 
     if addr_sym & 0xF != addr_dynsym & 0xF:
-        logger.warning("addr_sym & 0xf must be {}".format(hex(addr_dynsym & 0xF)))
+        logger.error("addr_sym & 0xf must be {}".format(hex(addr_dynsym & 0xF)))
         addr_sym += 0x10 - ((addr_sym - addr_dynsym) & 0xF)
-        logger.warning("It should be {}".format(hex(addr_sym)))
+        logger.error("It should be {}".format(hex(addr_sym)))
 
     if elf.elfclass == 32:
         reloc  = p32(addr_got)
@@ -42,5 +43,6 @@ def struct_ret2dl(addrList, elf, base=None):
         sym += p32(0x12)
     else:
         logger.warning("Not implemented yet!")
+        raise NotImplementedError()
     
     return addr_reloc - addr_relplt, reloc, sym
