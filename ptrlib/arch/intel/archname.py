@@ -3,28 +3,34 @@ from logging import getLogger
 logger = getLogger(__name__)
 
 
-def is_arch_intel(arch, bits=None):
-    """Check if architecture name string is intel series
+def is_arch_intel(arch):
+    """Check if architecture name string is Intel series
 
     Args:
         arch (str): Architecture name
-        bits (int): 32 or 64 (None by default)
 
     Returns:
-        tuple: Returns tuple of canonicalized bits and name, or None.
+        bool: Returns True if architecture name looks valid
+    """
+    return bit_by_arch_arm(arch) != -1
+
+def bit_by_arch_intel(arch):
+    """Guess bits by architecture name string
+
+    Args:
+        arch (str): Architecture name
+
+    Returns:
+        int: -1 if invalid architecture, otherwise returns bits
     """
     arch = arch.lower().replace(' ', '').replace('_', '-')
 
-    if bits is not None and bits != 16 and bits != 32 and bits != 64:
-        logger.warning(f"Unknown bits: expected 16/32/64 but {bits} is given")
-        raise ValueError("Unknown architecture '{}:{}'".format(arch, bits))
-
     if arch in ('intel', 'intel32', 'i386', 'x86'):
         # x86
-        return True
+        return 32
 
-    elif arch in ['intel64', 'x86-64', 'x64', 'amd', 'amd64']:
+    elif arch in ('intel64', 'x86-64', 'x64', 'amd', 'amd64'):
         # x86-64
-        return True
+        return 64
 
-    return False
+    return -1
