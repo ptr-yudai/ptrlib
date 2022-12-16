@@ -2,7 +2,7 @@
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 from hashlib import sha256
-from ptrlib.crypto.ecb import ecb_chosenplaintext
+from ptrlib import ecb_chosenplaintext
 
 prefix = b"BEBEMYMY"
 flag = b"The quick brown fox jumps over the lazy dog."

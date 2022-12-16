@@ -20,7 +20,7 @@ def decrypt(privkey, c):
     return pow(c, d, n)
 
 # params, plaintext
-pubkey, privkey = gen_params(1024)
+pubkey, privkey = gen_params(256)
 e, n = pubkey
 plain = b"The quick brown fox jumps over the lazy dog."
 m = bytes_to_long(plain)

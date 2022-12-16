@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from ptrlib import *
+from ptrlib import bruteforce
 
-for password in brute_force_attack(4):
-    print(brute_force_pattern(password))
+for password in bruteforce(1, 3, charset='012'):
+    print(password)
