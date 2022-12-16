@@ -28,9 +28,9 @@ External Program:
   - nasm
 
 ## Usage
-Basic examples are available at [/examples](https://github.com/ptr-yudai/ptrlib/src/master/examples/).
+Basic examples are available at [/examples](https://github.com/ptr-yudai/ptrlib/tree/master/examples/).
 
-Testcases under [/tests](https://github.com/ptr-yudai/ptrlib/src/master/tests/) may also help you understand ptrlib.
+Testcases under [/tests](https://github.com/ptr-yudai/ptrlib/tree/master/tests/) may also help you understand ptrlib.
 
 ## Quick Document
 There are many functions in ptrlib.
