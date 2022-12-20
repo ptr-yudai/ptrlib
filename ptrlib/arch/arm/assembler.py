@@ -4,17 +4,18 @@ import platform
 import subprocess
 import tempfile
 from logging import getLogger
+from typing import Optional
 
 logger = getLogger(__name__)
 
 
-def assemble_arm(code, bits, entry, gcc_path=None, objcopy_path=None):
+def assemble_arm(code: bytes, bits: int, entry: str, gcc_path: Optional[str]=None, objcopy_path: Optional[str]=None) -> Optional[bytes]:
     """Assemble code to intel machine code
 
     Args:
        code (bytes): Assembly code
        bits (int): Bits of architecture
-       entry (bytes): Entry point
+       entry (str): Entry point
     """
     from ptrlib.arch.common import which
     from .archname import is_arch_arm
@@ -48,7 +49,7 @@ def assemble_arm(code, bits, entry, gcc_path=None, objcopy_path=None):
         if subprocess.Popen(cmd).wait() != 0:
             logger.warning("Assemble failed")
             os.unlink(fname_s)
-            return
+            return None
 
         # Extract
         cmd = [objcopy_path, '-O', 'binary', '-j', '.text', fname_o, fname_bin]
@@ -56,7 +57,7 @@ def assemble_arm(code, bits, entry, gcc_path=None, objcopy_path=None):
             logger.warning("Extract failed")
             os.unlink(fname_s)
             os.unlink(fname_o)
-            return
+            return None
 
         with open(fname_bin, 'rb') as f:
             output = f.read()

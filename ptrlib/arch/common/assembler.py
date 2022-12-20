@@ -3,6 +3,7 @@ import os
 import subprocess
 import tempfile
 from logging import getLogger
+from typing import Optional, Union
 from ptrlib.arch.intel import assemble_intel, is_arch_intel
 from ptrlib.arch.arm   import assemble_arm, is_arch_arm
 from ptrlib.binary.encoding import *
@@ -10,8 +11,8 @@ from ptrlib.binary.encoding import *
 logger = getLogger(__name__)
 
 
-def assemble(code, bits=None, arch='intel', syntax='intel', entry=None,
-             as_path=None, ld_path=None):
+def assemble(code: Union[str, bytes], bits: Optional[int]=None, arch: str='intel', syntax: str='intel', entry: Optional[str]=None,
+             as_path: Optional[str]=None, ld_path: Optional[str]=None) -> Optional[bytes]:
     if isinstance(code, str):
         code = str2bytes(code)
 
@@ -22,19 +23,23 @@ def assemble(code, bits=None, arch='intel', syntax='intel', entry=None,
         entry = 'ptrlib_main'
         code = b'.global ptrlib_main\nptrlib_main:\n' + code
 
-    if is_arch_intel(arch, bits):
+    if is_arch_intel(arch):
         if syntax.lower() == 'intel':
             code = b'.intel_syntax noprefix\n' + code
+        if bits is None:
+            bits = 64
         return assemble_intel(code, bits, entry, as_path, ld_path)
 
-    elif is_arch_arm(arch, bits):
+    elif is_arch_arm(arch):
+        if bits is None:
+            bits = 64
         return assemble_arm(code, bits, entry, as_path, ld_path)
 
     else:
         raise ValueError("Unknown architecture '{}'".format(arch))
 
 
-def nasm(code, fmt='bin', bits=None, org=None, nasm_path=None):
+def nasm(code: Union[str, bytes], fmt: str='bin', bits: Optional[int]=None, org: Optional[int]=None, nasm_path: Optional[str]=None):
     from ptrlib.arch.common import which
     if nasm_path is None:
         nasm_path = which('nasm')

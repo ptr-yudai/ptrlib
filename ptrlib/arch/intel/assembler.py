@@ -4,17 +4,18 @@ import platform
 import subprocess
 import tempfile
 from logging import getLogger
+from typing import Optional
 
 logger = getLogger(__name__)
 
 
-def assemble_intel(code, bits, entry, gcc_path=None, objcopy_path=None):
+def assemble_intel(code: bytes, bits: int, entry: str, gcc_path: Optional[str]=None, objcopy_path: Optional[str]=None) -> Optional[bytes]:
     """Assemble code to intel machine code
 
     Args:
        code (bytes): Assembly code
        bits (int): Bits of architecture
-       entry (bytes): Entry point
+       entry (str): Entry point
     """
     from ptrlib.arch.common import which
     from .archname import is_arch_intel
