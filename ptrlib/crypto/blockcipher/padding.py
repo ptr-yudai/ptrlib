@@ -1,10 +1,15 @@
 from ptrlib.binary.encoding import str2bytes
 from logging import getLogger
+try:
+    from typing import Literal
+except:
+    from typing_extensions import Literal
+
 
 logger = getLogger(__name__)
 
 
-def pad(data, size, mode='pkcs#5'):
+def pad(data: bytes, size: int, mode: Literal['pkcs#5', 'zero']='pkcs#5') -> bytes:
     """Append padding
 
     Args:
@@ -41,7 +46,7 @@ def pad(data, size, mode='pkcs#5'):
             padlen %= 0x100
         return data + bytes([padlen]) * padlen
 
-def unpad(data, mode='pkcs#5'):
+def unpad(data: bytes, mode: Literal['pkcs#5', 'zero']='pkcs#5') -> bytes:
     """Remove padding
 
     Args:

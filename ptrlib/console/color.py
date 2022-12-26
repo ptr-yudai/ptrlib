@@ -1,4 +1,4 @@
-from logging import Formatter, DEBUG, INFO, WARNING, ERROR
+from logging import Formatter, DEBUG, INFO, WARNING, ERROR, LogRecord
 
 
 class Color:
@@ -17,7 +17,7 @@ class Color:
     REVERCE   = '\033[07m'
 
 class ColoredFormatter(Formatter):
-    def format(self, record):
+    def format(self, record: LogRecord):
         prefix = ''
         postfix = ''
         if INFO <= record.levelno < WARNING:

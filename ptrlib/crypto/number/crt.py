@@ -1,10 +1,11 @@
 from logging import getLogger
+from typing import List, Optional, Tuple, Union, overload
 from .gcd import xgcd
 
 logger = getLogger(__name__)
 
 
-def crt_internal(pairs):
+def crt_internal(pairs: List[Tuple[int, int]]) -> Optional[Tuple[int, int]]:
     """ Chinese Remainder Theorem """
     N = 1
     result = 0
@@ -18,7 +19,13 @@ def crt_internal(pairs):
         result += c * s * m
     return result % N, N
 
-def crt(a, b=None):
+@overload
+def crt(a: List[Tuple[int, int]], b: None=None) -> Optional[Tuple[int, int]]: ...
+
+@overload
+def crt(a: List[int], b: List[int]) -> Optional[Tuple[int, int]]: ...
+
+def crt(a: Union[List[int], List[Tuple[int, int]]], b: Optional[List[int]]=None) -> Optional[Tuple[int, int]]:
     if (not isinstance(a, list)) \
        or (b is not None and not isinstance(b, list)) \
        or (b is not None and len(a) != len(b)):
@@ -33,8 +40,16 @@ def crt(a, b=None):
 
     return crt_internal(pairs)
 
-def CRT(a, b=None):
+@overload
+def CRT(a: List[Tuple[int, int]], b: None=None) -> Optional[Tuple[int, int]]: ...
+@overload
+def CRT(a: List[int], b: List[int]) -> Optional[Tuple[int, int]]: ...
+def CRT(a: Union[List[int], List[Tuple[int, int]]], b: Optional[List[int]]=None) -> Optional[Tuple[int, int]]:
     return crt(a, b)
 
-def chinese_remainder_theorem(a, b=None):
+@overload
+def chinese_remainder_theorem(a: List[Tuple[int, int]], b: None=None) -> Optional[Tuple[int, int]]: ...
+@overload
+def chinese_remainder_theorem(a: List[int], b: List[int]) -> Optional[Tuple[int, int]]: ...
+def chinese_remainder_theorem(a: Union[List[int], List[Tuple[int, int]]], b: Optional[List[int]]=None) -> Optional[Tuple[int, int]]:
     return crt(a, b)
