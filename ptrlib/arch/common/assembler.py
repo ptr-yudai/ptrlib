@@ -27,7 +27,8 @@ def assemble(code: Union[str, bytes], bits: Optional[int]=None, arch: str='intel
         if syntax.lower() == 'intel':
             code = b'.intel_syntax noprefix\n' + code
         if bits is None:
-            bits = 64
+            bits = bit_by_arch_intel(arch)
+            if bits == -1: bits = 64
         return assemble_intel(code, bits, entry, as_path, ld_path)
 
     elif is_arch_arm(arch):
