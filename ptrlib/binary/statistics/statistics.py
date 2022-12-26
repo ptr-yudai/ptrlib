@@ -1,12 +1,14 @@
 from logging import getLogger
+from typing import List, Type, TypeVar, Union
 
 logger = getLogger(__name__)
 
+_T = TypeVar("_T", float, bool)
 
 def get_frequency(*args):
     raise NotImplementedError("ptrlib.binary.statistics.get_frequency")
 
-def consists_of(text, charset, per=1.0, returns=bool):
+def consists_of(text: Union[str, bytes, List[int]], charset: Union[str, bytes, List[str]], per: float=1.0, returns: Type[_T]=bool) -> _T:
     """Checks if the text consists of given charset.
 
     Args:

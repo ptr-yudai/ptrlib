@@ -1,4 +1,20 @@
-def chunks(data, size, padding=None, map=None):
+try:
+    from typing import Callable, List, Optional, TypeVar, Union, overload, Protocol
+except:
+    from typing_extensions import Protocol
+
+from typing_extensions import Protocol
+
+_T = TypeVar("_T")
+_U = TypeVar("_U")
+
+@overload
+def chunks(data: _T, size: int, padding: Optional[_T], map: None) -> List[_T]: ...
+
+@overload
+def chunks(data: _T, size: int, padding: Optional[_U], map: Callable[[_T], _U]) -> List[_U]: ...
+
+def chunks(data: _T, size: int, padding: Optional[Union[_T, _U]]=None, map: Optional[Callable[[_T], _U]]=None) -> Optional[List[_T], List[_U]]:
     """Split data into chunks
     Args:
         data      : The target data to split
