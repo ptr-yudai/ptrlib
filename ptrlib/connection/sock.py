@@ -1,5 +1,6 @@
 # coding: utf-8
 from logging import getLogger
+
 from ptrlib.binary.encoding import *
 from .tube import *
 import socket
@@ -8,7 +9,7 @@ logger = getLogger(__name__)
 
 
 class Socket(Tube):
-    def __init__(self, host, port=None, timeout=None):
+    def __init__(self, host: Union[str, bytes], port: Optional[int]=None, timeout: Optional[Union[int, float]]=None):
         """Create a socket
 
         Create a new socket and establish a connection to the host.
@@ -53,16 +54,16 @@ class Socket(Tube):
             logger.warning(err)
             raise e from None
 
-    def _settimeout(self, timeout):
+    def _settimeout(self, timeout: Optional[Union[int, float]]):
         if timeout is None:
             self.sock.settimeout(self.timeout)
         elif timeout > 0:
             self.sock.settimeout(timeout)
 
-    def _socket(self):
+    def _socket(self) -> Optional[socket.socket]:
         return self.sock
 
-    def _recv(self, size=4096, timeout=None):
+    def _recv(self, size: int=4096, timeout: Optional[Union[int, float]]=None) -> Optional[bytes]:
         """Receive raw data
 
         Receive raw data of maximum `size` bytes length through the socket.
@@ -92,7 +93,7 @@ class Socket(Tube):
             data = None
         return data
 
-    def send(self, data):
+    def send(self, data: Union[str, bytes]):
         """Send raw data
 
         Send raw data through the socket
@@ -127,7 +128,7 @@ class Socket(Tube):
             self.sock = None
             logger.info("Connection to {0}:{1} closed".format(self.host, self.port))
 
-    def shutdown(self, target):
+    def shutdown(self, target: Literal['send', 'recv']):
         """Kill one connection
 
         Close send/recv socket.
@@ -144,7 +145,7 @@ class Socket(Tube):
         else:
             logger.error("You must specify `send` or `recv` as target.")
 
-    def is_alive(self, timeout=None):
+    def is_alive(self, timeout: Optional[Union[int, float]]=None) -> bool:
         try:
             self._settimeout(timeout)
             data = self.sock.recv(1, socket.MSG_PEEK)

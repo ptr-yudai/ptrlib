@@ -11,10 +11,10 @@ else:
     _is_windows = False
 
 
-def SSH(host, port, username,
-        password=None, identity=None,
-        ssh_path=None, expect_path=None,
-        option='', command=''):
+def SSH(host: str, port: int, username: str,
+        password: Optional[str]=None, identity: Optional[str]=None,
+        ssh_path: Optional[str]=None, expect_path: Optional[str]=None,
+        option: str='', command: str=''):
     """Create an SSH shell
 
     Create a new process to connect to SSH server
