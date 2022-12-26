@@ -1,11 +1,11 @@
 from collections import defaultdict
-from typing import *
+from typing import TypeVar, Generic, DefaultDict, Dict, List, Tuple, Set
 import heapq
 from math import inf
 
 from ..utils.lazylist import LazyList
 from ..base import ShortestPathBase
-from ..types import CostEstimatorT, StateT, EdgeT, NumberT, ResultT, DefaultDict, TransitionFuncT
+from ..types import CostEstimatorT, StateT, EdgeT, NumberT, ResultT, TransitionFuncT
 
 StateT_Inner = TypeVar('StateT_Inner')
 EdgeT_Inner = TypeVar('EdgeT_Inner')
