@@ -48,7 +48,7 @@ def SSH(host: str, port: int, username: str,
     if identity is not None:
         option += ' -i {}'.format(shlex.quote(identity))
 
-    script = 'eval spawn {} -oStrictHostKeyChecking=no -oCheckHostIP=no {}@{} -p{} {} {}; interact'.format(
+    script = 'eval spawn {} -oStrictHostKeyChecking=no -oCheckHostIP=no {}@{} -p{} {} {}; interact; lassign [wait] pid spawnid err value; exit "$value"'.format(
         ssh_path,
         shlex.quote(username),
         shlex.quote(host),
