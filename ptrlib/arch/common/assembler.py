@@ -22,12 +22,12 @@ def assemble(code, bits=None, arch='intel', syntax='intel', entry=None,
         entry = 'ptrlib_main'
         code = b'.global ptrlib_main\nptrlib_main:\n' + code
 
-    if is_arch_intel(arch, bits):
+    if is_arch_intel(arch):
         if syntax.lower() == 'intel':
             code = b'.intel_syntax noprefix\n' + code
         return assemble_intel(code, bits, entry, as_path, ld_path)
 
-    elif is_arch_arm(arch, bits):
+    elif is_arch_arm(arch):
         return assemble_arm(code, bits, entry, as_path, ld_path)
 
     else:
