@@ -1,5 +1,6 @@
 import random
 import string
+from typing import Any, Callable, List, Mapping, Optional
 
 
 def random_primitive():
@@ -17,7 +18,7 @@ def random_primitive():
     elif t == 4:
         return random_str(0x100)
 
-def random_dict(max_depth, nmin, nmax=0, dict_p=0.25, gen=None, depth=0):
+def random_dict(max_depth: int, nmin: int, nmax: int=0, dict_p: float=0.25, gen: Optional[Callable[[bool, int], Any]]=None, depth: int=0) -> Mapping[Any, Any]:
     """Generate a random dictionary
 
     Args:
@@ -56,7 +57,7 @@ def random_dict(max_depth, nmin, nmax=0, dict_p=0.25, gen=None, depth=0):
         result[key] = value
     return result
 
-def random_list(max_depth, lmin, lmax=0, list_p=0.25, gen=None, depth=0):
+def random_list(max_depth: int, lmin: int, lmax: int=0, list_p: float=0.25, gen: Optional[Callable[[bool, int], Any]]=None, depth: int=0) -> List[Any]:
     """Generate a random list
 
     Args:
@@ -93,7 +94,7 @@ def random_list(max_depth, lmin, lmax=0, list_p=0.25, gen=None, depth=0):
             result.append(gen(is_key=False, depth=depth))
     return result
 
-def random_bool(true_p=0.5):
+def random_bool(true_p=0.5) -> bool:
     """Generate true of false randomly
 
     Args:
@@ -104,7 +105,7 @@ def random_bool(true_p=0.5):
     """
     return random.random() <= true_p
 
-def random_int(lmin, lmax=None):
+def random_int(lmin: int, lmax: Optional[int]=None) -> int:
     """Generate a random integer
 
     Args:
@@ -120,7 +121,7 @@ def random_int(lmin, lmax=None):
         lmin, lmax = lmax, lmin
     return random.randint(lmin, lmax)
 
-def random_float(lmin, lmax=None):
+def random_float(lmin: float, lmax: Optional[float]=None) -> float:
     """Generate a random float value
 
     Args:
@@ -134,7 +135,7 @@ def random_float(lmin, lmax=None):
         lmin, lmax = 0.0, lmin
     return random.uniform(lmin, lmax)
 
-def random_str(lmin, lmax=0, charset=None):
+def random_str(lmin: int, lmax: int=0, charset: Optional[str]=None) -> str:
     """Generate a random byte array
 
     Args:
@@ -160,7 +161,7 @@ def random_str(lmin, lmax=0, charset=None):
         + ''.join([random.choice(charset) \
                    for i in range(random.randint(0, lmax-lmin))])
 
-def random_bytes(lmin, lmax=0, charset=None):
+def random_bytes(lmin: int, lmax: int=0, charset: Optional[List[int]]=None) -> bytes:
     """Generate a random byte array
 
     Args:

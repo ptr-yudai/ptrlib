@@ -1,8 +1,10 @@
 import functools
 import os
 from logging import getLogger
+from typing import Generator
 from ptrlib.binary.packing import *
 from ptrlib.arch.common import assemble
+from ptrlib.binary.encoding import str2bytes, bytes2str
 from .parser import ELFParser
 
 logger = getLogger(__name__)
@@ -22,7 +24,7 @@ class ELF(object):
         self._base = 0
 
     @property
-    def base(self):
+    def base(self) -> int:
         """Get the load address
         This property has
         - 0 by default, or the base set by user if PIE is enabled
@@ -34,7 +36,7 @@ class ELF(object):
         return self._base
 
     @base.setter
-    def base(self, base):
+    def base(self, base: int):
         """Set the load address
 
         Args:
@@ -49,13 +51,13 @@ class ELF(object):
 
         self._base = base
 
-    def set_base(self, base=None):
+    def set_base(self, base):
         logger.error("Deprecated: This feature will be removed in the future. "
                      "Use `elf.base = ...` instead.")
         self.base = base
 
     @property
-    def _pie_add_base(self):
+    def _pie_add_base(self) -> int:
         """Get the load address
         This property has
         - 0 by default, or the base set by user if PIE is enabled
@@ -68,7 +70,7 @@ class ELF(object):
 
     @property
     @cache
-    def _load_address(self):
+    def _load_address(self) -> int:
         for i in range(self._parser.ehdr['e_phnum']):
             seghdr = self._parser.segment_at(i)
             if seghdr['p_type'] == 'PT_LOAD':
@@ -76,19 +78,7 @@ class ELF(object):
         else:
             return 0
 
-    def set_base(self, base=None):
-        """Set the load address
-
-        Args:
-            int: The base address to be used
-        """
-        if isinstance(base, int):
-            logger.info("New base address: 0x{:x}".format(base))
-            if base & 0xfff != 0:
-                logger.error("The address doesn't look like a valid base address")
-        self._base = base
-
-    def symbol(self, name):
+    def symbol(self, name: Union[str, bytes]) -> Optional[int]:
         """Get the address of a symbol
 
         Find the address corresponding to a given symbol.
@@ -106,7 +96,7 @@ class ELF(object):
             return self._pie_add_base + offset
 
     @cache
-    def _offset_symbol(self, name):
+    def _offset_symbol(self, name: Union[str, bytes]) -> Optional[int]:
         if isinstance(name, str):
             name = str2bytes(name)
 
@@ -128,7 +118,7 @@ class ELF(object):
 
         return None
 
-    def search(self, pattern, writable=None, executable=None):
+    def search(self, pattern: Union[str, bytes], writable: Optional[bool]=None, executable: Optional[bool]=None) -> Generator[int, None, None]:
         """Find binary data from the ELF
 
         Args:
@@ -160,13 +150,13 @@ class ELF(object):
                 yield self._pie_add_base + addr + offset
                 offset += 1
 
-    def find(self, pattern, writable=None, executable=None):
+    def find(self, pattern: Union[str, bytes], writable: Optional[bool]=None, executable: Optional[bool]=None) -> Generator[int, None, None]:
         """Alias of ```search```
         """
         for result in self.search(pattern, writable, executable):
             yield result
 
-    def plt(self, name=None):
+    def plt(self, name: Union[str, bytes]) -> Optional[int]:
         """Get a PLT address
         Lookup the PLT table and find the corresponding address
 
@@ -183,7 +173,7 @@ class ELF(object):
             return self._pie_add_base + offset
 
     @cache
-    def _offset_plt(self, name):
+    def _offset_plt(self, name: Union[str, bytes]) -> Optional[int]:
         if not name:
             return self.section(".plt")
 
@@ -246,7 +236,7 @@ class ELF(object):
 
         return xref
 
-    def got(self, name):
+    def got(self, name: Union[str, bytes]) -> Optional[int]:
         """Get a GOT address
         Lookup the GOT table and find the corresponding address
 
@@ -263,7 +253,7 @@ class ELF(object):
             return self._pie_add_base + offset
 
     @cache
-    def _offset_got(self, name):
+    def _offset_got(self, name: Union[str, bytes]) -> Optional[int]:
         if isinstance(name, str):
             name = str2bytes(name)
 
@@ -281,7 +271,7 @@ class ELF(object):
 
         return None
 
-    def main_arena(self):
+    def main_arena(self) -> Optional[int]:
         """Find main_arena offset
 
         Returns:
@@ -295,7 +285,7 @@ class ELF(object):
             return self._pie_add_base + offset
 
     @cache
-    def _offset_main_arena(self):
+    def _offset_main_arena(self) -> Optional[int]:
         # NOTE: This is a heuristic function
         ofs_stdin = self.symbol('_IO_2_1_stdin_')
         ofs_realloc_hook = self.symbol('__realloc_hook')
@@ -321,7 +311,7 @@ class ELF(object):
             else:
                 return ofs_tzname - 0x8a0
 
-    def section(self, name):
+    def section(self, name: str) -> Optional[int]:
         """Get a section by name
 
         Lookup and find a section by name and return the address.
@@ -339,7 +329,7 @@ class ELF(object):
             return self._pie_add_base + offset
 
     @cache
-    def _offset_section(self, name):
+    def _offset_section(self, name: Union[str, bytes]) -> Optional[int]:
         if isinstance(name, str):
             name = str2bytes(name)
 
@@ -349,7 +339,7 @@ class ELF(object):
         else:
             return None
 
-    def gadget(self, code, arch=None, bits=None, syntax='intel'):
+    def gadget(self, code: Union[str, bytes], arch: Optional[str]=None, bits: Optional[int]=None, syntax: str='intel'):
         """Find ROP/COP gadget
         Args:
             code (str/bytes): Assembly or machine code of ROP gadget
@@ -387,23 +377,7 @@ class ELF(object):
         return self.search(code, executable=True)
 
     @cache
-    def ssp(self):
-        """Check SSP
-
-        Check if the binary seems protected with canary.
-
-        Returns:
-            bool: True if enabled, otherwise False.
-        """
-        if self.got('__stack_chk_fail') is not None:
-            return True
-        elif self.got('__stack_smash_handler') is not None:
-            return True
-        else:
-            return False
-
-    @cache
-    def relro(self):
+    def relro(self) -> int:
         """Check RELRO
         Check if RELRO is full/partial enabled or disabled.
 
@@ -429,7 +403,7 @@ class ELF(object):
             return 1
 
     @cache
-    def nx(self):
+    def nx(self) -> bool:
         """Check NX bit
         Check if NX bit is enabled.
 
@@ -445,7 +419,7 @@ class ELF(object):
         return False
 
     @cache
-    def ssp(self):
+    def ssp(self) -> bool:
         """Check SSP
         Check if the binary is protected with canary.
 
@@ -461,7 +435,7 @@ class ELF(object):
             return False
 
     @cache
-    def pie(self):
+    def pie(self) -> bool:
         """Check PIE
         Check if PIE is enabled or disabled.
 
