@@ -85,10 +85,12 @@ class Tube(metaclass=ABCMeta):
 
     def recvuntil(self, delim: Union[str, bytes], size: int=4096, timeout: Optional[Union[int, float]]=None, drop: bool=False, lookahead: bool=False) -> bytes:
         """Receive raw data until `delim` comes
+
         Args:
             size (int)   : The data size to receive at once
             delim (bytes): The delimiter bytes
             timeout (int): Timeout (in second)
+
         Returns:
             bytes: The received data
         """
