@@ -174,9 +174,6 @@ class ELF(object):
 
     @cache
     def _offset_plt(self, name: Union[str, bytes]) -> Optional[int]:
-        if not name:
-            return self.section(".plt")
-
         if isinstance(name, str):
             name = str2bytes(name)
 
