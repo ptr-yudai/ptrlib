@@ -1,4 +1,5 @@
 # coding: utf-8
+from typing import Any, Optional, Tuple, Union, overload
 from ptrlib.binary.encoding import *
 from ptrlib.console.color import Color
 from abc import ABCMeta, abstractmethod
@@ -82,14 +83,12 @@ class Tube(metaclass=ABCMeta):
         return data[:size]
 
 
-    def recvuntil(self, delim, size=4096, timeout=None):
+    def recvuntil(self, delim: Union[str, bytes], size: int=4096, timeout: Optional[Union[int, float]]=None, drop: bool=False, lookahead: bool=False) -> bytes:
         """Receive raw data until `delim` comes
-
         Args:
             size (int)   : The data size to receive at once
             delim (bytes): The delimiter bytes
             timeout (int): Timeout (in second)
-
         Returns:
             bytes: The received data
         """
@@ -101,9 +100,11 @@ class Tube(metaclass=ABCMeta):
         while data.find(delim) == -1:
             data += self.recv(size, -1)
 
-        pos = data.find(delim) + len(delim)
-        self.unget(data[pos:])
-        return data[:pos]
+        found_pos = data.find(delim)
+        result_len = found_pos if drop else found_pos + len(delim)
+        consumed_len = found_pos if lookahead else found_pos + len(delim)
+        self.unget(data[consumed_len:])
+        return data[:result_len]
 
     def recvline(self, size=4096, timeout=None, drop=True):
         line = self.recvuntil(b'\n', size, timeout)
