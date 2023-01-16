@@ -1,9 +1,10 @@
 from logging import getLogger
+from typing import Optional, Tuple, Union
 
 logger = getLogger(__name__)
 
 
-def rootrem(y, n):
+def rootrem(y: int, n: int) -> Union[Tuple[int, int], Tuple[None, None]]:
     """ Calculate reminder n-th root
     x=trunc(y^(1/n)), r=y-x^n
 
@@ -52,7 +53,7 @@ def rootrem(y, n):
 
     return u, y - u**n
 
-def root(y, n):
+def root(y: int, n: int) -> Optional[int]:
     """ Get n-th integer root of y
 
     Args:

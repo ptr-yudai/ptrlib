@@ -1,11 +1,16 @@
 from fractions import Fraction
 from logging import getLogger
 from math import ceil
+from typing import Callable
+try:
+    from typing import Literal
+except:
+    from typing_extensions import Literal
 
 logger = getLogger(__name__)
 
 
-def lsb_leak_attack(lsb_oracle, n, e, c):
+def lsb_leak_attack(lsb_oracle: Callable[[int], Literal[0, 1]], n: int, e: int, c: int) -> int:
     """RSA LSB Leak Attack
 
     Given a cryptosystem such that:

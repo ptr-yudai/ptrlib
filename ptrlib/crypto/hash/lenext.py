@@ -1,5 +1,8 @@
 """Length Extension Attack"""
-def lenext(hash_class, padlen, known_hash, known_message, append_message):
+from typing import Any, Tuple
+
+
+def lenext(hash_class: Any, padlen: int, known_hash: bytes, known_message: bytes, append_message: bytes) -> Tuple[str, bytes]:
     """Length Extension Attack
     
     Given the value of hash(s + m1), this function calculates

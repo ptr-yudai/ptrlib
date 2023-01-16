@@ -1,5 +1,6 @@
 """Calculate MD5 sum."""
 import struct
+from typing import List, Tuple, Union
 from ptrlib.binary.encoding.byteconv import str2bytes
 
 
@@ -12,7 +13,7 @@ class MD5(object):
         md5.update("World!")
         print(md5.hexdigest())
     """
-    def __init__(self, prevlen=0):
+    def __init__(self, prevlen: int=0):
         """Initialize and reset this instance.
         
         You can set the message length of previous blocks.
@@ -32,21 +33,21 @@ class MD5(object):
         self.prevlen = 0
         self.up2date = False
 
-    def get_iv(self):
+    def get_iv(self) -> Tuple[int, int, int, int]:
         """Get the initialization vector.
 
         This method returns the vector used as the IV of the next block.
         """
         return (self.A, self.B, self.C, self.D)
 
-    def set_iv(self, iv):
+    def set_iv(self, iv: Union[Tuple[int, int, int, int], List[int]]):
         """Set the initialization vector.
         
         You can specify the vector used as the IV of the next block.
         """
         self.A, self.B, self.C, self.D = list(iv)
 
-    def convert(self, hash_string):
+    def convert(self, hash_string: str) -> Tuple[int, int, int, int]:
         """Convert the given hash into a vector.
 
         This method returns None if the given hash is not of the MD5 format.
@@ -62,7 +63,7 @@ class MD5(object):
         # Convert the given hash into a vector
         return struct.unpack('<IIII', hash_byte)
 
-    def update(self, message):
+    def update(self, message: Union[str, bytes]):
         """Update the MD5 sum.
         
         This method updates the current MD5 sum.
@@ -74,7 +75,7 @@ class MD5(object):
         self.message += message
         self.up2date = False
 
-    def padding(self, message):
+    def padding(self, message: bytes) -> bytes:
         """Append a padding to the given message.
 
         This method returns the message data with a padding appended.
@@ -88,7 +89,7 @@ class MD5(object):
         message += struct.pack('<Q', msglen)
         return message
     
-    def digest(self):
+    def digest(self) -> bytes:
         """Get the digest of the current MD5 sum.
 
         This method returns the MD5 digest of the last updated message.
@@ -100,14 +101,14 @@ class MD5(object):
             self.up2date = True
         return self.md5sum
 
-    def hexdigest(self):
+    def hexdigest(self) -> str:
         """Get the hexdigest of the current MD5 sum.
 
         This method returns the MD5 digest of the last update message in hex string.
         """
         return self.digest().hex()
 
-    def __calc_md5(self):
+    def __calc_md5(self) -> Tuple[int, int, int, int]:
         """Calculate the MD5 sum.
 
         This method should not be called outside.

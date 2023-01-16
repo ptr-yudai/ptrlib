@@ -1,9 +1,10 @@
 from logging import getLogger
+from typing import Literal
 
 logger = getLogger(__name__)
 
 
-def is_arch_arm(arch):
+def is_arch_arm(arch: str) -> bool:
     """Check if architecture name string is ARM series
 
     Args:
@@ -14,7 +15,7 @@ def is_arch_arm(arch):
     """
     return bit_by_arch_arm(arch) != -1
 
-def bit_by_arch_arm(arch):
+def bit_by_arch_arm(arch: str) -> Literal[32, 64, -1]:
     """Guess bits by architecture name string
 
     Args:

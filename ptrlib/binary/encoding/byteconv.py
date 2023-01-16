@@ -3,15 +3,15 @@ from logging import getLogger
 logger = getLogger(__name__)
 
 
-def bytes2str(data):
+def bytes2str(data: bytes) -> str:
     """Convert bytes to str
     """
     if isinstance(data, bytes):
         return ''.join(list(map(chr, data)))
     else:
-        logger.warning("{} given ('bytes' expected)".format(type(data)))
+        raise ValueError("{} given ('bytes' expected)".format(type(data)))
 
-def str2bytes(data):
+def str2bytes(data: str) -> bytes:
     """Convert str to bytes
     """
     if isinstance(data, str):

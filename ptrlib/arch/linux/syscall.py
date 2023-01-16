@@ -10,7 +10,7 @@ except AttributeError:
 
 class _SyscallTable(object):
     @cache
-    def __getitem__(self, arch):
+    def __getitem__(self, arch: str):
         # Intel series
         bits = bit_by_arch_intel(arch)
         if bits != -1:
@@ -23,7 +23,7 @@ class _SyscallTable(object):
 
         raise KeyError("Invalid architecture '{}'".format(arch))
 
-    def __getattr__(self, arch):
+    def __getattr__(self, arch: str):
         return self[arch]
 
 syscall = _SyscallTable()

@@ -1,5 +1,6 @@
 # coding: utf-8
 from logging import getLogger
+from typing import List, Mapping
 from ptrlib.binary.encoding import *
 from .tube import *
 import ctypes
@@ -19,7 +20,7 @@ logger = getLogger(__name__)
 
 
 class WinPipe(object):
-    def __init__(self, inherit_handle=True):
+    def __init__(self, inherit_handle: bool=True):
         """Create a pipe for Windows
 
         Create a new pipe
@@ -35,13 +36,13 @@ class WinPipe(object):
         self.rp, self.wp = win32pipe.CreatePipe(attr, 0)
 
     @property
-    def handle0(self):
+    def handle0(self) -> int:
         return self.get_handle('recv')
     @property
-    def handle1(self):
+    def handle1(self) -> int:
         return self.get_handle('send')
 
-    def get_handle(self, name='read'):
+    def get_handle(self, name: Literal['recv', 'send']='recv') -> int:
         """Get endpoint of this pipe
 
         Args:
@@ -57,12 +58,12 @@ class WinPipe(object):
             logger.error("You must specify `send` or `recv` as target.")
 
     @property
-    def size(self):
+    def size(self) -> int:
         """Get the number of bytes available to read on this pipe"""
         # (lpBytesRead, lpTotalBytesAvail, lpBytesLeftThisMessage)
         return win32pipe.PeekNamedPipe(self.handle0, 0)[1]
 
-    def _recv(self, size=4096):
+    def _recv(self, size: int=4096):
         if size <= 0:
             logger.error("`size` must be larger than 0")
             return b''
@@ -72,7 +73,7 @@ class WinPipe(object):
 
         return buf.raw
 
-    def recv(self, size=4096, timeout=None):
+    def recv(self, size: int=4096, timeout: Optional[Union[int, float]]=None):
         """Receive raw data
 
         Receive raw data of maximum `size` bytes length through the pipe.
@@ -94,7 +95,7 @@ class WinPipe(object):
 
         return self._recv(min(self.size, size))
 
-    def send(self, data):
+    def send(self, data: bytes):
         """Send raw data
 
         Send raw data through the socket
@@ -114,7 +115,7 @@ class WinPipe(object):
         self.close()
 
 class WinProcess(Tube):
-    def __init__(self, args, env=None, cwd=None, flags=0, timeout=None):
+    def __init__(self, args: Union[List[Union[str, bytes]], str], env: Optional[Mapping[str, str]]=None, cwd: Optional[str]=None, flags: int=0, timeout: Optional[Union[int, float]]=None):
         """Create a process
 
         Create a new process and make a pipe.
@@ -170,7 +171,7 @@ class WinProcess(Tube):
 
         logger.info("Successfully created new process (PID={})".format(self.pid))
 
-    def _settimeout(self, timeout):
+    def _settimeout(self, timeout: Optional[Union[int, float]]):
         """Set timeout value"""
         if timeout is None:
             self.timeout = self.default_timeout
@@ -180,7 +181,7 @@ class WinProcess(Tube):
     def _socket(self):
         return self.proc
 
-    def _recv(self, size, timeout=None):
+    def _recv(self, size: int, timeout: Optional[Union[int, float]]=None) -> bytes:
         """Receive raw data
 
         Receive raw data of maximum `size` bytes length through the pipe.
@@ -206,7 +207,7 @@ class WinProcess(Tube):
             self.proc = None
             logger.info("Process killed (PID={0})".format(self.pid))
 
-    def send(self, data):
+    def send(self, data: bytes):
         """Send raw data
 
         Send raw data through the socket
@@ -216,7 +217,7 @@ class WinProcess(Tube):
         """
         self.stdin.send(data)
 
-    def shutdown(self, target):
+    def shutdown(self, target: Literal['send', 'recv']):
         """Close a connection
 
         Args:

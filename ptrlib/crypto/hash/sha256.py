@@ -1,5 +1,6 @@
 """Calculate SHA-256 sum"""
 import struct
+from typing import List, Tuple, Union
 from ptrlib.binary.encoding.byteconv import str2bytes
 
 
@@ -30,14 +31,14 @@ class SHA256(object):
         self.sha256sum = None
         self.up2date = False
 
-    def get_iv(self):
+    def get_iv(self) -> List[int]:
         """Get the initialization vector.
         
         This method returns the vector used as the IV of the next block.
         """
         return self.H
 
-    def set_iv(self, iv):
+    def set_iv(self, iv: Union[Tuple[int, int, int, int, int, int, int, int], List[int]]):
         """Set the initialization vector.
 
         You can change the vector used as the IV of the next block.
@@ -46,7 +47,7 @@ class SHA256(object):
             raise ValueError("IV must have 8 elements")
         self.H = list(iv)
 
-    def convert(self, hash_string):
+    def convert(self, hash_string: str) -> Tuple[int, int, int, int, int, int, int, int]:
         """Convert the given hash into a vector.
 
         This method returns None if the given hash is not of the MD5 format.
@@ -61,7 +62,7 @@ class SHA256(object):
             return False
         return struct.unpack('>IIIIIIII', hash_byte)
         
-    def update(self, message):
+    def update(self, message: Union[str, bytes]):
         """Update the SHA-256 sum.
 
         This method updates the current SHA-256 sum.
@@ -73,7 +74,7 @@ class SHA256(object):
         self.message += message
         self.up2date = False
 
-    def padding(self, message):
+    def padding(self, message: bytes) -> bytes:
         """Append a padding to the given message.
         
         This method returns the message data with a padding appended.
@@ -87,7 +88,7 @@ class SHA256(object):
         message += struct.pack('>Q', msglen)
         return message
         
-    def digest(self):
+    def digest(self) -> bytes:
         """Get the digest of the current SHA-256 sum.
 
         This method returns the SHA-256 digest of the last updated message.
@@ -99,20 +100,20 @@ class SHA256(object):
             self.up2date = True
         return self.sha256sum
 
-    def hexdigest(self):
+    def hexdigest(self) -> str:
         """Get the hexdigest of the current SHA-256 sum.
 
         This method returns the SHA-256 digest of the last updated message in hex string.
         """
         return self.digest().hex()
 
-    def __mod_add(self, input_list):
+    def __mod_add(self, input_list: List[int]) -> int:
         val = 0
         for x in input_list:
             val += x
         return val % 0x100000000
 
-    def __calc_sha256(self):
+    def __calc_sha256(self) -> List[int]:
         """Calculate the SHA-256 sum.
 
         This method should not be called from outside.

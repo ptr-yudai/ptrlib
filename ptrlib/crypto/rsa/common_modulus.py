@@ -1,10 +1,11 @@
 from logging import getLogger
+from typing import List, Optional
 from ptrlib.crypto.number.gcd import xgcd
 from ptrlib.crypto.number.inverse import inverse
 
 logger = getLogger(__name__)
 
-def common_modulus_attack(cpair, epair, n):
+def common_modulus_attack(cpair: List[int], epair: List[int], n: int) -> Optional[int]:
     """Common Modulus Attack
 
     Given 2 (or more) ciphertext of same plaintext with different e,
