@@ -153,8 +153,8 @@ class Tube(metaclass=ABCMeta):
         self._settimeout(timeout)
         r = None
         while r is None:
-            r = p.search(data)
             data += self.recv(size, timeout=-1)
+            r = p.search(data)
 
         pos = r.end()
         self.unget(data[pos:])
