@@ -1,5 +1,5 @@
 import sys
-from typing import *
+from typing import Generic, Optional, Union, List, TypeVar, Any
 
 sys.setrecursionlimit(max(sys.getrecursionlimit(), 100000))
 
@@ -7,7 +7,7 @@ _T = TypeVar('_T')
 
 
 class LazyList(Generic[_T]):
-    Null: "LazyList"
+    Null: "LazyList[Any]"
 
     def __init__(self, prev_enumerate: "Optional[LazyList[_T]]", elems: Optional[Union[List[_T], "LazyList[_T]"]]):
         self._prev_enumerate = prev_enumerate

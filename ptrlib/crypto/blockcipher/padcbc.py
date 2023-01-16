@@ -1,10 +1,11 @@
 from logging import getLogger
+from typing import Callable, List, Optional, Tuple
 from ptrlib.binary.encoding import str2bytes
 
 logger = getLogger(__name__)
 
 
-def padding_oracle_block(decrypt, prev, block, bs):
+def padding_oracle_block(decrypt: Callable[[bytes], bytes], prev: bytes, block: bytes, bs: int) -> bytes:
     prev = prev[::-1]
     plain = bytearray(bs)
 
@@ -27,7 +28,7 @@ def padding_oracle_block(decrypt, prev, block, bs):
     return bytes(plain)[::-1]
 
 
-def padding_oracle(decrypt, cipher, *, bs, unknown=b"\x00", iv=None):
+def padding_oracle(decrypt: Callable[[bytes], bytes], cipher: bytes, *, bs: int, unknown: bytes=b"\x00", iv: Optional[bytes]=None) -> bytes:
     """Padding Oracle Attack
 
     Given a ciphersystem such that:
@@ -51,7 +52,7 @@ def padding_oracle(decrypt, cipher, *, bs, unknown=b"\x00", iv=None):
     cipher_blocks = []
     for i in range(0, len(cipher), bs):
         cipher_blocks.append(cipher[i : i + bs])
-    plain_blocks = [None for i in range(len(cipher_blocks))]
+    plain_blocks = [None for _ in range(len(cipher_blocks))]
 
     # Break the cipher
     for k in range(len(cipher_blocks) - 1, 0, -1):
@@ -78,7 +79,7 @@ def padding_oracle(decrypt, cipher, *, bs, unknown=b"\x00", iv=None):
 """Padding Oracle Enctyption Attack on CBC encryption"""
 
 
-def padding_oracle_encrypt(decrypt, plain, *, bs, unknown=b"\x00"):
+def padding_oracle_encrypt(decrypt: Callable[[bytes], bytes], plain: bytes, *, bs: int, unknown: bytes=b"\x00") -> Tuple[bytes, bytes]:
     """Padding Oracle Encryption Attack
 
     Usage:

@@ -1,11 +1,11 @@
 from collections import defaultdict
-from typing import *
+from typing import Dict, DefaultDict, List, Tuple, Set
 import heapq
 from math import inf
 
 from ..utils.lazylist import LazyList
 from ..base import ShortestPathBase
-from ..types import StateT, EdgeT, NumberT, ResultT, DefaultDict, TransitionFuncT
+from ..types import StateT, EdgeT, NumberT, ResultT, TransitionFuncT
 
 
 class BulkDijkstra(ShortestPathBase[StateT, EdgeT]):

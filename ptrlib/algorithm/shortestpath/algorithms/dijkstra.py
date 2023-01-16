@@ -1,7 +1,7 @@
 from collections import defaultdict
 import heapq
 from math import inf
-from typing import *
+from typing import TypeVar, Generic, Set, List, Tuple, DefaultDict, Dict
 
 from ..types import *
 from ..base import ShortestPathBase

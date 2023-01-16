@@ -1,10 +1,11 @@
+from typing import List, Union
 from ptrlib.binary.encoding import str2bytes
 from logging import getLogger
 
 logger = getLogger(__name__)
 
 
-def xor(data, key):
+def xor(data: Union[str, bytes, List[int]], key: Union[int, str, bytes, List[int]]) -> bytes:
     assert isinstance(data, str) \
         or isinstance(data, bytes) \
         or isinstance(data, list)
@@ -26,7 +27,7 @@ def xor(data, key):
         if key < 0 or key > 0xff:
             logger.warning("key (int) should be larger than 0 and less than 0x100 ({:x} given)".format(key))
         key = bytes([key & 0xff])
-
+    
     result = b''
     for i in range(len(data)):
         result += bytes([data[i] ^ key[i % len(key)]])

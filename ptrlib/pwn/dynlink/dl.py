@@ -1,10 +1,12 @@
 from logging import getLogger
+from typing import Mapping, Tuple
 from ptrlib.binary.packing import *
+from ptrlib.filestruct.elf.elf import ELF
 
 logger = getLogger(__name__)
 
 
-def struct_ret2dl(addrList, elf, base=None):
+def struct_ret2dl(addrList: Mapping[str, int], elf: ELF, base: Optional[int]=None) -> Tuple[int, bytes, bytes]:
     """
     Args:
         addrList (int): Address to put reloc, sym, symstr
@@ -20,9 +22,17 @@ def struct_ret2dl(addrList, elf, base=None):
         logger.warning("In that case make sure `reloc` is offset from PIE base.")
         raise ValueError("Lack of information")
     
-    addr_dynsym = proc_base + elf.section('.dynsym')
-    addr_dynstr = proc_base + elf.section('.dynstr')
-    addr_relplt = proc_base + elf.section('.rel.plt')
+    addr_dynsym = elf._offset_section('.dynsym')
+    addr_dynstr = elf._offset_section('.dynstr')
+    addr_relplt = elf._offset_section('.rel.plt')
+    if  addr_dynsym is None or \
+        addr_dynstr is None or \
+        addr_relplt is None:
+        logger.warning("Some required section dosen't exist.")
+        raise ValueError("Lack of information")
+    addr_dynsym += proc_base
+    addr_dynstr += proc_base
+    addr_relplt += proc_base
 
     addr_reloc  = addrList['reloc']
     addr_sym    = addrList['sym']

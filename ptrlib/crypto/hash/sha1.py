@@ -1,5 +1,6 @@
 """Calculate SHA-1 sum"""
 import struct
+from typing import List, Tuple, Union
 from ptrlib.binary.encoding.byteconv import str2bytes
 
 
@@ -12,7 +13,7 @@ class SHA1(object):
         sha1.update("World!")
         print(sha1.hexdigest())
     """
-    def __init__(self, prevlen=0):
+    def __init__(self, prevlen: int=0):
         """Initialize and reset this instance.
         
         You can set the message length of previous blocks.
@@ -29,14 +30,14 @@ class SHA1(object):
         self.sha1sum = None
         self.up2date = False
 
-    def get_iv(self):
+    def get_iv(self) -> List[int]:
         """Get the initialization vector.
 
         This method returns the vector used as the IV of the next block.
         """
         return self.H
 
-    def set_iv(self, iv):
+    def set_iv(self, iv: Union[Tuple[int, int, int, int, int], List[int]]):
         """Set the initialization vector.
         
         You can specify the vector used as the IV of the next block.
@@ -45,7 +46,7 @@ class SHA1(object):
             raise ValueError("IV must have 5 elements")
         self.H = list(iv)
 
-    def convert(self, hash_string):
+    def convert(self, hash_string: str) -> Tuple[int, int, int, int, int]:
         """Convert the given hash into a vector.
 
         This method returns None if the given hash is not of the MD5 format.
@@ -61,7 +62,7 @@ class SHA1(object):
         # Convert the given hash into a vector
         return struct.unpack('>IIIII', hash_byte)
 
-    def update(self, message):
+    def update(self, message: Union[str, bytes]):
         """Update the SHA-1 sum.
         
         This method updates the current SHA-1 sum.
@@ -74,7 +75,7 @@ class SHA1(object):
         self.up2date = False
 
     
-    def padding(self, message):
+    def padding(self, message: bytes) -> bytes:
         """Append a padding to the given message.
 
         This method returns the message data with a padding appended.
@@ -88,7 +89,7 @@ class SHA1(object):
         message += struct.pack('>Q', msglen)
         return message
 
-    def digest(self):
+    def digest(self) -> bytes:
         """Get the digest of the current SHA-1 sum.
 
         This method returns the SHA-1 digest of the last updated message.
@@ -100,14 +101,14 @@ class SHA1(object):
             self.up2date = True
         return self.sha1sum
 
-    def hexdigest(self):
+    def hexdigest(self) -> str:
         """Get the hexdigest of the current SHA-1 sum.
 
         This method returns the SHA-1 digest of the last updated message in hex string.
         """
         return self.digest().hex()
 
-    def __calc_sha1(self):
+    def __calc_sha1(self) -> List[int]:
         """Calculate the SHA-1 sum.
 
         This method should not be called from outside.

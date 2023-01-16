@@ -1,4 +1,10 @@
 # coding: utf-8
+import subprocess
+from typing import Any, Optional, Tuple, Union, overload
+try:
+    from typing import Literal
+except:
+    from typing_extensions import Literal
 from ptrlib.binary.encoding import *
 from ptrlib.console.color import Color
 from abc import ABCMeta, abstractmethod
@@ -16,11 +22,11 @@ class Tube(metaclass=ABCMeta):
         self.buf = b''
 
     @abstractmethod
-    def _settimeout(self, timeout):
+    def _settimeout(self, timeout: Optional[Union[int, float]]):
         pass
 
     @abstractmethod
-    def _recv(self, size, timeout):
+    def _recv(self, size: int, timeout: Union[int, float]) -> Optional[bytes]:
         """Receive raw data
 
         Receive raw data of maximum `size` bytes length through the socket.
@@ -34,12 +40,12 @@ class Tube(metaclass=ABCMeta):
         """
         pass
 
-    def unget(self, data):
+    def unget(self, data: Union[str, bytes]):
         if isinstance(data, str):
             data = str2bytes(data)
         self.buf = data + self.buf
 
-    def recv(self, size=4096, timeout=None):
+    def recv(self, size: int=4096, timeout: Optional[Union[int, float]]=None) -> bytes:
         """Receive raw data with buffering
 
         Receive raw data of maximum `size` bytes length through the socket.
@@ -60,7 +66,7 @@ class Tube(metaclass=ABCMeta):
         data, self.buf = self.buf[:size], self.buf[size:]
         return data
 
-    def recvonce(self, size, timeout=None):
+    def recvonce(self, size: int, timeout: Optional[Union[int, float]]=None) -> bytes:
         """Receive raw data with buffering
 
         Receive raw data of size `size` bytes length through the socket.
@@ -82,7 +88,7 @@ class Tube(metaclass=ABCMeta):
         return data[:size]
 
 
-    def recvuntil(self, delim, size=4096, timeout=None):
+    def recvuntil(self, delim: Union[str, bytes], size: int=4096, timeout: Optional[Union[int, float]]=None) -> bytes:
         """Receive raw data until `delim` comes
 
         Args:
@@ -105,17 +111,24 @@ class Tube(metaclass=ABCMeta):
         self.unget(data[pos:])
         return data[:pos]
 
-    def recvline(self, size=4096, timeout=None, drop=True):
+    def recvline(self, size: int=4096, timeout: Optional[Union[int, float]]=None, drop: bool=True) -> bytes:
         line = self.recvuntil(b'\n', size, timeout)
         if drop:
             return line.rstrip()
         return line
 
-    def recvlineafter(self, delim, size=4096, timeout=None, drop=True):
+    def recvlineafter(self, delim: Union[str, bytes], size: int=4096, timeout: Optional[Union[int, float]]=None, drop: bool=True) -> bytes:
         self.recvuntil(delim, size, timeout)
         return self.recvline(size, timeout, drop)
 
-    def recvregex(self, regex, size=4096, discard=True, timeout=None):
+    # TODO: proper typing
+    @overload
+    def recvregex(self, regex: Union[str, bytes], size: int=4096, discard: Literal[True]=True, timeout: Optional[Union[int, float]]=None) -> bytes: ...
+
+    @overload
+    def recvregex(self, regex: Union[str, bytes], size: int=4096, discard: Literal[False]=False, timeout: Optional[Union[int, float]]=None) -> Tuple[bytes, bytes]: ...
+
+    def recvregex(self, regex: Union[str, bytes], size: int=4096, discard: bool=True, timeout: Optional[Union[int, float]]=None) -> Union[bytes, Tuple[bytes, bytes]]:
         """Receive until a pattern comes
 
         Receive data until a specified regex pattern matches.
@@ -138,10 +151,11 @@ class Tube(metaclass=ABCMeta):
         data = b''
 
         self._settimeout(timeout)
-        while p.search(data) is None:
+        r = None
+        while r is None:
+            r = p.search(data)
             data += self.recv(size, timeout=-1)
 
-        r = p.search(data)
         pos = r.end()
         self.unget(data[pos:])
 
@@ -159,14 +173,14 @@ class Tube(metaclass=ABCMeta):
                 return group, data[:pos]
 
     @abstractmethod
-    def send(self, data):
+    def send(self, data: bytes):
         pass
 
     @abstractmethod
-    def _socket(self):
+    def _socket(self) -> Optional[Any]:
         pass
 
-    def sendline(self, data, timeout=None):
+    def sendline(self, data: Union[str, bytes], timeout: Optional[Union[int, float]]=None):
         """Send a line
 
         Send a line of data.
@@ -182,7 +196,7 @@ class Tube(metaclass=ABCMeta):
 
         self.send(data + b'\n')
 
-    def sendafter(self, delim, data, timeout=None):
+    def sendafter(self, delim: Union[str, bytes], data: Union[str, bytes, int], timeout: Optional[Union[int, float]]=None):
         """Send raw data after a deliminater
 
         Send raw data after `delim` is received.
@@ -205,7 +219,7 @@ class Tube(metaclass=ABCMeta):
 
         return recv_data
 
-    def sendlineafter(self, delim, data, timeout=None):
+    def sendlineafter(self, delim: Union[str, bytes], data: Union[str, bytes, int], timeout: Optional[Union[int, float]]=None) -> bytes:
         """Send raw data after a deliminater
 
         Send raw data with newline after `delim` is received.
@@ -228,12 +242,12 @@ class Tube(metaclass=ABCMeta):
 
         return recv_data
 
-    def sh(self, timeout=None):
+    def sh(self, timeout: Optional[Union[int, float]]=None):
         """Alias for interactive
         """
         self.interactive(timeout)
 
-    def interactive(self, timeout=None):
+    def interactive(self, timeout: Optional[Union[int, float]]=None):
         """Interactive mode
         """
         def thread_recv():
@@ -289,7 +303,7 @@ class Tube(metaclass=ABCMeta):
         self.close()
 
     @abstractmethod
-    def is_alive(self):
+    def is_alive(self) -> bool:
         pass
 
     @abstractmethod
@@ -297,5 +311,5 @@ class Tube(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def shutdown(self, target):
+    def shutdown(self, target: Literal['send', 'recv']):
         pass

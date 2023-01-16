@@ -1,10 +1,11 @@
 from logging import getLogger
+from typing import List
 from ptrlib.crypto.number import chinese_remainder_theorem, root
 
 logger = getLogger(__name__)
 
 
-def hastads_broadcast_attack(e, pairs):
+def hastads_broadcast_attack(e: int, pairs: List[int]) -> int:
     """Hastad's Broadcast Attack
 
     If we have e ciphertext of same plaintext with different N,

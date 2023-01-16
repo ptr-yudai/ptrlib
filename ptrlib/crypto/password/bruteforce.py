@@ -1,6 +1,7 @@
 from itertools import chain, product
+from typing import List, Optional, Union
 
-def bruteforce(minlen=None, maxlen=None, charset=None):
+def bruteforce(minlen: Optional[int]=None, maxlen: Optional[int]=None, charset: Optional[Union[List[str], List[bytes], List[int], str, bytes]]=None):
     if minlen is None:
         minlen = 1
     if maxlen is None:

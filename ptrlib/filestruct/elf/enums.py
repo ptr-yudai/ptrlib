@@ -792,14 +792,6 @@ ENUM_VERSYM = dict(
     VER_NDX_ELIMINATE=0xff01
 )
 
-# Sunw Syminfo Bound To special values
-ENUM_SUNW_SYMINFO_BOUNDTO = dict(
-    SYMINFO_BT_SELF=0xffff,
-    SYMINFO_BT_PARENT=0xfffe,
-    SYMINFO_BT_NONE=0xfffd,
-    SYMINFO_BT_EXTERN=0xfffc
-)
-
 # PT_NOTE section types for all ELF types except ET_CORE
 ENUM_NOTE_N_TYPE = dict(
     NT_GNU_ABI_TAG=1,

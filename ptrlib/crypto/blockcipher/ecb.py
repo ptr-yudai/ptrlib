@@ -1,14 +1,15 @@
 from logging import getLogger
+from typing import Callable
 
 logger = getLogger(__name__)
 
 
-def ecb_chosenplaintext(encryptor, prefix, plaintext_length, *, bs=16, unknown=b"?"):
+def ecb_chosenplaintext(encryptor: Callable[[bytes], bytes], prefix: bytes, plaintext_length: int, *, bs: int=16, unknown: bytes=b"?") -> bytes:
     """Chosen Plaintext Attack to ECB Mode Cryptography
     TODO: implement postfix
     """
     plaintext = b""
-    for i in range(plaintext_length):
+    for _ in range(plaintext_length):
         # calculate padding size
         padsize = bs - (len(prefix + plaintext) % bs) - 1
         padding = unknown * padsize

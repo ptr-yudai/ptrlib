@@ -1,9 +1,11 @@
 from logging import getLogger
+from typing import Any, List, TypeVar
 
 logger = getLogger(__name__)
 
+_T = TypeVar("_T", int, str, bytes, List[Any])
 
-def rol(data, n, bits=32):
+def rol(data: _T, n: int, bits: int=32) -> _T:
     """Rotate left
     """
     if isinstance(data, int):
@@ -20,7 +22,7 @@ def rol(data, n, bits=32):
     else:
         raise ValueError("{} given ('int'/'str'/'bytes'/'list' expected)".format(type(data)))
 
-def ror(data, n, bits=32):
+def ror(data: _T, n: int, bits: int=32) -> _T:
     """Rotate right
     """
     if isinstance(data, int):
