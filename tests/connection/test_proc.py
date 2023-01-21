@@ -1,7 +1,7 @@
 import unittest
 import os
 import random
-from ptrlib import Process
+from ptrlib import Process, is_scanf_safe
 from logging import getLogger, FATAL
 
 
@@ -12,7 +12,7 @@ class TestProcess(unittest.TestCase):
     def test_basic(self):
         while True:
             msg = os.urandom(16)
-            if b'\n' not in msg:
+            if is_scanf_safe(msg):
                 break
 
         p = Process("./tests/test.bin/test_echo.x64")

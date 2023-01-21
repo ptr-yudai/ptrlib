@@ -1,5 +1,5 @@
 import unittest
-from ptrlib import u8, u16, u32, u64
+from ptrlib import u8, u16, u32, u64, u32f, u64f
 from logging import getLogger, FATAL
 
 
@@ -28,8 +28,8 @@ class TestUnpack(unittest.TestCase):
         self.assertEqual(u32(v, byteorder='big'), 0xedcba988)
         self.assertEqual(u32(v, byteorder='big', signed=True), -0x12345678)
         v = b'\x00\x00\x40\x40'
-        self.assertEqual(u32(v, type=float), 3.0)
-        self.assertEqual(u32(v[::-1], byteorder='big', type=float), 3.0)
+        self.assertEqual(u32f(v), 3.0)
+        self.assertEqual(u32f(v[::-1], byteorder='big'), 3.0)
 
     def test_u64(self):
         v = b'\x11\x32\x54\x6f\x87\xa9\xcb\xed'
@@ -40,6 +40,5 @@ class TestUnpack(unittest.TestCase):
         self.assertEqual(u64(v, byteorder='big', signed=True),
                          -0x1234567890abcdef)
         v = b'\xf1\xd4\xc8\x53\xfb\x21\x09\x40'
-        self.assertEqual(u64(v, type=float), 3.14159265)
-        self.assertEqual(u64(v[::-1], byteorder='big', type=float),
-                         3.14159265)
+        self.assertEqual(u64f(v), 3.14159265)
+        self.assertEqual(u64f(v[::-1], byteorder='big'), 3.14159265)
