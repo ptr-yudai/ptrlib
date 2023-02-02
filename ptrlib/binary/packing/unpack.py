@@ -1,4 +1,5 @@
 import builtins
+from logging import getLogger
 import struct
 from typing import Type, TypeVar, Union, overload
 try:
@@ -6,6 +7,8 @@ try:
 except:
     from typing_extensions import Literal
 from ptrlib.binary.encoding.byteconv import str2bytes
+
+logger = getLogger(__name__)
 
 _T = TypeVar("_T", int, float)
 
