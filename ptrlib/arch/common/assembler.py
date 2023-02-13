@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 from logging import getLogger
 from typing import Optional, Union
-from ptrlib.arch.intel import assemble_intel, is_arch_intel
+from ptrlib.arch.intel import assemble_intel, is_arch_intel, bit_by_arch_intel
 from ptrlib.arch.arm   import assemble_arm, is_arch_arm
 from ptrlib.binary.encoding import *
 
