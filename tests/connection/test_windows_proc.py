@@ -4,10 +4,14 @@ import random
 from ptrlib import Process, is_scanf_safe
 from logging import getLogger, FATAL
 
+_is_windows = os.name == 'nt'
 
-class TestProcess(unittest.TestCase):
+
+class TestWinProcess(unittest.TestCase):
     def setUp(self):
         getLogger("ptrlib").setLevel(FATAL)
+        if not _is_windows:
+            self.skipTest("This test is for Windows architecture")
 
     def test_basic(self):
         while True:
@@ -34,8 +38,9 @@ class TestProcess(unittest.TestCase):
         p.shutdown('write')
         self.assertEqual(p.recvonce(len(msg)), msg[::-1])
 
-
+        self.assertEqual(p.is_alive(), True)
         p.close()
+        self.assertEqual(p.is_alive(), False)
 
     def test_timeout(self):
         p = Process("./tests/test.bin/test_echo.pe.exe")

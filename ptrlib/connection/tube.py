@@ -304,6 +304,7 @@ class Tube(metaclass=ABCMeta):
     def __exit__(self, e_type, e_value, traceback):
         self.close()
 
+    @abstractmethod
     def is_alive(self) -> bool:
         pass
 
