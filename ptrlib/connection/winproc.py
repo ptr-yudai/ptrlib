@@ -201,6 +201,18 @@ class WinProcess(Tube):
         buf = self.stdout.recv(size, self.timeout)
         return buf
 
+    def is_alive(self) -> bool:
+        """Check if process is alive
+
+        Returns:
+            bool: True if process is alive, otherwise False
+        """
+        if self.proc is None:
+            return False
+        else:
+            status = win32process.GetExitCodeProcess(self.proc)
+            return status == win32con.STILL_ACTIVE
+
     def close(self):
         if self.proc:
             win32api.CloseHandle(self.proc)
