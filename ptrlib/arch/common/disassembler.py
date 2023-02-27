@@ -4,7 +4,9 @@ from typing import Optional
 logger = getLogger(__name__)
 
 
-def disassemble(code: bytes, bits: Optional[int]=None, arch: str='intel'):
+def disassemble(code: bytes,
+                bits: Optional[int]=None,
+                arch: str='intel'):
     raise NotImplementedError()
 
 def disasm(code: bytes,

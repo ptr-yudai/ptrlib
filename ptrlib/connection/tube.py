@@ -88,16 +88,23 @@ class Tube(metaclass=ABCMeta):
         return data[:size]
 
 
-    def recvuntil(self, delim: Union[str, bytes], size: int=4096, timeout: Optional[Union[int, float]]=None, drop: bool=False, lookahead: bool=False) -> bytes:
+    def recvuntil(self,
+                  delim: Union[str, bytes],
+                  size: int=4096,
+                  timeout: Optional[Union[int, float]]=None,
+                  drop: bool=False,
+                  lookahead: bool=False) -> bytes:
         """Receive raw data until `delim` comes
 
         Args:
-            size (int)   : The data size to receive at once
             delim (bytes): The delimiter bytes
+            size (int)   : The data size to receive at once
             timeout (int): Timeout (in second)
+            drop (bool): Discard deliminator or not
+            lookahead (bool): Unget deliminator to buffer or not
 
         Returns:
-            bytes: The received data
+            bytes: Received data
         """
         if isinstance(delim, str):
             delim = str2bytes(delim)
@@ -113,13 +120,41 @@ class Tube(metaclass=ABCMeta):
         self.unget(data[consumed_len:])
         return data[:result_len]
 
-    def recvline(self, size: int=4096, timeout: Optional[Union[int, float]]=None, drop: bool=True) -> bytes:
+    def recvline(self,
+                 size: int=4096,
+                 timeout: Optional[Union[int, float]]=None,
+                 drop: bool=True) -> bytes:
+        """Receive a line of data
+
+        Args:
+            size (int)   : The data size to receive at once
+            timeout (int): Timeout (in second)
+            drop (bool)  : Discard deliminator or not
+
+        Returns:
+            bytes: Received data
+        """
         line = self.recvuntil(b'\n', size, timeout)
         if drop:
             return line.rstrip()
         return line
 
-    def recvlineafter(self, delim: Union[str, bytes], size: int=4096, timeout: Optional[Union[int, float]]=None, drop: bool=True) -> bytes:
+    def recvlineafter(self,
+                      delim: Union[str, bytes],
+                      size: int=4096,
+                      timeout: Optional[Union[int, float]]=None,
+                      drop: bool=True) -> bytes:
+        """Receive a line of data after receiving `delim`
+
+        Args:
+            delim (bytes): The deliminator bytes
+            size (int)   : The data size to receive at once
+            timeout (int): Timeout (in second)
+            drop (bool)  : Discard deliminator or not
+
+        Returns:
+            bytes: Received data
+        """
         self.recvuntil(delim, size, timeout)
         return self.recvline(size, timeout, drop)
 
@@ -130,15 +165,20 @@ class Tube(metaclass=ABCMeta):
     @overload
     def recvregex(self, regex: Union[str, bytes], size: int=4096, discard: Literal[False]=False, timeout: Optional[Union[int, float]]=None) -> Tuple[bytes, bytes]: ...
 
-    def recvregex(self, regex: Union[str, bytes], size: int=4096, discard: bool=True, timeout: Optional[Union[int, float]]=None) -> Union[bytes, Tuple[bytes, bytes]]:
+    def recvregex(self,
+                  regex: Union[str, bytes],
+                  size: int=4096,
+                  discard: bool=True,
+                  timeout: Optional[Union[int, float]]=None) -> Union[bytes, Tuple[bytes, bytes]]:
         """Receive until a pattern comes
 
         Receive data until a specified regex pattern matches.
 
         Args:
-            regex (bytes): Regex
-            size (int)   : Size to read at once
-            timeout (int): Timeout (in second)
+            regex (bytes) : Regex
+            size (int)    : Size to read at once
+            discard (bool): Discard received bytes or not
+            timeout (int) : Timeout (in second)
 
         Returns:
             tuple: If the given regex has multiple patterns to find,

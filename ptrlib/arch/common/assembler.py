@@ -11,8 +11,27 @@ from ptrlib.binary.encoding import *
 logger = getLogger(__name__)
 
 
-def assemble(code: Union[str, bytes], bits: Optional[int]=None, arch: str='intel', syntax: str='intel', entry: Optional[str]=None,
-             as_path: Optional[str]=None, ld_path: Optional[str]=None) -> Optional[bytes]:
+def assemble(code: Union[str, bytes],
+             bits: Optional[int]=None,
+             arch: str='intel',
+             syntax: str='intel',
+             entry: Optional[str]=None,
+             as_path: Optional[str]=None,
+             ld_path: Optional[str]=None) -> Optional[bytes]:
+    """Assemble code with GCC
+
+    Args:
+      code (str): Assembly code
+      bits (int): Architecture bits (32 or 64)
+      arch (str): Architecture (Intel, ARM)
+      syntax (str): AT&T or Intel (Intel by default)
+      entry (str): Symbol of entry point
+      as_path (str): Path to 'as' executable
+      ld_path (str): Path to 'ld' executable
+
+    Returns:
+      bytes: Machine code
+    """
     if isinstance(code, str):
         code = str2bytes(code)
 
@@ -40,7 +59,23 @@ def assemble(code: Union[str, bytes], bits: Optional[int]=None, arch: str='intel
         raise ValueError("Unknown architecture '{}'".format(arch))
 
 
-def nasm(code: Union[str, bytes], fmt: str='bin', bits: Optional[int]=None, org: Optional[int]=None, nasm_path: Optional[str]=None):
+def nasm(code: Union[str, bytes],
+         fmt: str='bin',
+         bits: Optional[int]=None,
+         org: Optional[int]=None,
+         nasm_path: Optional[str]=None):
+    """Assemble x86/x86-64 code with NASM
+
+    Args:
+      code (str): Assembly code
+      fmt (str): Output format (See `nasm -hf` for availabel formats)
+      bits (int): Architecture bits (32 or 64)
+      org (int): Specify address (ORG instruction)
+      nasm_path (str): Path to NASM executable
+
+    Returns:
+      bytes: Machine code (or binary data if `fmt` is not "bin")
+    """
     from ptrlib.arch.common import which
     if nasm_path is None:
         nasm_path = which('nasm')
