@@ -16,8 +16,8 @@ def assemble(code: Union[str, bytes],
              arch: str='intel',
              syntax: str='intel',
              entry: Optional[str]=None,
-             as_path: Optional[str]=None,
-             ld_path: Optional[str]=None) -> Optional[bytes]:
+             gcc_path: Optional[str]=None,
+             objcopy_path: Optional[str]=None) -> Optional[bytes]:
     """Assemble code with GCC
 
     Args:
@@ -26,8 +26,8 @@ def assemble(code: Union[str, bytes],
       arch (str): Architecture (Intel, ARM)
       syntax (str): AT&T or Intel (Intel by default)
       entry (str): Symbol of entry point
-      as_path (str): Path to 'as' executable
-      ld_path (str): Path to 'ld' executable
+      gcc_path (str): Path to gcc compiler
+      objcopy_path (str): Path to objcopy executable
 
     Returns:
       bytes: Machine code
@@ -48,12 +48,12 @@ def assemble(code: Union[str, bytes],
         if bits is None:
             bits = bit_by_arch_intel(arch)
             if bits == -1: bits = 64
-        return assemble_intel(code, bits, entry, as_path, ld_path)
+        return assemble_intel(code, bits, entry, gcc_path, objcopy_path)
 
     elif is_arch_arm(arch):
         if bits is None:
             bits = 64
-        return assemble_arm(code, bits, entry, as_path, ld_path)
+        return assemble_arm(code, bits, entry, gcc_path, objcopy_path)
 
     else:
         raise ValueError("Unknown architecture '{}'".format(arch))
