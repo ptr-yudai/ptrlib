@@ -44,8 +44,10 @@ def disassemble_intel(code: bytes,
 
     with contextlib.suppress(FileNotFoundError):
         # Disassemble
-        cmd = [objdump_path, '-b', 'binary', '-m', 'i386', '-D',
-               '-M', syntax, '-M', arch, fname_bin]
+        cmd = [objdump_path,
+               '-b', 'binary', '-m', 'i386', '-D',
+               '-M', syntax, '-M', arch, f'--adjust-vma={address}',
+               fname_bin]
         p = subprocess.Popen(cmd,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE)

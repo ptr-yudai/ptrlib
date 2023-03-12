@@ -5,7 +5,7 @@ import tempfile
 from logging import getLogger
 from typing import Optional, Union
 from ptrlib.arch.intel import assemble_intel, is_arch_intel, bit_by_arch_intel
-from ptrlib.arch.arm   import assemble_arm, is_arch_arm
+from ptrlib.arch.arm   import assemble_arm, is_arch_arm, bit_by_arch_arm
 from ptrlib.binary.encoding import *
 
 logger = getLogger(__name__)
@@ -13,7 +13,7 @@ logger = getLogger(__name__)
 
 def assemble(code: Union[str, bytes],
              bits: Optional[int]=None,
-             arch: str='intel',
+             arch: str='x86-64',
              syntax: str='intel',
              entry: Optional[str]=None,
              gcc_path: Optional[str]=None,
@@ -52,7 +52,8 @@ def assemble(code: Union[str, bytes],
 
     elif is_arch_arm(arch):
         if bits is None:
-            bits = 64
+            bits = bit_by_arch_arm(arch)
+            if bits == -1: bits = 64
         return assemble_arm(code, bits, entry, gcc_path, objcopy_path)
 
     else:

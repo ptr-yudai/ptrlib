@@ -30,8 +30,20 @@ def assemble_arm(code: bytes, bits: int, entry: str, gcc_path: Optional[str]=Non
         else:
             # not-arm --> arm: Use corss-platform compiler
             if bits == 32:
-                gcc_path = which('arm-linux-gnueabi-gcc')
-                objcopy_path = which('arm-linux-gnueabi-objcopy')
+                gcc_path = which('arm-linux-gnueabihf-gcc')
+                objcopy_path = which('arm-linux-gnueabihf-objcopy')
+                if gcc_path is None:
+                    gcc_path = which('arm-linux-gnueabi-gcc')
+                if gcc_path is None:
+                    gcc_path = which('arm-linux-gnu-gcc')
+                if gcc_path is None:
+                    gcc_path = which('arm-linux-eabi-gcc')
+                if objcopy_path is None:
+                    objcopy_path = which('arm-linux-gnueabi-objcopy')
+                if objcopy_path is None:
+                    objcopy_path = which('arm-linux-gnu-objcopy')
+                if objcopy_path is None:
+                    objcopy_path = which('arm-linux-eabi-objcopy')
             else:
                 gcc_path = which('aarch64-linux-gnu-gcc')
                 objcopy_path = which('aarch64-linux-gnu-objcopy')

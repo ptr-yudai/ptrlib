@@ -1,7 +1,7 @@
 from logging import getLogger
 from typing import Optional, Union
 from ptrlib.arch.intel import disassemble_intel, is_arch_intel, bit_by_arch_intel
-#from ptrlib.arch.arm   import disassemble_arm, is_arch_arm
+from ptrlib.arch.arm import disassemble_arm, is_arch_arm, bit_by_arch_arm
 from ptrlib.binary.encoding import str2bytes
 
 logger = getLogger(__name__)
@@ -10,8 +10,9 @@ logger = getLogger(__name__)
 def disassemble(code: Union[str, bytes],
                 address: int=0,
                 bits: Optional[int]=None,
-                arch: Optional[str]='intel',
+                arch: Optional[str]='x86-64',
                 syntax: Optional[str]='intel',
+                thumb: Optional[bool]=False,
                 returns: Optional[type]=list,
                 objdump_path: str=None) -> Union[list, str]:
     if syntax.lower() == 'intel':
@@ -29,7 +30,10 @@ def disassemble(code: Union[str, bytes],
         l = disassemble_intel(code, bits, address, syntax, objdump_path)
 
     elif is_arch_arm(arch):
-        raise NotImplementedError("Not implemented")
+        if bits is None:
+            bits = bit_by_arch_arm(arch)
+            if bits == -1: bits = 64
+        l = disassemble_arm(code, bits, address, thumb, objdump_path)
 
     else:
         raise ValueError("Unknown architecture '{}'".format(arch))
