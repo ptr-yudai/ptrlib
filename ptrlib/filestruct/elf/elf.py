@@ -1,7 +1,7 @@
 import functools
 import os
 from logging import getLogger
-from typing import Generator
+from typing import Dict, Generator, Optional
 from ptrlib.binary.packing import *
 from ptrlib.arch.common import assemble
 from ptrlib.binary.encoding import str2bytes, bytes2str
@@ -117,6 +117,35 @@ class ELF(object):
                     return symtab['st_value']
 
         return None
+
+    def symbols(self) -> Dict[str, int]:
+        """Get all symbols
+
+        Find all symbols and their addresses.
+
+        Returns:
+            dict: A dictionary containing the symbol name in key and address in value.
+        """
+        return self._offset_symbols(self._pie_add_base)
+
+    @cache
+    def _offset_symbols(self, base=0) -> Dict[bytes, int]:
+        symbols = {}
+        for shdr in self._parser.iter_sections():
+            if shdr['sh_type'] not in ["SHT_SYMTAB", "SHT_DYNSYM", "SHT_SUNW_LDYNSYM"]:
+                continue
+
+            strtab = self._parser.section_at(shdr['sh_link'])
+            for symtab in self._parser.iter_symtab(shdr):
+                sym_name = self._parser.string_at(
+                    strtab['sh_offset'] + symtab['st_name']
+                )
+                if sym_name == b'':
+                    continue
+
+                symbols[sym_name] = base + symtab['st_value']
+
+        return symbols
 
     def search(self, pattern: Union[str, bytes], writable: Optional[bool]=None, executable: Optional[bool]=None) -> Generator[int, None, None]:
         """Find binary data from the ELF
