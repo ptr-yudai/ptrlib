@@ -43,14 +43,13 @@ def disassemble(code: Union[str, bytes],
     else:
         return l
 
-def disasm(code: bytes,
-           arch: str='x86',
-           mode: str='64',
-           endian: str='little',
+def disasm(code: Union[str, bytes],
            address: int=0,
-           micro: bool=False,
-           mclass: bool=False,
-           v8: bool=False,
-           v9: bool=False,
-           returns: type=list):
-    raise NotImplementedError()
+           bits: Optional[int]=None,
+           arch: Optional[str]='x86-64',
+           syntax: Optional[str]='intel',
+           thumb: Optional[bool]=False,
+           returns: Optional[type]=list,
+           objdump_path: str=None) -> Union[list, str]:
+    return disassemble(code, address, bits, arch, syntax,
+                       thumb, returns, objdump_path)

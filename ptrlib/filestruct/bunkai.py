@@ -1,3 +1,4 @@
+# https://github.com/ptr-yudai/bunkai_struct (1559ca2)
 import ctypes
 import io
 from collections import OrderedDict
@@ -9,6 +10,7 @@ class BunkaiMember(object):
             or isinstance(struct, BitInt) \
             or isinstance(struct, Array) \
             or isinstance(struct, VariableArray) \
+            or isinstance(struct, Union) \
             or isinstance(struct, Enum) \
             or isinstance(struct, BunkaiPrimitive)
         self.name = name
@@ -71,7 +73,7 @@ class BitStruct(object):
         return self._members[key]
 
     def __ge__(self, other):
-        assert isinstance(other, str), "Usage: 'name' <= Struct(...)"
+        assert isinstance(other, str), "Usage: 'name' <= BitStruct(...)"
         return BunkaiMember(other, self)
 
     def _parse_stream(self, stream):
@@ -94,7 +96,7 @@ class BitInt(object):
         self.bitlen = bitlen
 
     def __ge__(self, other):
-        assert isinstance(other, str), "Usage: 'name' <= Struct(...)"
+        assert isinstance(other, str), "Usage: 'name' <= BitInt(...)"
         return BunkaiMember(other, self)
 
     @property
@@ -144,6 +146,26 @@ class VariableArray(object):
                 break
             else:
                 res.append(newval)
+        return res
+
+class Union(object):
+    def __init__(self, *args):
+        self._members = args
+        self._size = max(map(lambda member: member.size, self._members))
+
+    def __ge__(self, other):
+        assert isinstance(other, str), "Usage: 'name' <= Union(...)"
+        return BunkaiMember(other, self)
+
+    @property
+    def size(self):
+        return self._size
+
+    def _parse_stream(self, stream):
+        res = {}
+        data = stream.read(self.size)
+        for member in self._members:
+            res[member.name] = member.parse(data)
         return res
 
 class Enum(object):
@@ -228,8 +250,9 @@ s64be = BunkaiPrimitive(ctypes.c_long, True)
 if __name__ == '__main__':
     data  = b'\xde\xad\xbe\xef' # magic
     data += b'fizzbuzz\0'       # name
-    data += b'\x01\x27'             # version
+    data += b'\x72\x01'         # version
     data += b'\x11\xf0' + b'\x33\xf1' # children
+    data += b'\xff\xff\xff\xff\xff\xff\xff\xff' + b'\x01' # v1_data
     my_struct = 'MyStruct' <= Struct(
         'magic' <= u32be,
         'name' <= VariableArray(lambda c,_: c!=0, s8),
@@ -244,6 +267,16 @@ if __name__ == '__main__':
                 'x' <= Enum(u8, CHILD_X1=0x11, CHILD_X2=0x22, CHILD_X3=0x33),
                 'y' <= Enum(u8, ['CHILD_Y1', 'CHILD_Y2'], startsfrom=0xf0),
             )
+        ),
+        'data' <= Union(
+            'v1_data' <= Struct(
+                'value' <= s32,
+                'flag'  <= u8,
+            ),
+            'v2_data' <= Struct(
+                'value' <= s64,
+                'flag'  <= u8,
+            ),
         )
     )
 
