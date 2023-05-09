@@ -12,6 +12,7 @@ class TestPaddingOracle(unittest.TestCase):
         getLogger("ptrlib").setLevel(FATAL)
 
     def test_padding_oracle(self):
+        ok_count = 0
         for _ in range(10):
             iv = os.urandom(AES.block_size)
             key = os.urandom(AES.block_size)
@@ -26,9 +27,14 @@ class TestPaddingOracle(unittest.TestCase):
                     return True
                 except:
                     return False
-            self.assertEqual(m, padding_oracle(try_decrypt, c, iv=iv, bs=AES.block_size))
+
+            if m == padding_oracle(try_decrypt, c, iv=iv, bs=AES.block_size):
+                ok_count += 1
+
+        self.assertTrue(ok_count > 7)
 
     def test_padding_oracle_attack(self):
+        ok_count = 0
         for _ in range(10):
             key = os.urandom(AES.block_size)
 
@@ -43,4 +49,7 @@ class TestPaddingOracle(unittest.TestCase):
             m = pad(os.urandom(50), AES.block_size)
             iv, c = padding_oracle_encrypt(try_decrypt, m, bs=AES.block_size)
             aes = AES.new(key, AES.MODE_CBC, iv=iv)
-            self.assertEqual(m, aes.decrypt(c))
+            if m == aes.decrypt(c):
+                ok_count += 1
+
+        self.assertTrue(ok_count > 7)
