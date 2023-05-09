@@ -92,7 +92,7 @@ def _aes_inv_mix_columns(s):
         s[i][3] ^= v
     _aes_mix_columns(s)
 
-def simd_aesenc(state, round_key):
+def intel_aesenc(state, round_key):
     """Emulate AESENC instruction
     """
     if len(state) != 16:
@@ -108,7 +108,7 @@ def simd_aesenc(state, round_key):
     _aes_add_round_key(state, round_key)
     return _aes_matrix_to_bytes(state)
 
-def simd_aesenc_inv(state, round_key):
+def intel_aesenc_inv(state, round_key):
     """Emulate the inverse of AESENC instruction
     """
     if len(state) != 16:
@@ -124,7 +124,7 @@ def simd_aesenc_inv(state, round_key):
     _aes_inv_shift_rows(state)
     return _aes_matrix_to_bytes(state)
 
-def simd_aesdec(state, round_key):
+def intel_aesdec(state, round_key):
     """Emulate AESDEC instruction
     """
     if len(state) != 16:
@@ -140,7 +140,7 @@ def simd_aesdec(state, round_key):
     _aes_add_round_key(state, round_key)
     return _aes_matrix_to_bytes(state)
 
-def simd_aesdec_inv(state, round_key):
+def intel_aesdec_inv(state, round_key):
     """Emulate the inverse of AESENC instruction
     """
     if len(state) != 16:

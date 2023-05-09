@@ -4,7 +4,7 @@ from ptrlib.arch.intel.simd import *
 from logging import getLogger, FATAL
 
 
-class TestSyscall(unittest.TestCase):
+class TestSIMD(unittest.TestCase):
     def setUp(self):
         getLogger("ptrlib").setLevel(FATAL)
 
@@ -18,10 +18,10 @@ class TestSyscall(unittest.TestCase):
         dec = b'\xe9\xbd\x56\x1c\x42\xe8\xb5\x3c'\
             b'\xf1\xc9\xdb\xf0\x67\x8d\xdf\x1a'
 
-        self.assertEqual(simd_aesenc(dat, key), enc)
-        self.assertEqual(simd_aesdec(dat, key), dec)
+        self.assertEqual(intel_aesenc(dat, key), enc)
+        self.assertEqual(intel_aesdec(dat, key), dec)
         for _ in range(10):
             dat = os.urandom(16)
             key = os.urandom(16)
-            self.assertEqual(simd_aesenc_inv(simd_aesenc(dat, key), key), dat)
-            self.assertEqual(simd_aesdec_inv(simd_aesdec(dat, key), key), dat)
+            self.assertEqual(intel_aesenc_inv(intel_aesenc(dat, key), key), dat)
+            self.assertEqual(intel_aesdec_inv(intel_aesdec(dat, key), key), dat)
