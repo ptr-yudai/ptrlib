@@ -3,7 +3,7 @@ from ptrlib import syscall
 from logging import getLogger, FATAL
 
 
-class TestBytes(unittest.TestCase):
+class TestSyscall(unittest.TestCase):
     def setUp(self):
         getLogger("ptrlib").setLevel(FATAL)
 
