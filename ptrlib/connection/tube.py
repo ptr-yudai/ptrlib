@@ -23,6 +23,11 @@ class Tube(metaclass=ABCMeta):
 
     @abstractmethod
     def _settimeout(self, timeout: Optional[Union[int, float]]):
+        """Set timeout
+
+        Args:
+            timeout (float): Timeout (None: Set to default / -1: No change / x>0: Set timeout to x seconds)
+        """
         pass
 
     @abstractmethod
@@ -51,18 +56,25 @@ class Tube(metaclass=ABCMeta):
         Receive raw data of maximum `size` bytes length through the socket.
 
         Args:
-            size    (int): The data size to receive
+            size    (int): The data size to receive (Use `recvonce`
+                           if you want to read exactly `size` bytes)
             timeout (int): Timeout (in second)
 
         Returns:
             bytes: The received data
         """
-        self._settimeout(timeout)
-        if not self.buf:
-            data = self._recv(size, timeout=-1)
-            if data is not None:
-                self.buf += data
+        if size <= 0:
+            raise ValueError("`size` must be larger than 0")
+        elif size <= len(self.buf):
+            # Use the buffer
+            data, self.buf = self.buf[:size], self.buf[size:]
+            return data
 
+        self._settimeout(timeout)
+        data = self._recv(size, timeout=-1)
+        self.buf += data
+
+        # We don't check size > len(self.buf) because Python handles it
         data, self.buf = self.buf[:size], self.buf[size:]
         return data
 
@@ -80,8 +92,14 @@ class Tube(metaclass=ABCMeta):
         """
         self._settimeout(timeout)
         data = b''
+        timer_start = time.time()
+
         while len(data) < size:
-            data += self.recv(size - len(data))
+            if timeout is not None and time.time() - timer_start > timeout:
+                raise TimeoutError("`recvonce` timeout")
+
+            data += self.recv(size - len(data), timeout=-1)
+            time.sleep(0.01)
 
         if len(data) > size:
             self.unget(data[size:])
@@ -108,11 +126,17 @@ class Tube(metaclass=ABCMeta):
         """
         if isinstance(delim, str):
             delim = str2bytes(delim)
-        data = b''
 
         self._settimeout(timeout)
+        data = b''
+        timer_start = time.time()
+
         while data.find(delim) == -1:
-            data += self.recv(size, -1)
+            if timeout is not None and time.time() - timer_start > timeout:
+                raise TimeoutError("`recvuntil` timeout")
+
+            data += self.recv(size, timeout=-1)
+            time.sleep(0.01)
 
         found_pos = data.find(delim)
         result_len = found_pos if drop else found_pos + len(delim)

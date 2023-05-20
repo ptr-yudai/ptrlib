@@ -56,7 +56,6 @@ class UnixProcess(Tube):
         self.env = env
         self.default_timeout = timeout
         self.timeout = self.default_timeout
-        self.reservoir = b''
         self.proc = None
         self.returncode = None
 
@@ -140,7 +139,7 @@ class UnixProcess(Tube):
                 return False
         assert False, "unreachable"
 
-    def _recv(self, size: int=4096, timeout: Optional[Union[int, float]]=None) -> Optional[bytes]:
+    def _recv(self, size: int=4096, timeout: Optional[Union[int, float]]=None) -> bytes:
         """Receive raw data
 
         Receive raw data of maximum `size` bytes length through the pipe.
@@ -153,39 +152,17 @@ class UnixProcess(Tube):
             bytes: The received data
         """
         self._settimeout(timeout)
-        if size <= 0:
-            logger.error("`size` must be larger than 0")
-            return b''
-
-        if size <= len(self.reservoir):
-            # Use the buffer
-            data = self.reservoir[:size]
-            self.reservoir = self.reservoir[size:]
-            return data
 
         if not self._can_recv():
             return b''
 
         try:
             data = self.proc.stdout.read(size)
-            self.reservoir += data
         except subprocess.TimeoutExpired:
-            logger.error("Timeout")
-            return None
+            # TODO: Unreachable?
+            raise TimeoutError("Receive timeout") from None
 
         self._poll() # poll after received all data
-
-        if len(self.reservoir) == 0:
-            # No data received
-            data = None
-        elif len(self.reservoir) >= size:
-            # Too much data received
-            data = self.reservoir[:size]
-            self.reservoir = self.reservoir[size:]
-        else:
-            # Too little data received
-            data = self.reservoir
-            self.reservoir = b''
         return data
 
     def send(self, data: Union[str, bytes]):

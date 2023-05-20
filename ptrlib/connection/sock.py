@@ -63,7 +63,7 @@ class Socket(Tube):
     def _socket(self) -> Optional[socket.socket]:
         return self.sock
 
-    def _recv(self, size: int=4096, timeout: Optional[Union[int, float]]=None) -> Optional[bytes]:
+    def _recv(self, size: int=4096, timeout: Optional[Union[int, float]]=None) -> bytes:
         """Receive raw data
 
         Receive raw data of maximum `size` bytes length through the socket.
@@ -76,9 +76,6 @@ class Socket(Tube):
             bytes: The received data
         """
         self._settimeout(timeout)
-        if size <= 0:
-            logger.error("`size` must be larger than 0")
-            return None
 
         try:
             data = self.sock.recv(size)
@@ -88,9 +85,6 @@ class Socket(Tube):
             logger.warning("Connection aborted by the host")
             raise e from None
 
-        # No data received
-        if len(data) == 0:
-            data = None
         return data
 
     def send(self, data: Union[str, bytes]):
