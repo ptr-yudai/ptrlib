@@ -297,8 +297,10 @@ class Tube(metaclass=ABCMeta):
                 try:
                     data = self.recv(size=4096, timeout=0.1)
                     if data is not None:
-                        sys.stdout.write(bytes2str(data))
+                        utf8str, leftover = bytes2utf8(data)
+                        sys.stdout.write(utf8str)
                         sys.stdout.flush()
+                        self.unget(leftover)
                 except TimeoutError:
                     pass
                 except EOFError:
