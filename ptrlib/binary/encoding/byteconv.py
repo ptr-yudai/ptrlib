@@ -1,3 +1,4 @@
+from typing import Tuple
 from logging import getLogger
 
 logger = getLogger(__name__)
@@ -22,7 +23,7 @@ def str2bytes(data: str) -> bytes:
     else:
         raise ValueError("{} given ('str' expected)".format(type(data)))
 
-def bytes2utf8(data: bytes) -> tuple[str, bytes]:
+def bytes2utf8(data: bytes) -> Tuple[str, bytes]:
     """Convert bytes to UTF-8
 
     Convert byte array into UTF-8 string.
