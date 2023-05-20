@@ -1,3 +1,4 @@
+from ptrlib import logger
 from logging import Formatter, DEBUG, INFO, WARNING, ERROR, LogRecord
 
 

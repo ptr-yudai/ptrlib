@@ -14,3 +14,4 @@ handler.setFormatter(ColoredFormatter("%(funcName)s: %(message)s"))
 logger = getLogger(__name__)
 logger.setLevel(INFO)
 logger.addHandler(handler)
+
