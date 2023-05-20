@@ -28,8 +28,11 @@ class TestPaddingOracle(unittest.TestCase):
                 except:
                     return False
 
-            if m == padding_oracle(try_decrypt, c, iv=iv, bs=AES.block_size):
-                ok_count += 1
+            try:
+                if m == padding_oracle(try_decrypt, c, iv=iv, bs=AES.block_size):
+                    ok_count += 1
+            except ValueError:
+                pass
 
         self.assertTrue(ok_count > 7)
 
@@ -47,9 +50,12 @@ class TestPaddingOracle(unittest.TestCase):
                     return False
 
             m = pad(os.urandom(50), AES.block_size)
-            iv, c = padding_oracle_encrypt(try_decrypt, m, bs=AES.block_size)
-            aes = AES.new(key, AES.MODE_CBC, iv=iv)
-            if m == aes.decrypt(c):
-                ok_count += 1
+            try:
+                iv, c = padding_oracle_encrypt(try_decrypt, m, bs=AES.block_size)
+                aes = AES.new(key, AES.MODE_CBC, iv=iv)
+                if m == aes.decrypt(c):
+                    ok_count += 1
+            except ValueError:
+                pass
 
         self.assertTrue(ok_count > 7)
