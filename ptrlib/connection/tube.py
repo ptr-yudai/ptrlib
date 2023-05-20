@@ -65,14 +65,11 @@ class Tube(metaclass=ABCMeta):
         """
         if size <= 0:
             raise ValueError("`size` must be larger than 0")
-        elif size <= len(self.buf):
-            # Use the buffer
-            data, self.buf = self.buf[:size], self.buf[size:]
-            return data
 
-        self._settimeout(timeout)
-        data = self._recv(size, timeout=-1)
-        self.buf += data
+        elif len(self.buf) == 0:
+            self._settimeout(timeout)
+            data = self._recv(size, timeout=-1)
+            self.buf += data
 
         # We don't check size > len(self.buf) because Python handles it
         data, self.buf = self.buf[:size], self.buf[size:]
