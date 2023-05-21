@@ -140,7 +140,8 @@ class PEParser(object):
 
         # Parse string table
         size = IMAGE_COFF_STRING_TABLE_SIZE().parse_stream(self.stream)
-        self._offset_string_table = self.stream.tell()
+        self._offset_string_table = self.stream.tell() \
+            - IMAGE_COFF_STRING_TABLE_SIZE().size
         self._size_string_table = size
 
         # Resolve symbol name
@@ -165,6 +166,7 @@ class PEParser(object):
             logger.error("Failed to parse import directory (Invalid RVA)")
             return
 
+        # Parse IMAGE_IMPORT_DESCRIPTOR
         self._import_table = []
         self.stream.seek(offset)
         while True:
@@ -173,7 +175,13 @@ class PEParser(object):
                 break
             self._import_table.append(table)
 
+        # Resolve names
+        for table in self._import_table:
+            self._resolve_imports(table)
+
     def _resolve_symbol_name(self, image_symbol):
+        """Resolve names in a symbol table
+        """
         if image_symbol['N']['Name']['Zero'] == 0:
             offset = image_symbol['N']['Name']['Offset']
             if offset >= self._size_string_table:
@@ -187,14 +195,46 @@ class PEParser(object):
 
         image_symbol['Name'] = name
 
+    def _resolve_imports(self, import_table):
+        """Resolve names in an import table
+        """
+        # Resolve DLL name
+        offset = self.rva_to_offset(import_table['Name'])
+        import_table['Name'] = self.string_at(offset)
+
+    def iter_iat(self, import_table):
+        """Iterate over IAT corresponding to an import table
+        """
+        oft = import_table['_']['OriginalFirstThunk']
+        ft = import_table['FirstThunk']
+        p_thunk_name = self.rva_to_offset(oft)
+        p_thunk_func = self.rva_to_offset(ft)
+
+        while True:
+            # Parse thunk name and function
+            self.stream.seek(p_thunk_name)
+            thunk_name = IMAGE_THUNK_DATA(self).parse_stream(self.stream)
+            self.stream.seek(p_thunk_func)
+            thunk_func = IMAGE_THUNK_DATA(self).parse_stream(self.stream)
+            if thunk_func['u1']['Function'] == 0:
+                break
+
+            # Get function name
+            offset = self.rva_to_offset(thunk_name['u1']['AddressOfData'])
+            self.stream.seek(offset)
+            ibn = IMAGE_IMPORT_BY_NAME().parse_stream(self.stream)
+            name = ''.join(map(chr, ibn['Name']))
+
+            yield thunk_func['u1']['Function'], name
+
+            p_thunk_name += IMAGE_THUNK_DATA(self).size
+            p_thunk_func += IMAGE_THUNK_DATA(self).size
+
     def iter_imports(self):
         """Iterate over import table
         """
         for table in self._import_table:
-            offset = self.rva_to_offset(table['Name'])
-            yield {
-                'Name': self.string_at(offset)
-            }
+            yield table
 
     def iter_symbol_table(self):
         """Iterate over symbol table

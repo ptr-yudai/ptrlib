@@ -257,4 +257,32 @@ def IMAGE_AUX_SYMBOL():
 
 @cache
 def IMAGE_COFF_STRING_TABLE_SIZE():
-    return 'Size' <= WORD
+    return 'Size' <= DWORD
+
+@cache
+def IMAGE_THUNK_DATA(parser):
+    if parser.bits == 32:
+        return 'IMAGE_THUNK_DATA' <= Struct(
+            'u1' <= Union(
+                'ForwarderString' <= DWORD, # PBYTE
+                'Function'        <= DWORD, # PDWORD
+                'Ordinal'         <= DWORD,
+                'AddressOfData'   <= DWORD, # PIMAGE_IMPORT_BY_NAME
+            )
+        )
+    else:
+        return 'IMAGE_THUNK_DATA' <= Struct(
+            'u1' <= Union(
+                'ForwarderString' <= ULONGLONG, # PBYTE
+                'Function'        <= ULONGLONG, # PDWORD
+                'Ordinal'         <= ULONGLONG,
+                'AddressOfData'   <= ULONGLONG, # PIMAGE_IMPORT_BY_NAME
+            )
+        )
+
+@cache
+def IMAGE_IMPORT_BY_NAME():
+    return 'IMAGE_IMPORT_BY_NAME' <= Struct(
+        'Hint' <= WORD,
+        'Name' <= VariableArray(lambda c,_: c!=0, BYTE)
+    )
