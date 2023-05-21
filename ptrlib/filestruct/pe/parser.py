@@ -241,3 +241,9 @@ class PEParser(object):
         """
         for image_symbol, image_aux_symbol in self._symbol_table:
             yield (image_symbol, image_aux_symbol)
+
+    def iter_sections(self):
+        """Iterate over sections
+        """
+        for section in self.sections:
+            yield section
