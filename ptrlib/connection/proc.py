@@ -204,7 +204,7 @@ class UnixProcess(Tube):
                 self.proc = None
             else:
                 self.proc.stdout.close()
-                logger.info("'{0}' (PID={1}) has alrealy exited".format(self.filepath, self.proc.pid))
+                logger.info("'{0}' (PID={1}) has already exited".format(self.filepath, self.proc.pid))
                 self.proc = None
 
     def shutdown(self, target: Literal['send', 'recv']):
