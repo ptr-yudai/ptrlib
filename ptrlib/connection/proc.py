@@ -200,12 +200,12 @@ class UnixProcess(Tube):
                 self.proc.stdout.close()
                 self.proc.kill()
                 self.proc.wait()
-                self.proc = None
                 logger.info("'{0}' (PID={1}) killed".format(self.filepath, self.proc.pid))
+                self.proc = None
             else:
                 self.proc.stdout.close()
-                self.proc = None
                 logger.info("'{0}' (PID={1}) has alrealy exited".format(self.filepath, self.proc.pid))
+                self.proc = None
 
     def shutdown(self, target: Literal['send', 'recv']):
         """Kill one connection
