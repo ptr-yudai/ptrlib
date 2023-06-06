@@ -9,14 +9,11 @@ from typing import Optional
 logger = getLogger(__name__)
 
 
-def assemble_intel(code: bytes, bits: int, entry: str, gcc_path: Optional[str]=None, objcopy_path: Optional[str]=None) -> Optional[bytes]:
-    """Assemble code to intel machine code
-
-    Args:
-       code (bytes): Assembly code
-       bits (int): Bits of architecture
-       entry (str): Entry point
-    """
+def __int_assemble_intel(code: bytes,
+                         bits: int,
+                         entry: str,
+                         gcc_path: Optional[str]=None,
+                         objcopy_path: Optional[str]=None) -> Optional[bytes]:
     from ptrlib.arch.common import which
     from .archname import is_arch_intel
 
@@ -29,6 +26,11 @@ def assemble_intel(code: bytes, bits: int, entry: str, gcc_path: Optional[str]=N
             # not-intel --> intel: Use corss-platform compiler
             gcc_path = which('x86_64-linux-gnu-gcc')
             objcopy_path = which('x86_64-linux-gnu-objcopy')
+
+        if gcc_path is None or objcopy_path is None:
+            raise FileNotFoundError(
+                "Install 'gcc' and 'objcopy', or specify path to them."
+            )
 
     if bits == 32:
         code = b'.code32\n' + code
@@ -64,3 +66,25 @@ def assemble_intel(code: bytes, bits: int, entry: str, gcc_path: Optional[str]=N
         os.unlink(fname_bin)
 
         return output
+
+def assemble_intel(code: bytes,
+                   bits: int,
+                   entry: str,
+                   gcc_path: Optional[str]=None,
+                   objcopy_path: Optional[str]=None) -> Optional[bytes]:
+    """Assemble code to intel machine code
+
+    Args:
+       code (bytes): Assembly code
+       bits (int): Bits of architecture
+       entry (str): Entry point
+    """
+    candidate = __int_assemble_intel(code, bits, entry, gcc_path, objcopy_path)
+    normalize = __int_assemble_intel(code + b'\n.byte 0x77', bits, entry, gcc_path, objcopy_path)
+    # Remove padding inserted by some version of GCC
+    for i in range(0x10):
+        if normalize[:-i+1] == candidate[:-i] + b'\x77':
+            return candidate[:-i]
+    
+    logger.error("Unexpected result by gcc and objcopy. The output may be wrong.")
+    return candidate
