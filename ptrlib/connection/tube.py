@@ -314,14 +314,35 @@ class Tube(metaclass=ABCMeta):
         """Interactive mode
         """
         def thread_recv():
+            prev_leftover = None
             while not flag.isSet():
                 try:
                     data = self.recv(size=4096, timeout=0.1)
                     if data is not None:
-                        utf8str, leftover = bytes2utf8(data)
-                        sys.stdout.write(utf8str)
-                        sys.stdout.flush()
-                        self.unget(leftover)
+                        utf8str, leftover, marker = bytes2utf8(data)
+                        if len(utf8str) == 0 and prev_leftover == leftover:
+                            # Print raw hex string with color
+                            # if the data is invalid as UTF-8
+                            utf8str = '{red}{hexstr}{end}'.format(
+                                red=Color.RED,
+                                hexstr=bytes2hex(leftover),
+                                end=Color.END
+                            )
+                            leftover = None
+
+                        for c, t in zip(utf8str, marker):
+                            if t == True:
+                                sys.stdout.write(c)
+                            else:
+                                sys.stdout.write('{red}{hexstr}{end}'.format(
+                                    red=Color.RED,
+                                    hexstr=str2hex(c),
+                                    end=Color.END
+                                ))
+                            sys.stdout.flush()
+                        prev_leftover = leftover
+                        if leftover is not None:
+                            self.unget(leftover)
                 except TimeoutError:
                     pass
                 except EOFError:
