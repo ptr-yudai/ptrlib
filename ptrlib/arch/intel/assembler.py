@@ -81,10 +81,14 @@ def assemble_intel(code: bytes,
     """
     candidate = __int_assemble_intel(code, bits, entry, gcc_path, objcopy_path)
     normalize = __int_assemble_intel(code + b'\n.byte 0x77', bits, entry, gcc_path, objcopy_path)
+
     # Remove padding inserted by some version of GCC
-    for i in range(0x10):
-        if normalize[:-i+1] == candidate[:-i] + b'\x77':
-            return candidate[:-i]
-    
+    if len(normalize) > len(candidate):
+        for i in range(0x10):
+            a = normalize[:len(normalize)-i]
+            b = candidate[:len(normalize)-i-1]
+            if a == b + b'\x77':
+                return candidate[:len(normalize)-i-1]
+
     logger.error("Unexpected result by gcc and objcopy. The output may be wrong.")
     return candidate
