@@ -165,7 +165,7 @@ class UnixProcess(Tube):
         self._poll() # poll after received all data
         return data
 
-    def send(self, data: Union[str, bytes]):
+    def _send(self, data: Union[str, bytes]):
         """Send raw data
 
         Send raw data through the socket

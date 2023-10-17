@@ -15,7 +15,7 @@ class Color:
     BOLD      = '\033[1m'
     UNDERLINE = '\033[4m'
     INVISIBLE = '\033[08m'
-    REVERCE   = '\033[07m'
+    REVERSE   = '\033[07m'
 
 class ColoredFormatter(Formatter):
     def format(self, record: LogRecord):

@@ -95,7 +95,7 @@ class WinPipe(object):
 
         return self._recv(min(self.size, size))
 
-    def send(self, data: bytes):
+    def _send(self, data: bytes):
         """Send raw data
 
         Send raw data through the socket

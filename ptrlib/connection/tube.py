@@ -20,6 +20,7 @@ logger = getLogger(__name__)
 class Tube(metaclass=ABCMeta):
     def __init__(self):
         self.buf = b''
+        self.debug = False
 
     @abstractmethod
     def _settimeout(self, timeout: Optional[Union[int, float]]):
@@ -70,6 +71,9 @@ class Tube(metaclass=ABCMeta):
             self._settimeout(timeout)
             data = self._recv(size, timeout=-1)
             self.buf += data
+            if self.debug:
+                logger.info(f"Received {hex(len(data))} ({len(data)}) bytes:")
+                hexdump(data, prefix="    " + Color.CYAN, postfix=Color.END)
 
         # We don't check size > len(self.buf) because Python handles it
         data, self.buf = self.buf[:size], self.buf[size:]
@@ -236,8 +240,14 @@ class Tube(metaclass=ABCMeta):
                 return group, data[:pos]
 
     @abstractmethod
-    def send(self, data: bytes):
+    def _send(self, data: bytes):
         pass
+
+    def send(self, data: bytes):
+        self._send(data)
+        if self.debug:
+            logger.info(f"Sent {hex(len(data))} ({len(data)}) bytes:")
+            hexdump(data, prefix=Color.YELLOW, postfix=Color.END)
 
     @abstractmethod
     def _socket(self) -> Optional[Any]:
