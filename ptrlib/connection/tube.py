@@ -239,6 +239,21 @@ class Tube(metaclass=ABCMeta):
             else:
                 return group, data[:pos]
 
+    def recvscreen(self, delim: bytes=b'\x1b[H', timeout: Optional[Union[int, float]]=None):
+        """Receive a screen
+
+        Receive a screen drawn by ncurses
+
+        Args:
+            delim (bytes): Refresh sequence
+
+        Returns:
+            str: Rectangle string drawing the screen
+        """
+        self.recvuntil(delim, timeout=timeout)
+        buf = self.recvuntil(delim, drop=True, lookahead=True)
+        return '\n'.join(map(lambda row: ''.join(row), draw_ansi(buf)))
+
     @abstractmethod
     def _send(self, data: bytes):
         pass
@@ -314,6 +329,31 @@ class Tube(metaclass=ABCMeta):
         self.sendline(data, timeout=timeout)
 
         return recv_data
+
+    def sendctrl(self, name: str):
+        """Send control key
+
+        Send control key given its name
+
+        Args:
+            name (str): Name of the control key to send
+        """
+        if name.lower() in ['w', 'up']:
+            sock.send(b'\x1bOA')
+        elif name.lower() in ['s', 'down']:
+            sock.send(b'\x1bOB')
+        elif name.lower() in ['a', 'left']:
+            sock.send(b'\x1bOD')
+        elif name.lower() in ['d', 'right']:
+            sock.send(b'\x1bOC')
+        elif name.lower() in ['esc', 'escape']:
+            sock.send(b'\x1b')
+        elif name.lower() in ['bk', 'backspace']:
+            sock.send(b'\x08')
+        elif name.lower() in ['del', 'delete']:
+            sock.send(b'\x7f')
+        else:
+            raise ValueError(f"Invalid control key name: {name}")
 
     def sh(self, timeout: Optional[Union[int, float]]=None):
         """Alias for interactive
