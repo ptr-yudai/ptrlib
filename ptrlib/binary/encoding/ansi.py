@@ -8,7 +8,7 @@ except AttributeError:
 
 
 @cache
-def escape_codes():
+def _escape_codes():
     codes = {}
     # Cursor
     codes['CSI_CURSOR_MOVE']   = re.compile(b'^\x1b\[([1-9]\d*);([1-9]\d*)[Hf]')
@@ -46,7 +46,7 @@ def escape_codes():
     return codes
 
 
-def draw_ansi(buf):
+def draw_ansi(buf: bytes):
     """Interpret ANSI code sequences to screen
 
     Args:
@@ -56,7 +56,7 @@ def draw_ansi(buf):
        list: 2D array of screen to be drawn
     """
     draw = []
-    E = escape_codes()
+    E = _escape_codes()
     width = height = x = y = 0
     saved_dec = saved_sco = None
     while len(buf):

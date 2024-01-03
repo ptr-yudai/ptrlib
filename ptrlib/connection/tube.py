@@ -1,6 +1,6 @@
 # coding: utf-8
 import subprocess
-from typing import Any, Optional, Tuple, Union, overload
+from typing import Any, Optional, List, Tuple, Union, overload
 try:
     from typing import Literal
 except:
@@ -108,7 +108,7 @@ class Tube(metaclass=ABCMeta):
 
 
     def recvuntil(self,
-                  delim: Union[str, bytes],
+                  delim: Union[str, bytes, List[Union[str, bytes]]],
                   size: int=4096,
                   timeout: Optional[Union[int, float]]=None,
                   drop: bool=False,
@@ -239,7 +239,7 @@ class Tube(metaclass=ABCMeta):
             else:
                 return group, data[:pos]
 
-    def recvscreen(self, delim: bytes=b'\x1b[H', timeout: Optional[Union[int, float]]=None):
+    def recvscreen(self, delim: Optional[bytes]=b'\x1b[H', returns: Optional[type]=str, timeout: Optional[Union[int, float]]=None):
         """Receive a screen
 
         Receive a screen drawn by ncurses
@@ -252,7 +252,16 @@ class Tube(metaclass=ABCMeta):
         """
         self.recvuntil(delim, timeout=timeout)
         buf = self.recvuntil(delim, drop=True, lookahead=True)
-        return '\n'.join(map(lambda row: ''.join(row), draw_ansi(buf)))
+        screen = draw_ansi(buf)
+
+        if returns == list:
+            return screen
+        elif returns == str:
+            return '\n'.join(map(lambda row: ''.join(row), screen))
+        elif returns == bytes:
+            return b'\n'.join(map(lambda row: bytes(row), screen))
+        else:
+            raise TypeError("`returns` must be either list, str, or bytes")
 
     @abstractmethod
     def _send(self, data: bytes):
@@ -339,19 +348,19 @@ class Tube(metaclass=ABCMeta):
             name (str): Name of the control key to send
         """
         if name.lower() in ['w', 'up']:
-            sock.send(b'\x1bOA')
+            self.send(b'\x1bOA')
         elif name.lower() in ['s', 'down']:
-            sock.send(b'\x1bOB')
+            self.send(b'\x1bOB')
         elif name.lower() in ['a', 'left']:
-            sock.send(b'\x1bOD')
+            self.send(b'\x1bOD')
         elif name.lower() in ['d', 'right']:
-            sock.send(b'\x1bOC')
+            self.send(b'\x1bOC')
         elif name.lower() in ['esc', 'escape']:
-            sock.send(b'\x1b')
+            self.send(b'\x1b')
         elif name.lower() in ['bk', 'backspace']:
-            sock.send(b'\x08')
+            self.send(b'\x08')
         elif name.lower() in ['del', 'delete']:
-            sock.send(b'\x7f')
+            self.send(b'\x7f')
         else:
             raise ValueError(f"Invalid control key name: {name}")
 
