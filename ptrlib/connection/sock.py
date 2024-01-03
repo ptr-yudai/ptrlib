@@ -80,7 +80,7 @@ class Socket(Tube):
         try:
             data = self.sock.recv(size)
         except socket.timeout:
-            raise TimeoutError("Receive timeout") from None
+            raise TimeoutError("Receive timeout", b'') from None
         except ConnectionAbortedError as e:
             logger.warning("Connection aborted by the host")
             raise e from None

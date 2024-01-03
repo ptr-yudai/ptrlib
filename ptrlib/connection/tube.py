@@ -69,7 +69,11 @@ class Tube(metaclass=ABCMeta):
 
         elif len(self.buf) == 0:
             self._settimeout(timeout)
-            data = self._recv(size, timeout=-1)
+            try:
+                data = self._recv(size, timeout=-1)
+            except TimeoutError as err:
+                raise TimeoutError("`recv` timeout", b'')
+
             self.buf += data
             if self.debug:
                 logger.info(f"Received {hex(len(data))} ({len(data)}) bytes:")
@@ -97,7 +101,7 @@ class Tube(metaclass=ABCMeta):
 
         while len(data) < size:
             if timeout is not None and time.time() - timer_start > timeout:
-                raise TimeoutError("`recvonce` timeout")
+                raise TimeoutError("`recvonce` timeout", data)
 
             data += self.recv(size - len(data), timeout=-1)
             time.sleep(0.01)
@@ -105,7 +109,6 @@ class Tube(metaclass=ABCMeta):
         if len(data) > size:
             self.unget(data[size:])
         return data[:size]
-
 
     def recvuntil(self,
                   delim: Union[str, bytes, List[Union[str, bytes]]],
@@ -119,13 +122,13 @@ class Tube(metaclass=ABCMeta):
             delim (bytes): The delimiter bytes
             size (int)   : The data size to receive at once
             timeout (int): Timeout (in second)
-            drop (bool): Discard deliminator or not
-            lookahead (bool): Unget deliminator to buffer or not
+            drop (bool): Discard delimiter or not
+            lookahead (bool): Unget delimiter to buffer or not
 
         Returns:
             bytes: Received data
         """
-        # Validate and normalize deliminator
+        # Validate and normalize delimiter
         if isinstance(delim, bytes):
             delim = [delim]
         elif isinstance(delim, str):
@@ -135,9 +138,9 @@ class Tube(metaclass=ABCMeta):
                 if isinstance(t, str):
                     delim[i] = str2bytes(t)
                 elif not isinstance(t, bytes):
-                    raise ValueError(f"Deliminator must be either string or bytes: {t}")
+                    raise ValueError(f"Delimiter must be either string or bytes: {t}")
         else:
-            raise ValueError(f"Deliminator must be either string, bytes, or list: {t}")
+            raise ValueError(f"Delimiter must be either string, bytes, or list: {t}")
 
         self._settimeout(timeout)
         data = b''
@@ -146,10 +149,10 @@ class Tube(metaclass=ABCMeta):
         found = False
         token = None
         while not found:
-            if timeout is not None and time.time() - timer_start > timeout:
-                raise TimeoutError("`recvuntil` timeout")
-
-            data += self.recv(size, timeout=-1)
+            try:
+                data += self.recv(size, timeout=-1)
+            except TimeoutError as err:
+                raise TimeoutError("`recvuntil` timeout", data + err.args[1])
             time.sleep(0.01)
 
             for t in delim:
@@ -173,7 +176,7 @@ class Tube(metaclass=ABCMeta):
         Args:
             size (int)   : The data size to receive at once
             timeout (int): Timeout (in second)
-            drop (bool)  : Discard deliminator or not
+            drop (bool)  : Discard delimiter or not
 
         Returns:
             bytes: Received data
@@ -191,10 +194,10 @@ class Tube(metaclass=ABCMeta):
         """Receive a line of data after receiving `delim`
 
         Args:
-            delim (bytes): The deliminator bytes
+            delim (bytes): The delimiter bytes
             size (int)   : The data size to receive at once
             timeout (int): Timeout (in second)
-            drop (bool)  : Discard deliminator or not
+            drop (bool)  : Discard delimiter or not
 
         Returns:
             bytes: Received data
@@ -258,19 +261,29 @@ class Tube(metaclass=ABCMeta):
             else:
                 return group, data[:pos]
 
-    def recvscreen(self, delim: Optional[bytes]=b'\x1b[H', returns: Optional[type]=str, timeout: Optional[Union[int, float]]=None):
+    def recvscreen(self, delim: Optional[bytes]=b'\x1b[H',
+                   returns: Optional[type]=str,
+                   timeout: Optional[Union[int, float]]=None,
+                   timeout2: Optional[Union[int, float]]=1):
         """Receive a screen
 
         Receive a screen drawn by ncurses
 
         Args:
-            delim (bytes): Refresh sequence
+            delim (bytes) : Refresh sequence
+            returns (type): Return value as string or list
+            timeout (int) : Timeout to receive the first delimiter
+            timeout2 (int): Timeout to receive the second delimiter
 
         Returns:
             str: Rectangle string drawing the screen
         """
         self.recvuntil(delim, timeout=timeout)
-        buf = self.recvuntil(delim, drop=True, lookahead=True)
+        try:
+            buf = self.recvuntil(delim, drop=True, lookahead=True,
+                                 timeout=timeout2)
+        except TimeoutError as err:
+            buf = err.args[1]
         screen = draw_ansi(buf)
 
         if returns == list:
@@ -313,12 +326,12 @@ class Tube(metaclass=ABCMeta):
         self.send(data + b'\n')
 
     def sendafter(self, delim: Union[str, bytes], data: Union[str, bytes, int], timeout: Optional[Union[int, float]]=None):
-        """Send raw data after a deliminater
+        """Send raw data after a delimiter
 
         Send raw data after `delim` is received.
 
         Args:
-            delim (bytes): The deliminater
+            delim (bytes): The delimiter
             data (bytes) : Data to send
             timeout (int): Timeout (in second)
 
@@ -336,12 +349,12 @@ class Tube(metaclass=ABCMeta):
         return recv_data
 
     def sendlineafter(self, delim: Union[str, bytes], data: Union[str, bytes, int], timeout: Optional[Union[int, float]]=None) -> bytes:
-        """Send raw data after a deliminater
+        """Send raw data after a delimiter
 
         Send raw data with newline after `delim` is received.
 
         Args:
-            delim (bytes): The deliminater
+            delim (bytes): The delimiter
             data (bytes) : Data to send
             timeout (int): Timeout (in second)
 

@@ -128,7 +128,7 @@ class UnixProcess(Tube):
                 [self.proc.stdout], [], [], self.timeout
             )
             if r == ([], [], []):
-                raise TimeoutError("Receive timeout")
+                raise TimeoutError("Receive timeout", b'')
             else:
                 # assert r == ([self.proc.stdout], [], [])
                 return True
@@ -160,7 +160,7 @@ class UnixProcess(Tube):
             data = self.proc.stdout.read(size)
         except subprocess.TimeoutExpired:
             # TODO: Unreachable?
-            raise TimeoutError("Receive timeout") from None
+            raise TimeoutError("Receive timeout", b'') from None
 
         self._poll() # poll after received all data
         return data

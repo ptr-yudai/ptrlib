@@ -53,10 +53,13 @@ class TestProcess(unittest.TestCase):
 
     def test_timeout(self):
         p = Process("./tests/test.bin/test_echo.x64")
+        data = os.urandom(16).hex()
+        p.sendline(data)
         try:
             p.recvuntil("*** never expected ***", timeout=1)
             result = False
-        except TimeoutError:
+        except TimeoutError as err:
+            self.assertEqual(err.args[1].decode().strip(), data)
             result = True
         except:
             result = False
