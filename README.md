@@ -14,7 +14,7 @@ Ptrlib is designed to be as library-independent as possible.
 Also, ptrlib has some pros such as supporting Windows process.
 
 ## Requirements
-Supports: Python 3.5 or later
+Supports: Python 3.8 or later
 
 Library Dependency:
 - pycryptodome
@@ -108,8 +108,17 @@ sock.sendline(payload)
 sock.sh() # or sock.interactive()
 ```
 
+Interaction with curses is supported since 2.1.0.
+```
+sock.recvscreen()
+if sock.recvscreen(returns=list)[1][1] == '#':
+  sock.sendctrl("up")
+else:
+  sock.sendctrl("esc")
+```
+
 ## Install
-Run `pip install ptrlib` or `python setup.py install`.
+Run `pip install --upgrade ptrlib` or `python setup.py install`.
 
 ## Licence
 
