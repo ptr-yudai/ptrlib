@@ -125,23 +125,42 @@ class Tube(metaclass=ABCMeta):
         Returns:
             bytes: Received data
         """
-        if isinstance(delim, str):
-            delim = str2bytes(delim)
+        # Validate and normalize deliminator
+        if isinstance(delim, bytes):
+            delim = [delim]
+        elif isinstance(delim, str):
+            delim = [str2bytes(delim)]
+        elif isinstance(delim, list):
+            for i, t in enumerate(delim):
+                if isinstance(t, str):
+                    delim[i] = str2bytes(t)
+                elif not isinstance(t, bytes):
+                    raise ValueError(f"Deliminator must be either string or bytes: {t}")
+        else:
+            raise ValueError(f"Deliminator must be either string, bytes, or list: {t}")
 
         self._settimeout(timeout)
         data = b''
         timer_start = time.time()
 
-        while data.find(delim) == -1:
+        found = False
+        token = None
+        while not found:
             if timeout is not None and time.time() - timer_start > timeout:
                 raise TimeoutError("`recvuntil` timeout")
 
             data += self.recv(size, timeout=-1)
             time.sleep(0.01)
 
-        found_pos = data.find(delim)
-        result_len = found_pos if drop else found_pos + len(delim)
-        consumed_len = found_pos if lookahead else found_pos + len(delim)
+            for t in delim:
+                if t in data:
+                    found = True
+                    token = t
+                    break
+
+        found_pos = data.find(token)
+        result_len = found_pos if drop else found_pos + len(token)
+        consumed_len = found_pos if lookahead else found_pos + len(token)
         self.unget(data[consumed_len:])
         return data[:result_len]
 

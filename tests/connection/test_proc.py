@@ -21,6 +21,18 @@ class TestProcess(unittest.TestCase):
         p.sendline(b"Message : " + msg)
         self.assertEqual(p.recvlineafter(" : "), msg)
 
+        # send / recvuntil
+        for _ in range(10):
+            a, b = os.urandom(16).hex(), os.urandom(16).hex()
+            is_a = random.randint(0, 1)
+            p.sendline(a if is_a else b)
+            c = p.recvuntil([a, b.encode()]) # recv either of them
+            if is_a:
+                self.assertEqual(c, a.encode())
+            else:
+                self.assertEqual(c, b.encode())
+            p.recvline()
+
         # send / recvregex
         a, b = random.randrange(1<<32), random.randrange(1<<32)
         p.sendline("Hello 0x{:08x}, 0x{:08x}".format(a, b))
