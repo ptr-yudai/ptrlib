@@ -5,9 +5,8 @@ import re
 def syscall_table(arch, bits):
     table = {}
     r = requests.get(URL.format(arch=arch, bits=bits))
-    for num, name in re.findall("(\d+).+\ssys_([a-z0-9_]+)", r.text):
+    for num, _, name in re.findall("(\d+).+(common|64|i386).+\ssys_([a-z0-9_]+)", r.text):
         table[name] = int(num)
-    print(r.text)
     return table
 
 def syscall_table_arm64():
@@ -24,7 +23,7 @@ if __name__ == '__main__':
     #print(syscall_table("x86", 64))
 
     URL = "https://raw.githubusercontent.com/torvalds/linux/master/arch/{arch}/tools/syscall.tbl"
-    print(syscall_table("arm", 32))
+    #print(syscall_table("arm", 32))
 
     URL = "https://raw.githubusercontent.com/torvalds/linux/master/include/uapi/asm-generic/unistd.h"
-    #print(syscall_table_arm64())
+    print(syscall_table_arm64())
