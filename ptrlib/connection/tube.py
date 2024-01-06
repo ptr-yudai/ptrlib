@@ -47,6 +47,13 @@ class Tube(metaclass=ABCMeta):
         pass
 
     def unget(self, data: Union[str, bytes]):
+        """Revert data to socket
+
+        Return data to socket.
+
+        Args:
+            data (bytes): Data to return
+        """
         if isinstance(data, str):
             data = str2bytes(data)
         self.buf = data + self.buf
@@ -100,10 +107,10 @@ class Tube(metaclass=ABCMeta):
         timer_start = time.time()
 
         while len(data) < size:
-            if timeout is not None and time.time() - timer_start > timeout:
-                raise TimeoutError("`recvonce` timeout", data)
-
-            data += self.recv(size - len(data), timeout=-1)
+            try:
+                data += self.recv(size - len(data), timeout=-1)
+            except TimeoutError as err:
+                raise TimeoutError("`recvonce` timeout", data + err.args[1])
             time.sleep(0.01)
 
         if len(data) > size:

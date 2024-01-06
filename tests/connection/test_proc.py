@@ -17,7 +17,7 @@ class TestProcess(unittest.TestCase):
 
         p = Process("./tests/test.bin/test_echo.x64")
 
-        # send / recv
+        # sendline / recvline
         p.sendline(b"Message : " + msg)
         self.assertEqual(p.recvlineafter(" : "), msg)
 
@@ -41,6 +41,13 @@ class TestProcess(unittest.TestCase):
         self.assertEqual(int(r[0], 16), a)
         self.assertEqual(int(r[1], 16), b)
 
+        # sendlineafter
+        a, b = os.urandom(16).hex(), os.urandom(16).hex()
+        p.sendline(a)
+        v = p.sendlineafter(a + "\n", b)
+        self.assertEqual(v.strip(), a.encode())
+        self.assertEqual(p.recvline().strip(), b.encode())
+
         # shutdown
         p.send(msg[::-1])
         p.shutdown('write')
@@ -54,16 +61,51 @@ class TestProcess(unittest.TestCase):
     def test_timeout(self):
         p = Process("./tests/test.bin/test_echo.x64")
         data = os.urandom(16).hex()
+
+        # recv
+        try:
+            p.recv(timeout=0.5)
+            result = False
+        except TimeoutError as err:
+            self.assertEqual(err.args[1], b"")
+            result = True
+        except:
+            result = False
+        self.assertEqual(result, True)
+
+        # recvonce
         p.sendline(data)
         try:
-            p.recvuntil("*** never expected ***", timeout=1)
+            p.recvonce(len(data) + 1 + 1, timeout=0.5)
             result = False
         except TimeoutError as err:
             self.assertEqual(err.args[1].decode().strip(), data)
             result = True
         except:
             result = False
-        finally:
-            p.close()
-
         self.assertEqual(result, True)
+
+        # recvuntil
+        p.sendline(data)
+        try:
+            p.recvuntil("*** never expected ***", timeout=0.5)
+            result = False
+        except TimeoutError as err:
+            self.assertEqual(err.args[1].decode().strip(), data)
+            result = True
+        except:
+            result = False
+        self.assertEqual(result, True)
+
+        # sendlineafter
+        a, b = os.urandom(16).hex(), os.urandom(16).hex()
+        p.sendline(a)
+        try:
+            p.sendlineafter(b"neko", b, timeout=0.5)
+        except TimeoutError as err:
+            self.assertEqual(err.args[1].decode().strip(), a)
+            result = True
+        except:
+            result = False
+        self.assertEqual(result, True)
+
