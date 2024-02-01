@@ -1,6 +1,7 @@
 # coding: utf-8
 from logging import getLogger
 from typing import Any, List, Mapping
+from ptrlib.arch.linux.sig import *
 from ptrlib.binary.encoding import *
 from .tube import *
 from .winproc import *
@@ -108,9 +109,11 @@ class UnixProcess(Tube):
         returncode = self.proc.returncode
         if returncode is not None and self.returncode is None:
             self.returncode = returncode
+            name = signal_name(-returncode, detail=True)
+            if name: name = '--> ' + name
             logger.error(
-                "Process '{}' stopped with exit code {} (PID={})".format(
-                    self.filepath, returncode, self.proc.pid
+                "Process '{}' (pid={}) stopped with exit code {} {}".format(
+                    self.filepath, self.proc.pid, returncode, name
                 ))
         return returncode
 
