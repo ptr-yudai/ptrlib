@@ -195,3 +195,6 @@ class ELFParser(object):
             self.little_endian = True
 
         return True
+
+    def __del__(self):
+        self.stream.close()
