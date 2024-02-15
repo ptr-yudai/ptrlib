@@ -11,37 +11,37 @@ except AttributeError:
 def _escape_codes():
     codes = {}
     # Cursor
-    codes['CSI_CURSOR_MOVE']   = re.compile(b'^\x1b\[([1-9]\d*);([1-9]\d*)[Hf]')
-    codes['CSI_CURSOR_ROW']    = re.compile(b'^\x1b\[([1-9]\d*)d')
-    codes['CSI_CURSOR_COLUMN'] = re.compile(b'^\x1b\[([1-9]\d*)[`G]')
-    codes['CSI_CURSOR_UP']    = re.compile(b'^\x1b\[(\d*)A')
-    codes['CSI_CURSOR_DOWN']  = re.compile(b'^\x1b\[(\d*)B')
-    codes['CSI_CURSOR_RIGHT'] = re.compile(b'^\x1b\[(\d*)C')
-    codes['CSI_CURSOR_LEFT']  = re.compile(b'^\x1b\[(\d*)D')
-    codes['CSI_CURSOR_UP_HEAD']   = re.compile(b'^\x1b\[(\d*)F')
-    codes['CSI_CURSOR_DOWN_HEAD'] = re.compile(b'^\x1b\[(\d*)E')
-    codes['CSI_CURSOR_SAVE']    = re.compile(b'^\x1b\[s')
-    codes['CSI_CURSOR_RESTORE'] = re.compile(b'^\x1b\[u')
-    codes['CSI_CURSOR_REQUEST'] = re.compile(b'^\x1b\[6n')
-    codes['FP_CURSOR_SAVE']    = re.compile(b'^\x1b7')
-    codes['FP_CURSOR_RESTORE'] = re.compile(b'^\x1b8')
-    codes['FE_CURSOR_ONEUP'] = re.compile(b'^\x1bM')
+    codes['CSI_CURSOR_MOVE']   = re.compile(rb'^\x1b\[([1-9]\d*);([1-9]\d*)[Hf]')
+    codes['CSI_CURSOR_ROW']    = re.compile(rb'^\x1b\[([1-9]\d*)d')
+    codes['CSI_CURSOR_COLUMN'] = re.compile(rb'^\x1b\[([1-9]\d*)[`G]')
+    codes['CSI_CURSOR_UP']    = re.compile(rb'^\x1b\[(\d*)A')
+    codes['CSI_CURSOR_DOWN']  = re.compile(rb'^\x1b\[(\d*)B')
+    codes['CSI_CURSOR_RIGHT'] = re.compile(rb'^\x1b\[(\d*)C')
+    codes['CSI_CURSOR_LEFT']  = re.compile(rb'^\x1b\[(\d*)D')
+    codes['CSI_CURSOR_UP_HEAD']   = re.compile(rb'^\x1b\[(\d*)F')
+    codes['CSI_CURSOR_DOWN_HEAD'] = re.compile(rb'^\x1b\[(\d*)E')
+    codes['CSI_CURSOR_SAVE']    = re.compile(rb'^\x1b\[s')
+    codes['CSI_CURSOR_RESTORE'] = re.compile(rb'^\x1b\[u')
+    codes['CSI_CURSOR_REQUEST'] = re.compile(rb'^\x1b\[6n')
+    codes['FP_CURSOR_SAVE']    = re.compile(rb'^\x1b7')
+    codes['FP_CURSOR_RESTORE'] = re.compile(rb'^\x1b8')
+    codes['FE_CURSOR_ONEUP'] = re.compile(rb'^\x1bM')
 
     # Character
-    codes['CSI_CHAR_REPEAT'] = re.compile(b'^\x1b\[(\d+)b')
+    codes['CSI_CHAR_REPEAT'] = re.compile(rb'^\x1b\[(\d+)b')
 
     # Erase 
-    codes['CSI_ERASE_DISPLAY_FORWARD']  = re.compile(b'^\x1b\[[0]J')
-    codes['CSI_ERASE_DISPLAY_BACKWARD'] = re.compile(b'^\x1b\[1J')
-    codes['CSI_ERASE_DISPLAY_ALL']      = re.compile(b'^\x1b\[2J')
-    codes['CSI_ERASE_LINE_FORWARD']  = re.compile(b'^\x1b\[[0]K')
-    codes['CSI_ERASE_LINE_BACKWARD'] = re.compile(b'^\x1b\[1K')
-    codes['CSI_ERASE_LINE_ALL']      = re.compile(b'^\x1b\[2K')
+    codes['CSI_ERASE_DISPLAY_FORWARD']  = re.compile(rb'^\x1b\[[0]J')
+    codes['CSI_ERASE_DISPLAY_BACKWARD'] = re.compile(rb'^\x1b\[1J')
+    codes['CSI_ERASE_DISPLAY_ALL']      = re.compile(rb'^\x1b\[2J')
+    codes['CSI_ERASE_LINE_FORWARD']  = re.compile(rb'^\x1b\[[0]K')
+    codes['CSI_ERASE_LINE_BACKWARD'] = re.compile(rb'^\x1b\[1K')
+    codes['CSI_ERASE_LINE_ALL']      = re.compile(rb'^\x1b\[2K')
 
     # Others
-    codes['CSI_COLOR'] = re.compile(b'^\x1b\[(\d+)m')
-    codes['CSI_MODE']         = re.compile(b'^\x1b\[=(\d+)[hl]')
-    codes['CSI_PRIVATE_MODE'] = re.compile(b'^\x1b\[?(\d+)[hl]')
+    codes['CSI_COLOR'] = re.compile(rb'^\x1b\[(\d+)m')
+    codes['CSI_MODE']         = re.compile(rb'^\x1b\[=(\d+)[hl]')
+    codes['CSI_PRIVATE_MODE'] = re.compile(rb'^\x1b\[?(\d+)[hl]')
 
     return codes
 

@@ -330,7 +330,7 @@ class ELF(object):
 
         else:
             # libc-2.34 removed hooks
-            ofs_tzname = self.symbol('tzname')
+            ofs_tzname = self._offset_symbol('tzname')
             if ofs_tzname is None: return None
             if self._parser.elfclass == 32:
                 return ofs_tzname - 0x460

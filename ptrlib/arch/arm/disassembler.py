@@ -64,7 +64,7 @@ def disassemble_arm(code: bytes,
             return
 
         output = []
-        r = re.findall("([0-9a-f]+):\s+[0-9a-f]+\s+(.+)",
+        r = re.findall(rb"([0-9a-f]+):\s+[0-9a-f]+\s+(.+)",
                        stdout.decode())
         for addr, op in r:
             op = re.sub("\s+", " ", op.strip())

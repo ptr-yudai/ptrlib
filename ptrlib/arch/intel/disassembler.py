@@ -59,7 +59,7 @@ def disassemble_intel(code: bytes,
             return
 
         output = []
-        r = re.findall("([0-9a-f]+):\s+([0-9a-f]{2}\s)+\s+(.+)",
+        r = re.findall(rb"([0-9a-f]+):\s+([0-9a-f]{2}\s)+\s+(.+)",
                        stdout.decode())
         for addr, _, op in r:
             op = re.sub("\s+", " ", op.strip())
