@@ -313,9 +313,9 @@ class ELF(object):
     @cache
     def _offset_main_arena(self) -> Optional[int]:
         # NOTE: This is a heuristic function
-        ofs_stdin = self.symbol('_IO_2_1_stdin_')
-        ofs_realloc_hook = self.symbol('__realloc_hook')
-        ofs_malloc_hook = self.symbol('__malloc_hook')
+        ofs_stdin = self._offset_symbol('_IO_2_1_stdin_')
+        ofs_realloc_hook = self._offset_symbol('__realloc_hook')
+        ofs_malloc_hook = self._offset_symbol('__malloc_hook')
         if ofs_realloc_hook is None \
            or ofs_malloc_hook is None \
            or ofs_stdin is None:
