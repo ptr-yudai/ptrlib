@@ -3,10 +3,15 @@ import os
 from ptrlib import Process, fsb
 from logging import getLogger, FATAL
 
+_is_windows = os.name == 'nt'
+
 
 class TestFSB(unittest.TestCase):
     def setUp(self):
         getLogger("ptrlib").setLevel(FATAL)
+        if _is_windows:
+            # TODO: Implement test for Windows
+            self.skipTest("This test has not been implemented for Windows yet")
 
     def test_fsb32(self):
         # test 1

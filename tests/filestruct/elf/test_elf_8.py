@@ -1,6 +1,9 @@
 import unittest
+import os
 from ptrlib.filestruct.elf import ELF
 from logging import getLogger, FATAL
+
+_is_windows = os.name == 'nt'
 
 
 PATH_ELF = "./tests/test.bin/test_plt.x64"
@@ -8,6 +11,8 @@ PATH_ELF = "./tests/test.bin/test_plt.x64"
 class TestELF8(unittest.TestCase):
     def setUp(self):
         getLogger("ptrlib").setLevel(FATAL)
+        if _is_windows:
+            self.skipTest("This test is intended for the Linux platform")
         self.elf = ELF(PATH_ELF)
 
     def test_plt(self):
