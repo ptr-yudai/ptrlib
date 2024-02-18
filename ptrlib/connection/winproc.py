@@ -219,7 +219,7 @@ class WinProcess(Tube):
             self.proc = None
             logger.info("Process killed (PID={0})".format(self.pid))
 
-    def send(self, data: bytes):
+    def _send(self, data: bytes):
         """Send raw data
 
         Send raw data through the socket
