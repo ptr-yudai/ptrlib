@@ -42,8 +42,8 @@ class TestWinProcess(unittest.TestCase):
 
         self.assertEqual(p.is_alive(), True)
         p.close()
-        self.assertNotEqual(str(pid) in subprocess.getoutput(f'tasklist /FI "PID eq {pid}"').split())
         self.assertEqual(p.is_alive(), False)
+        self.assertFalse(str(pid) in subprocess.getoutput(f'tasklist /FI "PID eq {pid}"').split())
 
     def test_timeout(self):
         p = Process("./tests/test.bin/test_echo.pe.exe")
