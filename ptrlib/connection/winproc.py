@@ -216,6 +216,7 @@ class WinProcess(Tube):
 
     def close(self):
         if self.proc:
+            win32api.TerminateProcess(self.proc, 0)
             win32api.CloseHandle(self.proc)
             self.proc = None
             logger.info("Process killed (PID={0})".format(self.pid))
