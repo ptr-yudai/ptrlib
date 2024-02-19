@@ -64,11 +64,11 @@ def disassemble_arm(code: bytes,
             return
 
         output = []
-        r = re.findall(rb"([0-9a-f]+):\s+[0-9a-f]+\s+(.+)",
+        r = re.findall(r"([0-9a-f]+):\s+[0-9a-f]+\s+(.+)",
                        stdout.decode())
         for addr, op in r:
-            op = re.sub("\s+", " ", op.strip())
-            op = re.sub("//.+", "", op).strip()
+            op = re.sub(r"\s+", " ", op.strip())
+            op = re.sub(r"//.+", "", op).strip()
             output.append((int(addr, 16), op))
 
         os.unlink(fname_bin)
