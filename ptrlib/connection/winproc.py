@@ -95,7 +95,7 @@ class WinPipe(object):
 
         return self._recv(min(self.size, size))
 
-    def _send(self, data: bytes):
+    def send(self, data: bytes):
         """Send raw data
 
         Send raw data through the socket
@@ -153,6 +153,7 @@ class WinProcess(Tube):
         self.stdout = WinPipe()
         self.default_timeout = timeout
         self.timeout = timeout
+        self.proc = None
 
         # Create process
         info = win32process.STARTUPINFO()
@@ -215,11 +216,12 @@ class WinProcess(Tube):
 
     def close(self):
         if self.proc:
+            win32api.TerminateProcess(self.proc, 0)
             win32api.CloseHandle(self.proc)
             self.proc = None
             logger.info("Process killed (PID={0})".format(self.pid))
 
-    def send(self, data: bytes):
+    def _send(self, data: bytes):
         """Send raw data
 
         Send raw data through the socket

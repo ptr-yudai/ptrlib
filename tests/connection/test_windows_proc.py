@@ -1,6 +1,7 @@
 import unittest
 import os
 import random
+import subprocess
 from ptrlib import Process, is_scanf_safe
 from logging import getLogger, FATAL
 
@@ -20,6 +21,7 @@ class TestWinProcess(unittest.TestCase):
                 break
 
         p = Process("./tests/test.bin/test_echo.pe.exe")
+        pid = p.pid
 
         # send / recv
         p.sendline(b"Message : " + msg)
@@ -41,6 +43,7 @@ class TestWinProcess(unittest.TestCase):
         self.assertEqual(p.is_alive(), True)
         p.close()
         self.assertEqual(p.is_alive(), False)
+        self.assertFalse(str(pid) in subprocess.getoutput(f'tasklist /FI "PID eq {pid}"').split())
 
     def test_timeout(self):
         p = Process("./tests/test.bin/test_echo.pe.exe")

@@ -4,10 +4,14 @@ import random
 from ptrlib import Process, is_scanf_safe
 from logging import getLogger, FATAL
 
+_is_windows = os.name == 'nt'
+
 
 class TestProcess(unittest.TestCase):
     def setUp(self):
         getLogger("ptrlib").setLevel(FATAL)
+        if _is_windows:
+            self.skipTest("This test is intended for the Linux platform")
 
     def test_basic(self):
         while True:
