@@ -230,22 +230,22 @@ class BunkaiPrimitive(object):
         else:
             return self._ty.from_buffer_copy(buf).value
 
-u8  = BunkaiPrimitive(ctypes.c_ubyte)
-u16 = BunkaiPrimitive(ctypes.c_ushort)
-u32 = BunkaiPrimitive(ctypes.c_uint)
-u64 = BunkaiPrimitive(ctypes.c_ulong)
-s8  = BunkaiPrimitive(ctypes.c_byte)
-s16 = BunkaiPrimitive(ctypes.c_short)
-s32 = BunkaiPrimitive(ctypes.c_int)
-s64 = BunkaiPrimitive(ctypes.c_long)
-u8be  = BunkaiPrimitive(ctypes.c_ubyte, True)
-u16be = BunkaiPrimitive(ctypes.c_ushort, True)
-u32be = BunkaiPrimitive(ctypes.c_uint, True)
-u64be = BunkaiPrimitive(ctypes.c_ulong, True)
-s8be  = BunkaiPrimitive(ctypes.c_byte, True)
-s16be = BunkaiPrimitive(ctypes.c_short, True)
-s32be = BunkaiPrimitive(ctypes.c_int, True)
-s64be = BunkaiPrimitive(ctypes.c_long, True)
+u8  = BunkaiPrimitive(ctypes.c_uint8)
+u16 = BunkaiPrimitive(ctypes.c_uint16)
+u32 = BunkaiPrimitive(ctypes.c_uint32)
+u64 = BunkaiPrimitive(ctypes.c_uint64)
+s8  = BunkaiPrimitive(ctypes.c_int8)
+s16 = BunkaiPrimitive(ctypes.c_int16)
+s32 = BunkaiPrimitive(ctypes.c_int32)
+s64 = BunkaiPrimitive(ctypes.c_int64)
+u8be  = BunkaiPrimitive(ctypes.c_uint8, True)
+u16be = BunkaiPrimitive(ctypes.c_uint16, True)
+u32be = BunkaiPrimitive(ctypes.c_uint32, True)
+u64be = BunkaiPrimitive(ctypes.c_uint64, True)
+s8be  = BunkaiPrimitive(ctypes.c_int8, True)
+s16be = BunkaiPrimitive(ctypes.c_int16, True)
+s32be = BunkaiPrimitive(ctypes.c_int32, True)
+s64be = BunkaiPrimitive(ctypes.c_int64, True)
 
 if __name__ == '__main__':
     data  = b'\xde\xad\xbe\xef' # magic
