@@ -157,19 +157,22 @@ class Tube(metaclass=ABCMeta):
 
         found = False
         token = None
-        while not found:
+        while True:
             try:
                 data += self.recv(size, timeout=-1)
             except TimeoutError as err:
                 raise TimeoutError("`recvuntil` timeout", data + err.args[1])
-            if sleep_time > 0:
-                time.sleep(sleep_time)
 
             for t in delim:
                 if t in data:
                     found = True
                     token = t
                     break
+
+            if found:
+                break
+            if sleep_time:
+                time.sleep(sleep_time)
 
         found_pos = data.find(token)
         result_len = found_pos if drop else found_pos + len(token)
