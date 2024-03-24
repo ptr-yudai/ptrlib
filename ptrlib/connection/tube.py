@@ -122,7 +122,8 @@ class Tube(metaclass=ABCMeta):
                   size: int=4096,
                   timeout: Optional[Union[int, float]]=None,
                   drop: bool=False,
-                  lookahead: bool=False) -> bytes:
+                  lookahead: bool=False,
+                  sleep_time: float=0.01) -> bytes:
         """Receive raw data until `delim` comes
 
         Args:
@@ -131,6 +132,7 @@ class Tube(metaclass=ABCMeta):
             timeout (int): Timeout (in second)
             drop (bool): Discard delimiter or not
             lookahead (bool): Unget delimiter to buffer or not
+            sleep_time (float): Sleep time after receiving data
 
         Returns:
             bytes: Received data
@@ -160,7 +162,8 @@ class Tube(metaclass=ABCMeta):
                 data += self.recv(size, timeout=-1)
             except TimeoutError as err:
                 raise TimeoutError("`recvuntil` timeout", data + err.args[1])
-            time.sleep(0.01)
+            if sleep_time > 0:
+                time.sleep(sleep_time)
 
             for t in delim:
                 if t in data:
