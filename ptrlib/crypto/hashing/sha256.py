@@ -67,7 +67,7 @@ class SHA256(object):
 
         This method updates the current SHA-256 sum.
         If you call update(a) and update(b) in this order,
-        yuo will get the SHA-256 sum of a+b.
+        you will get the SHA-256 sum of a+b.
         """
         if isinstance(message, str):
             message = str2bytes(message)
