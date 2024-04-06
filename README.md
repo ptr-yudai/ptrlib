@@ -1,7 +1,8 @@
 ptrlib
 ====
 
-![Python application](https://github.com/ptr-yudai/ptrlib/workflows/Python%20application/badge.svg)
+![Python Test (Windows)](https://github.com/ptr-yudai/ptrlib/workflows/Python%20Test%20%28Windows%29/badge.svg)
+![Python Test (Ubuntu)](https://github.com/ptr-yudai/ptrlib/workflows/Python%20Test%20%28Ubuntu%29/badge.svg)
 
 Python library which bundles security-related utilities.
 

@@ -17,7 +17,7 @@ class TestWinProcess(unittest.TestCase):
     def test_basic(self):
         while True:
             msg = os.urandom(16)
-            if is_scanf_safe(msg):
+            if is_scanf_safe(msg) and b'\x1a' not in msg:
                 break
 
         p = Process("./tests/test.bin/test_echo.pe.exe")
