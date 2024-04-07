@@ -198,15 +198,14 @@ class UnixProcess(Tube):
         """
         if self.proc:
             os.close(self.slave)
+            self.proc.stdin.close()
+            self.proc.stdout.close()
             if self.is_alive():
-                self.proc.stdin.close()
-                self.proc.stdout.close()
                 self.proc.kill()
                 self.proc.wait()
                 logger.info("'{0}' (PID={1}) killed".format(self.filepath, self.proc.pid))
                 self.proc = None
             else:
-                self.proc.stdout.close()
                 logger.info("'{0}' (PID={1}) has already exited".format(self.filepath, self.proc.pid))
                 self.proc = None
 
