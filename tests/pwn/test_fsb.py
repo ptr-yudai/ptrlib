@@ -1,7 +1,9 @@
-import unittest
+import inspect
 import os
+import unittest
+from logging import FATAL, getLogger
+
 from ptrlib import Process, fsb
-from logging import getLogger, FATAL
 
 _is_windows = os.name == 'nt'
 
@@ -14,10 +16,14 @@ class TestFSB(unittest.TestCase):
             self.skipTest("This test has not been implemented for Windows yet")
 
     def test_fsb32(self):
+        module_name = inspect.getmodule(Process).__name__
+
         # test 1
-        result = True
         for i in range(3):
-            p = Process("./tests/test.bin/test_fsb.x86")
+            with self.assertLogs(module_name) as cm:
+                p = Process("./tests/test.bin/test_fsb.x86")
+            self.assertEqual(len(cm.output), 1)
+            self.assertRegex(cm.output[0], fr'^INFO:{module_name}:Successfully created new process \(PID=\d+\)$')
             p.recvuntil(": ")
             target = int(p.recvline(), 16)
             payload = fsb(
@@ -28,14 +34,15 @@ class TestFSB(unittest.TestCase):
             )
             p.sendline(payload + b'XXXXXXXX')
             p.recvuntil("XXXXXXXX\n")
-            result |= b'OK' in p.recvline()
+            self.assertTrue(b'OK' in p.recvline())
             p.close()
-        self.assertEqual(result, True)
 
         # test 2
-        result = True
         for i in range(3):
-            p = Process("./tests/test.bin/test_fsb.x86")
+            with self.assertLogs(module_name) as cm:
+                p = Process("./tests/test.bin/test_fsb.x86")
+            self.assertEqual(len(cm.output), 1)
+            self.assertRegex(cm.output[0], fr'^INFO:{module_name}:Successfully created new process \(PID=\d+\)$')
             p.recvuntil(": ")
             target = int(p.recvline(), 16)
             payload = fsb(
@@ -47,15 +54,18 @@ class TestFSB(unittest.TestCase):
             )
             p.sendline(payload + b'XXXXXXXX')
             p.recvuntil("XXXXXXXX\n")
-            result |= b'OK' in p.recvline()
+            self.assertTrue(b'OK' in p.recvline())
             p.close()
-        self.assertEqual(result, True)
 
     def test_fsb64(self):
+        module_name = inspect.getmodule(Process).__name__
+
         # test 3
-        result = True
         for i in range(3):
-            p = Process("./tests/test.bin/test_fsb.x64")
+            with self.assertLogs(module_name) as cm:
+                p = Process("./tests/test.bin/test_fsb.x64")
+            self.assertEqual(len(cm.output), 1)
+            self.assertRegex(cm.output[0], fr'^INFO:{module_name}:Successfully created new process \(PID=\d+\)$')
             p.recvuntil(": ")
             target = int(p.recvline(), 16)
             payload = fsb(
@@ -65,6 +75,5 @@ class TestFSB(unittest.TestCase):
                 bits = 64
             )
             p.sendline(payload)
-            result |= b'OK' in p.recvuntil("OK")
+            self.assertTrue(b'OK' in p.recvuntil("OK"))
             p.close()
-        self.assertEqual(result, True)
