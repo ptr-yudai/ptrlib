@@ -4,7 +4,7 @@ import random
 import unittest
 from logging import FATAL, getLogger
 
-from ptrlib import Process, is_scanf_safe
+from ptrlib import Process, UnixProcess, is_scanf_safe
 
 _is_windows = os.name == 'nt'
 
@@ -16,7 +16,7 @@ class TestProcess(unittest.TestCase):
             self.skipTest("This test is intended for the Linux platform")
 
     def test_basic(self):
-        module_name = inspect.getmodule(Process).__name__
+        module_name = inspect.getmodule(UnixProcess).__name__
 
         while True:
             msg = os.urandom(16)
@@ -70,7 +70,7 @@ class TestProcess(unittest.TestCase):
         p.close()
 
     def test_timeout(self):
-        module_name = inspect.getmodule(Process).__name__
+        module_name = inspect.getmodule(UnixProcess).__name__
 
         with self.assertLogs(module_name) as cm:
             p = Process("./tests/test.bin/test_echo.x64")
