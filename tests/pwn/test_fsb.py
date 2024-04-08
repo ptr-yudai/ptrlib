@@ -3,7 +3,7 @@ import os
 import unittest
 from logging import FATAL, getLogger
 
-from ptrlib import Process, UnixProcess, fsb
+from ptrlib import Process, fsb
 
 _is_windows = os.name == 'nt'
 
@@ -16,7 +16,7 @@ class TestFSB(unittest.TestCase):
             self.skipTest("This test has not been implemented for Windows yet")
 
     def test_fsb32(self):
-        module_name = inspect.getmodule(UnixProcess).__name__
+        module_name = inspect.getmodule(Process).__name__
 
         # test 1
         for i in range(3):
@@ -58,7 +58,7 @@ class TestFSB(unittest.TestCase):
             p.close()
 
     def test_fsb64(self):
-        module_name = inspect.getmodule(UnixProcess).__name__
+        module_name = inspect.getmodule(Process).__name__
 
         # test 3
         for i in range(3):

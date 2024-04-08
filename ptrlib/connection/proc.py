@@ -20,12 +20,6 @@ if not _is_windows:
 logger = getLogger(__name__)
 
 
-def Process(*args, **kwargs) -> Tube:
-    if _is_windows:
-        return WinProcess(*args, **kwargs)
-    else:
-        return UnixProcess(*args, **kwargs)
-
 class UnixProcess(Tube):
     def __init__(
         self,
@@ -241,5 +235,5 @@ class UnixProcess(Tube):
     def __del__(self):
         self.close()
 
-# alias
-process = Process
+Process = WinProcess if _is_windows else UnixProcess
+process = Process   # alias for the Process
