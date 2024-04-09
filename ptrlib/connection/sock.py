@@ -50,7 +50,6 @@ class Socket(Tube):
         if ssl:
             import ssl as _ssl
             self.context = _ssl.SSLContext(_ssl.PROTOCOL_TLS_CLIENT)
-            #self.context = _ssl.create_default_context()
             self.context.check_hostname = False
             self.context.verify_mode = _ssl.CERT_NONE
             if sni is True:
