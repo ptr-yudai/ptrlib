@@ -9,7 +9,9 @@ logger = getLogger(__name__)
 
 
 class Socket(Tube):
-    def __init__(self, host: Union[str, bytes], port: Optional[int]=None, timeout: Optional[Union[int, float]]=None):
+    def __init__(self, host: Union[str, bytes], port: Optional[int]=None,
+                 timeout: Optional[Union[int, float]]=None,
+                 ssl: bool=False, sni: Union[str, bool]=True):
         """Create a socket
 
         Create a new socket and establish a connection to the host.
@@ -45,6 +47,16 @@ class Socket(Tube):
         self.timeout = timeout
         # Create a new socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if ssl:
+            import ssl as _ssl
+            self.context = _ssl.SSLContext(_ssl.PROTOCOL_TLS_CLIENT)
+            #self.context = _ssl.create_default_context()
+            self.context.check_hostname = False
+            self.context.verify_mode = _ssl.CERT_NONE
+            if sni is True:
+                self.sock = self.context.wrap_socket(self.sock)
+            else:
+                self.sock = self.context.wrap_socket(self.sock, server_hostname=sni)
         # Establish a connection
         try:
             self.sock.connect((self.host, self.port))
@@ -83,6 +95,9 @@ class Socket(Tube):
             raise TimeoutError("Receive timeout", b'') from None
         except ConnectionAbortedError as e:
             logger.warning("Connection aborted by the host")
+            raise e from None
+        except ConnectionResetError as e:
+            logger.warning("Connection reset by the host")
             raise e from None
 
         return data
