@@ -42,6 +42,7 @@ You can run executable or create socket like this:
 sock = Process("./pwn01")
 sock = Process(["./pwn01", "--debug"])
 sock = Socket("localhost", 1234)
+sock = Socket("example.com", 443, ssl=True, sni="neko")
 sock = SSH("example.com", 22, username="ubuntu", password="p4s$w0rd")
 sock = SSH("example.com", 22, username="ubuntu", identity="./id_rsa")
 ```
