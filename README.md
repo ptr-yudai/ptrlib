@@ -133,7 +133,7 @@ Run `pip install --upgrade ptrlib` or `python setup.py install`.
 ## Contributor
 Feel free to make a pull request / issue :)
 
-- [jptomoya](https://github.com/jptomoy)
+- [jptomoya](https://github.com/jptomoya)
   - Added CI for Windows
   - Added SSL support
   - Refactored test cases
