@@ -1,117 +1,166 @@
-# coding: utf-8
-import subprocess
-from typing import Any, Optional, List, Tuple, Union, overload
-try:
-    from typing import Literal
-except:
-    from typing_extensions import Literal
-from ptrlib.binary.encoding import *
-from ptrlib.console.color import Color
-from abc import ABCMeta, abstractmethod
+import abc
 import re
+import select
 import sys
 import threading
-import time
 from logging import getLogger
+from typing import List, Literal, Optional, Tuple, Union
+from ptrlib.binary.encoding import bytes2str, str2bytes, bytes2hex, bytes2utf8
+from ptrlib.console.color import Color
 
 logger = getLogger(__name__)
 
 
-class Tube(metaclass=ABCMeta):
-    def __init__(self):
-        self.buf = b''
-        self.debug = False
+class Tube(metaclass=abc.ABCMeta):
+    """Abstract class for streaming data
 
-    @abstractmethod
-    def _settimeout(self, timeout: Optional[Union[int, float]]):
+    A child class must implement the following methods:
+
+      - "_settimeout_impl"
+      - "_recv_impl"
+      - "_send_impl"
+      - "_close_impl"
+      - "_is_alive_impl
+      - "_shutdown_impl"
+    """
+    #
+    # Decorator
+    #
+    def not_closed(method):
+        """Ensure that socket is not *explicitly* closed
+        """
+        def decorator(*args, **kwargs):
+            assert isinstance(args[0], Tube), "Invalid usage of decorator"
+            if args[0]._is_closed:
+                raise BrokenPipeError("Socket has already been closed")
+            return method(*args, **kwargs)
+        return decorator
+
+    #
+    # Constructor
+    #
+    def __init__(self,
+                 timeout: Optional[Union[int, float]]=None):
+        """
+        Args:
+            timeout (float): Default timeout
+        """
+        self._buffer = b''
+
+        self._is_closed = False
+
+        self._default_timeout = timeout
+        self.settimeout()
+
+    #
+    # Methods
+    #
+    @not_closed
+    def settimeout(self, timeout: Optional[Union[int, float]]=None):
         """Set timeout
-
+        
         Args:
-            timeout (float): Timeout (None: Set to default / -1: No change / x>0: Set timeout to x seconds)
+            timeout (float): Timeout in second
+
+        Note:
+            Set timeout to None in order to set the default timeout)
+
+        Examples:
+            ```
+            p = Socket("0.0.0.0", 1337, timeout=3)
+            # ...
+            p.settimeout(5) # Timeout is set to 5
+            # ...
+            p.settimeout()  # Timeout is set to 3
+            ```
         """
-        pass
+        assert timeout is None or (isinstance(timeout, (int, float)) and timeout >= 0), \
+            "`timeout` must be positive and either int or float"
 
-    @abstractmethod
-    def _recv(self, size: int, timeout: Union[int, float]) -> Optional[bytes]:
-        """Receive raw data
+        if timeout is None:
+            if self._default_timeout is not None:
+                self._settimeout_impl(self._default_timeout)
+        else:
+            self._settimeout_impl(timeout)
 
-        Receive raw data of maximum `size` bytes length through the socket.
+    def recv(self,
+             size: int=4096,
+             timeout: Optional[Union[int, float]]=None) -> bytes:
+        """Receive data with buffering
+
+        Receive raw data of at most `size` bytes.
 
         Args:
-            size    (int): The data size to receive
-            timeout (int): Timeout (in second)
+            size   : Size to receive (Use `recvonce` to read exactly `size` bytes)
+            timeout: Timeout in second
 
         Returns:
-            bytes: The received data
-        """
-        pass
+            bytes: Received data
 
-    def unget(self, data: Union[str, bytes]):
-        """Revert data to socket
+        Raises:
+            ConnectionAbortedError: Connection is aborted by process
+            ConnectionResetError: Connection is closed by peer
+            TimeoutError: Timeout exceeded
+            OSError: System error
 
-        Return data to socket.
-
-        Args:
-            data (bytes): Data to return
-        """
-        if isinstance(data, str):
-            data = str2bytes(data)
-        self.buf = data + self.buf
-
-    def recv(self, size: int=4096, timeout: Optional[Union[int, float]]=None) -> bytes:
-        """Receive raw data with buffering
-
-        Receive raw data of maximum `size` bytes length through the socket.
-
-        Args:
-            size    (int): The data size to receive (Use `recvonce`
-                           if you want to read exactly `size` bytes)
-            timeout (int): Timeout (in second)
-
-        Returns:
-            bytes: The received data
-        """
-        if size <= 0:
-            raise ValueError("`size` must be larger than 0")
-
-        elif len(self.buf) == 0:
-            self._settimeout(timeout)
+        Examples:
+            ```
+            tube.recv(4)
             try:
-                data = self._recv(size, timeout=-1)
-            except TimeoutError as err:
-                raise TimeoutError("`recv` timeout", b'')
+                tube.recv(timeout=3.14)
+            except TimeoutError:
+                pass
+            ```
+        """
+        assert size is None or (isinstance(size, int) and size >= 0), \
+            "`size` must be a positive integer"
 
-            self.buf += data
-            if self.debug:
-                logger.info(f"Received {hex(len(data))} ({len(data)}) bytes:")
-                hexdump(data, prefix="    " + Color.CYAN, postfix=Color.END)
+        # NOTE: We always return buffer if it's not empty
+        # This is because we do not know how many bytes we can read.
+        if len(self._buffer):
+            data, self._buffer = self._buffer[:size], self._buffer[size:]
+            return data
 
-        # We don't check size > len(self.buf) because Python handles it
-        data, self.buf = self.buf[:size], self.buf[size:]
+        if timeout is not None:
+            self.settimeout(timeout)
+
+        try:
+            self._buffer += self._recv_impl(size - len(self._buffer))
+
+        except TimeoutError as err:
+            data = self._buffer + err.args[1]
+            self._buffer = b''
+            raise TimeoutError("Timeout (recv)", data)
+
+        finally:
+            if timeout is not None:
+                # Reset timeout to default value
+                self.settimeout()
+
+        data, self._buffer = self._buffer[:size], self._buffer[size:]
         return data
 
-    def recvonce(self, size: int, timeout: Optional[Union[int, float]]=None) -> bytes:
-        """Receive raw data with buffering
+    def recvonce(self,
+                 size: int,
+                 timeout: Optional[Union[int, float]]=None) -> bytes:
+        """Receive raw data of exact size with buffering
 
-        Receive raw data of size `size` bytes length through the socket.
+        Receive raw data of exactly `size` bytes.
 
         Args:
-            size    (int): The data size to receive
-            timeout (int): Timeout (in second)
+            size   : Data size to receive
+            timeout: Timeout in second
 
         Returns:
-            bytes: The received data
+            bytes: Received data
         """
-        self._settimeout(timeout)
         data = b''
-        timer_start = time.time()
 
         while len(data) < size:
             try:
-                data += self.recv(size - len(data), timeout=-1)
+                data += self.recv(size - len(data), timeout)
             except TimeoutError as err:
-                raise TimeoutError("`recvonce` timeout", data + err.args[1])
-            time.sleep(0.01)
+                raise TimeoutError("Timeout (recvonce)", data + err.args[1])
 
         if len(data) > size:
             self.unget(data[size:])
@@ -122,159 +171,187 @@ class Tube(metaclass=ABCMeta):
                   size: int=4096,
                   timeout: Optional[Union[int, float]]=None,
                   drop: bool=False,
-                  lookahead: bool=False,
-                  sleep_time: float=0.01) -> bytes:
+                  lookahead: bool=False) -> bytes:
         """Receive raw data until `delim` comes
 
         Args:
-            delim (bytes): The delimiter bytes
-            size (int)   : The data size to receive at once
-            timeout (int): Timeout (in second)
-            drop (bool): Discard delimiter or not
-            lookahead (bool): Unget delimiter to buffer or not
-            sleep_time (float): Sleep time after receiving data
+            delim    : The delimiter bytes
+            size     : The data size to receive at once
+            timeout  : Timeout in second
+            drop     : Discard delimiter or not
+            lookahead: Unget delimiter to buffer or not
 
         Returns:
             bytes: Received data
+
+        Raises:
+            ConnectionAbortedError: Connection is aborted by process
+            ConnectionResetError: Connection is closed by peer
+            TimeoutError: Timeout exceeded
+            OSError: System error
+
+        Examples:
+            ```
+            echo.sendline("abc123def")
+            echo.recvuntil("123") # abc123
+
+            echo.sendline("abc123def")
+            echo.recvuntil("123", drop=True) # abc
+
+            echo.sendline("abc123def")
+            echo.recvuntil("123", lookahead=True) # abc123
+            echo.recvonce(6)                      # 123def
+            ```
         """
-        # Validate and normalize delimiter
-        if isinstance(delim, bytes):
-            delim = [delim]
-        elif isinstance(delim, str):
-            delim = [str2bytes(delim)]
-        elif isinstance(delim, list):
-            for i, t in enumerate(delim):
-                if isinstance(t, str):
-                    delim[i] = str2bytes(t)
-                elif not isinstance(t, bytes):
-                    raise ValueError(f"Delimiter must be either string or bytes: {t}")
+        assert isinstance(delim, (str, bytes, list)), \
+            "`delim` must be either str, bytes, or list"
+
+        # Preprocess
+        if isinstance(delim, list):
+            for i, d in enumerate(delim):
+                assert isinstance(d, (str, bytes)), \
+                    f"`delim[{i}]` must be either str or bytes"
+                delim[i] = str2bytes(delim)
         else:
-            raise ValueError(f"Delimiter must be either string, bytes, or list: {t}")
+            delim = [str2bytes(delim)]
 
-        self._settimeout(timeout)
+        # Iterate until we find one of the delimiters
+        found_delim = None
+        prev_len = 0
         data = b''
-        timer_start = time.time()
-
-        found = False
-        token = None
         while True:
             try:
-                data += self.recv(size, timeout=-1)
+                data += self.recv(size, timeout)
             except TimeoutError as err:
-                raise TimeoutError("`recvuntil` timeout", data + err.args[1])
+                raise TimeoutError("Timeout (recvuntil)", data + err.args[1])
 
-            for t in delim:
-                if t in data:
-                    found = True
-                    token = t
+            for d in delim:
+                if d in data[max(0, prev_len-len(d)):]:
+                    found_delim = d
                     break
-
-            if found:
+            if found_delim is not None:
                 break
-            if sleep_time:
-                time.sleep(sleep_time)
 
-        found_pos = data.find(token)
-        result_len = found_pos if drop else found_pos + len(token)
-        consumed_len = found_pos if lookahead else found_pos + len(token)
-        self.unget(data[consumed_len:])
-        return data[:result_len]
+            prev_len = len(data)
+
+        i = data.find(found_delim)
+        j = i + len(found_delim)
+        if not drop:
+            i = j
+
+        ret, data = data[:i], data[j:]
+        self.unget(data)
+        if lookahead:
+            self.unget(found_delim)
+
+        return ret
 
     def recvline(self,
                  size: int=4096,
                  timeout: Optional[Union[int, float]]=None,
-                 drop: bool=True) -> bytes:
+                 drop: bool=True,
+                 lookahead: bool=False) -> bytes:
         """Receive a line of data
 
         Args:
-            size (int)   : The data size to receive at once
-            timeout (int): Timeout (in second)
-            drop (bool)  : Discard delimiter or not
+            size     : The data size to receive at once
+            timeout  : Timeout (in second)
+            drop     : Discard trailing newlines or not
+            lookahead: Unget trailing newline to buffer or not
 
         Returns:
             bytes: Received data
         """
-        line = self.recvuntil(b'\n', size, timeout)
-        if drop:
-            return line.rstrip()
-        return line
+        try:
+            line = self.recvuntil(b'\n', size, timeout, lookahead=lookahead)
+        except TimeoutError as err:
+            raise TimeoutError("Timeout (recvline)", err.args[1])
+
+        return line.rstrip() if drop else line
 
     def recvlineafter(self,
                       delim: Union[str, bytes],
                       size: int=4096,
                       timeout: Optional[Union[int, float]]=None,
-                      drop: bool=True) -> bytes:
+                      drop: bool=True,
+                      lookahead: bool=False) -> bytes:
         """Receive a line of data after receiving `delim`
 
         Args:
-            delim (bytes): The delimiter bytes
-            size (int)   : The data size to receive at once
-            timeout (int): Timeout (in second)
-            drop (bool)  : Discard delimiter or not
+            delim    : The delimiter bytes
+            size     : The data size to receive at once
+            timeout  : Timeout (in second)
+            drop     : Discard trailing newline or not
+            lookahead: Unget trailing newline to buffer or not
 
         Returns:
             bytes: Received data
+
+        Raises:
+            ConnectionAbortedError: Connection is aborted by process
+            ConnectionResetError: Connection is closed by peer
+            TimeoutError: Timeout exceeded
+            OSError: System error
         """
-        self.recvuntil(delim, size, timeout)
-        return self.recvline(size, timeout, drop)
+        try:
+            self.recvuntil(delim, size, timeout)
+        except TimeoutError as err:
+            # NOTE: We do not set received value here
+            raise TimeoutError("Timeout (recvlineafter)", b'')
 
-    # TODO: proper typing
-    @overload
-    def recvregex(self, regex: Union[str, bytes], size: int=4096, discard: Literal[True]=True, timeout: Optional[Union[int, float]]=None) -> bytes: ...
-
-    @overload
-    def recvregex(self, regex: Union[str, bytes], size: int=4096, discard: Literal[False]=False, timeout: Optional[Union[int, float]]=None) -> Tuple[bytes, bytes]: ...
+        try:
+            return self.recvline(size, timeout, drop, lookahead)
+        except TimeoutError as err:
+            raise TimeoutError("Timeout (recvlineafter)", err.args[1])
 
     def recvregex(self,
-                  regex: Union[str, bytes],
+                  regex: Union[str, bytes, re.Pattern],
                   size: int=4096,
-                  discard: bool=True,
-                  timeout: Optional[Union[int, float]]=None) -> Union[bytes, Tuple[bytes, bytes]]:
+                  timeout: Optional[Union[int, float]]=None) -> Union[bytes, Tuple[bytes, ...]]:
         """Receive until a pattern comes
 
         Receive data until a specified regex pattern matches.
 
         Args:
-            regex (bytes) : Regex
-            size (int)    : Size to read at once
-            discard (bool): Discard received bytes or not
-            timeout (int) : Timeout (in second)
+            regex  : Regular expression
+            size   : Size to read at once
+            timeout: Timeout in second
 
         Returns:
             tuple: If the given regex has multiple patterns to find,
                    it returns all matches. Otherwise, it returns the
-                   match string. If discard is false, it also returns
-                   all data received so far along with the matches.
+                   matched string.
+
+        Raises:
+            ConnectionAbortedError: Connection is aborted by process
+            ConnectionResetError: Connection is closed by peer
+            TimeoutError: Timeout exceeded
+            OSError: System error
         """
-        if not isinstance(regex, bytes):
-            regex = str2bytes(regex)
+        assert isinstance(regex, (str, bytes, re.Pattern)), \
+            "`regex` must be either str, bytes, or re.Pattern"
 
-        p = re.compile(regex)
+        if isinstance(regex, str):
+            regex = re.compile(str2bytes(regex))
+
         data = b''
+        match = None
+        while match is None:
+            try:
+                data += self.recv(size, timeout)
+            except TimeoutError as err:
+                raise TimeoutError("Timeout (recvregex)", data + err.args[1])
+            match = regex.search(data)
 
-        self._settimeout(timeout)
-        r = None
-        while r is None:
-            data += self.recv(size, timeout=-1)
-            r = p.search(data)
+        self.unget(data[match.end():])
 
-        pos = r.end()
-        self.unget(data[pos:])
-
-        group = r.group()
-        groups = r.groups()
-        if groups:
-            if discard:
-                return groups
-            else:
-                return groups, data[:pos]
+        if match.groups():
+            return match.groups()
         else:
-            if discard:
-                return group
-            else:
-                return group, data[:pos]
+            return match.group()
 
-    def recvscreen(self, delim: Optional[bytes]=b'\x1b[H',
+    def recvscreen(self,
+                   delim: Optional[Union[str, bytes]]=b'\x1b[H',
                    returns: Optional[type]=str,
                    timeout: Optional[Union[int, float]]=None,
                    timeout2: Optional[Union[int, float]]=1):
@@ -283,46 +360,70 @@ class Tube(metaclass=ABCMeta):
         Receive a screen drawn by ncurses
 
         Args:
-            delim (bytes) : Refresh sequence
-            returns (type): Return value as string or list
-            timeout (int) : Timeout to receive the first delimiter
-            timeout2 (int): Timeout to receive the second delimiter
+            delim   : Refresh sequence
+            returns : Return value as string or list
+            timeout : Timeout to receive the first delimiter
+            timeout2: Timeout to receive the second delimiter
 
         Returns:
             str: Rectangle string drawing the screen
+
+        Raises:
+            ConnectionAbortedError: Connection is aborted by process
+            ConnectionResetError: Connection is closed by peer
+            TimeoutError: Timeout exceeded
+            OSError: System error
         """
-        self.recvuntil(delim, timeout=timeout)
+        assert returns in [list, str, bytes], \
+            "`returns` must be either list, str, or bytes"
+
         try:
-            buf = self.recvuntil(delim, drop=True, lookahead=True,
-                                 timeout=timeout2)
+            self.recvuntil(delim, timeout=timeout)
+        except TimeoutError as err:
+            # NOTE: We do not set received value here
+            raise TimeoutError("Timeout (recvscreen)", b'')
+
+        try:
+            buf = self.recvuntil(delim, drop=True, lookahead=True, timeout=timeout2)
         except TimeoutError as err:
             buf = err.args[1]
-        screen = draw_ansi(buf)
 
-        if returns == list:
-            return screen
-        elif returns == str:
+        screen = draw_ansi(buf)
+        if returns == str:
             return '\n'.join(map(lambda row: ''.join(row), screen))
         elif returns == bytes:
             return b'\n'.join(map(lambda row: bytes(row), screen))
         else:
-            raise TypeError("`returns` must be either list, str, or bytes")
+            return screen
 
-    @abstractmethod
-    def _send(self, data: bytes):
-        pass
+    def send(self, data: Union[str, bytes]) -> int:
+        """Send raw data
 
-    def send(self, data: bytes):
-        self._send(data)
-        if self.debug:
-            logger.info(f"Sent {hex(len(data))} ({len(data)}) bytes:")
-            hexdump(data, prefix=Color.YELLOW, postfix=Color.END)
+        Send as much data as possible.
 
-    @abstractmethod
-    def _socket(self) -> Optional[Any]:
-        pass
+        Args:
+            data: Data to send
 
-    def sendline(self, data: Union[str, bytes], timeout: Optional[Union[int, float]]=None):
+        Returns:
+            int: Length of sent data
+
+        Note:
+            It is NOT ensured that all data is sent.
+            Use `sendonce` to make sure the whole data is sent.
+
+        Examples:
+            ```
+            tube.send("Hello")
+            tube.send(b"\xde\xad\xbe\xef")
+            ```
+        """
+        assert isinstance(data, (str, bytes)), "`data` must be either str or bytes"
+
+        return self._send_impl(str2bytes(data))
+
+    def sendline(self,
+                 data: Union[int, float, str, bytes],
+                 timeout: Optional[Union[int, float]]=None):
         """Send a line
 
         Send a line of data.
@@ -331,56 +432,54 @@ class Tube(metaclass=ABCMeta):
             data (bytes) : Data to send
             timeout (int): Timeout (in second)
         """
-        if isinstance(data, str):
-            data = str2bytes(data)
-        elif isinstance(data, int):
+        assert isinstance(data, (int, float, str, bytes)), \
+            "`data` must be int, float, str, or bytes"
+
+        if isinstance(data, (int, float)):
             data = str(data).encode()
+        else:
+            data = str2bytes(data)
 
         self.send(data + b'\n')
 
-    def sendafter(self, delim: Union[str, bytes], data: Union[str, bytes, int], timeout: Optional[Union[int, float]]=None):
+    def sendafter(self,
+                  delim: Union[str, bytes, List[Union[str, bytes]]],
+                  data: Union[int, float, str, bytes],
+                  size: int=4096,
+                  timeout: Optional[Union[int, float]]=None,
+                  drop: bool=False,
+                  lookahead: bool=False) -> bytes:
         """Send raw data after a delimiter
 
         Send raw data after `delim` is received.
 
         Args:
-            delim (bytes): The delimiter
-            data (bytes) : Data to send
-            timeout (int): Timeout (in second)
+            delim    : The delimiter
+            data     : Data to send
+            size     : Data size to receive at once
+            timeout  : Timeout in second
+            drop     : Discard delimiter or not
+            lookahead: Unget delimiter to buffer or not
 
         Returns:
             bytes: Received bytes before `delim` comes.
-        """
-        if isinstance(data, str):
-            data = str2bytes(data)
-        elif isinstance(data, int):
-            data = str(data).encode()
 
-        recv_data = self.recvuntil(delim, timeout=timeout)
+        Examples:
+            ```
+            tube.sendafter("> ", p32(len(data)) + data)
+            tube.sendafter("command: ", 1) # b"1" is sent
+            ```
+        """
+        assert isinstance(data, (int, float, str, bytes)), \
+            "`data` must be int, float, str, or bytes"
+
+        if isinstance(data, (int, float)):
+            data = str(data).encode()
+        else:
+            data = str2bytes(data)
+
+        recv_data = self.recvuntil(delim, size, timeout, drop, lookahead)
         self.send(data)
-
-        return recv_data
-
-    def sendlineafter(self, delim: Union[str, bytes], data: Union[str, bytes, int], timeout: Optional[Union[int, float]]=None) -> bytes:
-        """Send raw data after a delimiter
-
-        Send raw data with newline after `delim` is received.
-
-        Args:
-            delim (bytes): The delimiter
-            data (bytes) : Data to send
-            timeout (int): Timeout (in second)
-
-        Returns:
-            bytes: Received bytes before `delim` comes.
-        """
-        if isinstance(data, str):
-            data = str2bytes(data)
-        elif isinstance(data, int):
-            data = str(data).encode()
-
-        recv_data = self.recvuntil(delim, timeout=timeout)
-        self.sendline(data, timeout=timeout)
 
         return recv_data
 
@@ -390,7 +489,7 @@ class Tube(metaclass=ABCMeta):
         Send control key given its name
 
         Args:
-            name (str): Name of the control key to send
+            name: Name of the control key to send
         """
         if name.lower() in ['w', 'up']:
             self.send(b'\x1bOA')
@@ -409,44 +508,77 @@ class Tube(metaclass=ABCMeta):
         else:
             raise ValueError(f"Invalid control key name: {name}")
 
-    def sh(self, timeout: Optional[Union[int, float]]=None):
+    def sh(self,
+           timeout: Optional[Union[int, float]]=None,
+           prompt: str="[ptrlib]$ ",
+           raw: bool=False):
         """Alias for interactive
-        """
-        self.interactive(timeout)
 
-    def interactive(self, timeout: Optional[Union[int, float]]=None):
-        """Interactive mode
+        Args:
+            timeout: Timeout in second
+            prompt : Prompt string to show on input
         """
-        def thread_recv():
-            prev_leftover = None
+        self.interactive(timeout, prompt, raw)
+
+    def interactive(self,
+                    timeout: Union[int, float]=1,
+                    prompt: str="[ptrlib]$ ",
+                    raw: bool=False):
+        """Interactive mode
+
+        Args:
+            timeout: Timeout in second
+            prompt : Prompt string to show on input
+        """
+        prompt = f"{Color.BOLD}{Color.BLUE}{prompt}{Color.END}"
+
+        def pretty_print_hex(c: str):
+            sys.stdout.write(f'{Color.RED}\\x{ord(c):02x}{Color.END}')
+
+        def pretty_print(data: bytes, prev: bytes=b''):
+            """Print data in a human-friendly way
+            """
+            leftover = b''
+
+            if raw:
+                sys.stdout.write(bytes2str(data))
+
+            else:
+                utf8str, leftover, marker = bytes2utf8(data)
+                if len(utf8str) == 0 and prev == leftover:
+                    utf8str = f'{Color.RED}{bytes2hex(leftover)}{Color.END}'
+                    leftover = b''
+
+                for c, t in zip(utf8str, marker):
+                    if t:
+                        if 0x7f <= ord(c) < 0x100:
+                            pretty_print_hex(c)
+                        elif ord(c) not in [0x09, 0x0a, 0x0d] and \
+                             ord(c) < 0x20:
+                            pretty_print_hex(c)
+                        else:
+                            sys.stdout.write(c)
+                    else:
+                        pretty_print_hex(c)
+
+            sys.stdout.flush()
+            return leftover
+
+        def thread_recv(flag: threading.Event):
+            """Receive data from tube and print to stdout
+            """
+            leftover = b''
             while not flag.isSet():
                 try:
-                    data = self.recv(size=4096, timeout=0.1)
-                    if data is not None:
-                        utf8str, leftover, marker = bytes2utf8(data)
-                        if len(utf8str) == 0 and prev_leftover == leftover:
-                            # Print raw hex string with color
-                            # if the data is invalid as UTF-8
-                            utf8str = '{red}{hexstr}{end}'.format(
-                                red=Color.RED,
-                                hexstr=bytes2hex(leftover),
-                                end=Color.END
-                            )
-                            leftover = None
+                    sys.stdout.write(prompt)
+                    sys.stdout.flush()
+                    data = self.recv(timeout=timeout)
+                    leftover = pretty_print(data, leftover)
 
-                        for c, t in zip(utf8str, marker):
-                            if t == True:
-                                sys.stdout.write(c)
-                            else:
-                                sys.stdout.write('{red}{hexstr}{end}'.format(
-                                    red=Color.RED,
-                                    hexstr=str2hex(c),
-                                    end=Color.END
-                                ))
-                            sys.stdout.flush()
-                        prev_leftover = leftover
-                        if leftover is not None:
-                            self.unget(leftover)
+                    if not self.is_alive():
+                        logger.error(f"Connection closed by {str(self)}")
+                        flag.set()
+
                 except TimeoutError:
                     pass
                 except EOFError:
@@ -455,51 +587,155 @@ class Tube(metaclass=ABCMeta):
                 except ConnectionAbortedError:
                     logger.error("Receiver EOF")
                     break
-                time.sleep(0.1)
+
+        def thread_send(flag: threading.Event):
+            """Read user input and send it to tube
+            """
+            #sys.stdout.write(f"{Color.BOLD}{Color.BLUE}{prompt}{Color.END}")
+            #sys.stdout.flush()
+            while not flag.isSet():
+                (ready, _, _) = select.select([sys.stdin], [], [], 0.1)
+                if not ready: continue
+
+                try:
+                    self.send(sys.stdin.readline())
+                except (ConnectionResetError, ConnectionAbortedError, OSError):
+                    flag.set()
 
         flag = threading.Event()
-        th = threading.Thread(target=thread_recv)
-        th.setDaemon(True)
-        th.start()
-
+        th_recv = threading.Thread(target=thread_recv, args=(flag,))
+        th_send = threading.Thread(target=thread_send, args=(flag,))
+        th_recv.start()
+        th_send.start()
         try:
-            while not flag.isSet():
-                data = input("{bold}{blue}[ptrlib]${end} ".format(
-                    bold=Color.BOLD, blue=Color.BLUE, end=Color.END
-                ))
-                if self._socket() is None:
-                    logger.error("Connection already closed")
-                    break
-                if data is None:
-                    flag.set()
-                else:
-                    try:
-                        self.sendline(data)
-                    except ConnectionAbortedError:
-                        logger.error("Sender EOF")
-                        break
-                time.sleep(0.1)
+            th_recv.join()
+            th_send.join()
         except KeyboardInterrupt:
+            logger.warning("Intterupted by user")
+            sys.stdin.close()
             flag.set()
 
-        while th.is_alive():
-            th.join(timeout = 0.1)
-            time.sleep(0.1)
+    def close(self):
+        """Close this connection
+
+        Note:
+            This method can only be called once.
+        """
+        self._close_impl()
+        self._is_closed = True
+
+    def unget(self, data: Union[str, bytes]):
+        """Unshift data to buffer
+
+        Args:
+            data: Data to revert
+
+        Examples:
+            ```
+            leak = tube.recvline().rstrip(b"> ")
+            tube.unget("> ")
+            # ...
+            tube.sendlineafter("> ", "1")
+            ```
+        """
+        assert isinstance(data, (str, bytes)), "`data` must be either str or bytes"
+
+        self._buffer = str2bytes(data) + self._buffer
+
+    def is_alive(self) -> bool:
+        """Check if connection is not closed
+
+        Returns:
+            bool: False if connection is closed, otherwise True
+
+        Examples:
+            ```
+            while tube.is_alive():
+                print(tube.recv())
+            ```
+        """
+        return self._is_alive_impl()
+
+    def shutdown(self, target: Literal['send', 'recv']):
+        """Kill one connection
+
+        Args:
+            target (str): Connection to close (`send` or `recv`)
+
+        Examples:
+           The following code shuts down input of remote.
+           ```
+           tube.shutdown("send")
+           data = tube.recv() # OK
+           tube.send(b"data") # NG
+           ```
+
+           The following code shuts down output of remote.
+           ```
+           tube.shutdown("recv")
+           tube.send(b"data") # OK
+           data = tube.recv() # NG
+           ```
+        """
+        return self._shutdown_impl(target)
 
     def __enter__(self):
         return self
 
-    def __exit__(self, e_type, e_value, traceback):
-        self.close()
+    def __exit__(self, _e_type, _e_value, _traceback):
+        if not self._is_closed:
+            self.close()
 
-    @abstractmethod
-    def is_alive(self) -> bool:
+    def __str__(self) -> str:
+        return "<unknown tube>"
+
+    #
+    # Abstract methods
+    #
+    @abc.abstractmethod
+    @not_closed
+    def _recv_impl(self, size: int) -> bytes:
+        """Abstract method for `recv`
+
+        Receives at most `size` bytes from tube.
+        This method must be a blocking method.
+        """
         pass
 
-    @abstractmethod
-    def close(self):
+    @abc.abstractmethod
+    @not_closed
+    def _send_impl(self, data: bytes) -> int:
+        """Abstract method for `send`
+
+        Sends tube as much data as possible.
+
+        Args:
+            data: Data to send
+        """
         pass
 
-    @abstractmethod
-    def shutdown(self, target: Literal['send', 'recv']):
+    @abc.abstractmethod
+    @not_closed
+    def _close_impl(self):
+        """Abstract method for `close`
+
+        Close the connection.
+        This method is ensured to be called only once.
+        """
+        pass
+
+    @abc.abstractmethod
+    @not_closed
+    def _is_alive_impl(self) -> bool:
+        """Abstract method for `is_alive`
+
+        This method must return True iff the connection is alive.
+        """
+        pass
+
+    @abc.abstractmethod
+    @not_closed
+    def _shutdown_impl(self, target: Literal['send', 'recv']):
+        """Kill one connection
+        """
         pass
