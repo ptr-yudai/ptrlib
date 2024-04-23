@@ -175,7 +175,7 @@ class Tube(metaclass=abc.ABCMeta):
             return data
 
         if timeout is not None:
-            self.settimeout(0)
+            self.settimeout(timeout)
 
         try:
             data = self._recv_impl(size - len(self._buffer))

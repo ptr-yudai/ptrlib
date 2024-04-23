@@ -86,11 +86,13 @@ class UnixProcess(Tube):
 
         # Prepare stdio
         if raw:
+            # TODO
             pass
         else:
             master, self._slave = pty.openpty()
             tty.setraw(master)
             tty.setraw(self._slave)
+            stdout = self._slave
 
         if stdin  is None: stdin  = subprocess.PIPE
         if stdout is None: stdout = subprocess.PIPE
@@ -114,6 +116,18 @@ class UnixProcess(Tube):
 
         self._returncode = None
         self._current_timeout = self._default_timeout
+
+        # Duplicate master
+        if not raw and master is not None:
+            self._proc.stdout = os.fdopen(os.dup(master), 'r+b', 0)
+            os.close(master)
+
+        # Set in non-blocking mode
+        fd = self._proc.stdout.fileno()
+        fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+
+        logger.info(f"Successfully created new process {str(self)}")
 
     #
     # Properties
@@ -140,7 +154,7 @@ class UnixProcess(Tube):
             bytes: The received data
         """
         ready, [], [] = select.select(
-            [self._proc.stdout], [], [], self._current_timeout
+            [self._proc.stdout.fileno()], [], [], self._current_timeout
         )
         if len(ready) == 0:
             raise TimeoutError("Timeout (_recv_impl)", b'') from None
@@ -153,7 +167,21 @@ class UnixProcess(Tube):
         return data
 
     def _send_impl(self, data: bytes) -> int:
-        return 0
+        """Send raw data
+
+        Raises:
+            ConnectionAbortedError: Connection is aborted by process
+            ConnectionResetError: Connection is closed by peer
+            TimeoutError: Timeout exceeded
+            OSError: System error
+        """
+        try:
+            n_written = self._proc.stdin.write(data)
+            self._proc.stdin.flush()
+            return n_written
+        except IOError as err:
+            logger.error("Broken pipe: {str(self)}")
+            raise err from None
 
     def _shutdown_recv_impl(self):
         """Close stdin

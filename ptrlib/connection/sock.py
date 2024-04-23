@@ -3,7 +3,7 @@ import select
 import socket
 from logging import getLogger
 from typing import Literal, Optional, Union
-from ptrlib.binary.encoding import *
+from ptrlib.binary.encoding import bytes2str
 from .tube import Tube, tube_is_open
 
 logger = getLogger(__name__)
@@ -32,6 +32,8 @@ class Socket(Tube):
         Returns:
             Socket: ``Socket`` instance.
         """
+        super().__init__(**kwargs)
+
         # Interpret host name and port number
         host = bytes2str(host)
         if port is None:
@@ -74,7 +76,7 @@ class Socket(Tube):
             logger.error(f"Connection to {self._host}:{self._port} refused")
             raise e from None
 
-        super().__init__(**kwargs)
+        self._current_timeout = self._default_timeout
 
     #
     # Implementation of Tube methods
@@ -86,7 +88,7 @@ class Socket(Tube):
         Args:
             timeout: Timeout in second
         """
-        self._sock.settimeout(timeout)
+        self._current_timeout = timeout
 
     def _recv_impl(self, size: int) -> bytes:
         """Receive raw data
@@ -108,7 +110,11 @@ class Socket(Tube):
         # NOTE: We cannot rely on the blocking behavior of `recv`
         #       because the socket might be non-blocking mode
         #       due to `_is_alive_impl` on multi-thread environment.
-        select.select([self._sock], [], [])
+        ready, [], [] = select.select(
+            [self._sock], [], [], self._current_timeout
+        )
+        if len(ready) == 0:
+            raise TimeoutError("Timeout (_recv_impl)", b'') from None
 
         try:
             data = self._sock.recv(size)
@@ -145,8 +151,6 @@ class Socket(Tube):
             TimeoutError: Timeout exceeded
             OSError: System error
         """
-        data = str2bytes(data)
-
         try:
             return self._sock.send(data)
 

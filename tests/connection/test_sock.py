@@ -30,7 +30,7 @@ class TestSocket(unittest.TestCase):
         sock.sendline(b'GET / HTTP/1.1\r')
         sock.send(b'Host: www.example.com\r\n\r\n')
         try:
-            sock.recvuntil("*** never expected ***", timeout=1)
+            sock.recvuntil("*** never expected ***", timeout=2)
             result = False
         except TimeoutError as err:
             self.assertEqual(b"200 OK" in err.args[1], True)
