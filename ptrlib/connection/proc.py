@@ -1,0 +1,211 @@
+import os
+import select
+import subprocess
+from logging import getLogger
+from typing import List, Literal, Mapping, Optional, Union
+from ptrlib.arch.linux.sig import signal_name
+from ptrlib.binary.encoding import bytes2str, str2bytes
+from .tube import Tube, tube_is_open
+
+
+_is_windows = os.name == 'nt'
+if not _is_windows:
+    import fcntl
+    import pty
+    import tty
+
+logger = getLogger(__name__)
+
+class UnixProcess(Tube):
+    #
+    # Constructor
+    #
+    def __init__(self,
+                 args: Union[bytes, str, List[Union[bytes, str]]],
+                 env: Optional[Union[Mapping[bytes, Union[bytes, str]], Mapping[str, Union[bytes, str]]]]=None,
+                 cwd: Optional[Union[bytes, str]]=None,
+                 shell: Optional[bool]=None,
+                 raw: bool=False,
+                 stdin : Optional[int]=None,
+                 stdout: Optional[int]=None,
+                 stderr: Optional[int]=None,
+                 **kwargs):
+        """Create a UNIX process
+
+        Create a UNIX process and make a pipe.
+
+        Args:
+            args   : The arguments to pass
+            env    : The environment variables
+            cwd    : Working directory
+            shell  : If true, `args` is a shell command
+            raw    : Disable pty if this parameter is true
+            stdin  : File descriptor of standard input
+            stdout : File descriptor of standard output
+            stderr : File descriptor of standard error
+
+        Returns:
+            Process: ``Process`` instance
+
+        Examples:
+            ```
+            p = Process("/bin/ls", cwd="/tmp")
+            p = Process(["wget", "www.example.com"],
+                        stderr=subprocess.DEVNULL)
+            p = Process("cat /proc/self/maps", env={"LD_PRELOAD": "a.so"})
+            ```
+        """
+        assert not _is_windows, "UnixProcess cannot work on Windows"
+        assert isinstance(args, (str, bytes, list)), \
+            "`args` must be either str, bytes, or list"
+        assert env is None or isinstance(env, dict), \
+            "`env` must be a dictionary"
+        assert cwd is None or isinstance(cwd, (str, bytes)), \
+            "`cwd` must be either str or bytes"
+
+        super().__init__(**kwargs)
+
+        # Guess shell mode based on args
+        if shell is None:
+            if isinstance(args, (str, bytes)):
+                args = [bytes2str(args)]
+                if ' ' in args[0]:
+                    shell = True
+                    logger.info("Detected whitespace in arguments: " \
+                                "`shell=True` enabled")
+                else:
+                    shell = False
+            else:
+                shell = False
+
+        else:
+            if isinstance(args, (str, bytes)):
+                args = [bytes2str(args)]
+            else:
+                args = list(map(bytes2str, args))
+
+        # Prepare stdio
+        if raw:
+            pass
+        else:
+            master, self._slave = pty.openpty()
+            tty.setraw(master)
+            tty.setraw(self._slave)
+
+        if stdin  is None: stdin  = subprocess.PIPE
+        if stdout is None: stdout = subprocess.PIPE
+        if stderr is None: stderr = subprocess.STDOUT
+
+        # Open process
+        assert isinstance(shell, bool), "`shell` must be boolean"
+        try:
+            self._proc = subprocess.Popen(
+                args, cwd=cwd, env=env,
+                shell=shell,
+                stdin=stdin,
+                stdout=stdout,
+                stderr=stderr,
+            )
+        except FileNotFoundError as err:
+            logger.error(f"Could not execute {args[0]}")
+            raise err from None
+
+        self._filepath = args[0]
+
+        self._returncode = None
+        self._current_timeout = self._default_timeout
+
+    #
+    # Properties
+    #
+    @property
+    def returncode(self) -> Optional[int]:
+        return self._returncode
+
+    #
+    # Implementation of Tube methods
+    #
+    def _settimeout_impl(self, timeout: Union[int, float]):
+        self._current_timeout = timeout
+
+    def _recv_impl(self, size: int) -> bytes:
+        """Receive raw data
+
+        Receive raw data of maximum `size` bytes through the pipe.
+
+        Args:
+            size: Data size to receive
+
+        Returns:
+            bytes: The received data
+        """
+        ready, [], [] = select.select(
+            [self._proc.stdout], [], [], self._current_timeout
+        )
+        if len(ready) == 0:
+            raise TimeoutError("Timeout (_recv_impl)", b'') from None
+
+        try:
+            data = self._proc.stdout.read(size)
+        except subprocess.TimeoutExpired:
+            raise TimeoutError("Timeout (_recv_impl)", b'') from None
+
+        return data
+
+    def _send_impl(self, data: bytes) -> int:
+        return 0
+
+    def _shutdown_recv_impl(self):
+        """Close stdin
+        """
+        self._proc.stdout.close()
+
+    def _shutdown_send_impl(self):
+        """Close stdout
+        """
+        self._proc.stdin.close()
+
+    def _close_impl(self):
+        """Close process
+        """
+        self._proc.stdin.close()
+        self._proc.stdout.close()
+        if self._is_alive_impl():
+            self._proc.kill()
+            self._proc.wait()
+            logger.info(f"{str(self)} killed")
+        else:
+            logger.info(f"{str(self)} has already exited")
+
+    def _is_alive_impl(self) -> bool:
+        """Check if the process is alive"""
+        return self.poll() is None
+
+    def __str__(self) -> str:
+        return f"'{self._filepath}' (PID={self._proc.pid})"
+
+
+    #
+    # Custom method
+    #
+    @tube_is_open
+    def poll(self) -> Optional[int]:
+        """Check if the process has exited
+        """
+        if self._proc.poll() is None:
+            return None
+
+        if self._returncode is None:
+            # First time to detect process exit
+            self._returncode = self._proc.returncode
+            name = signal_name(-self._returncode, detail=True)
+            if name:
+                name = '--> ' + name
+            logger.error(f"{str(self)} stopped with exit code " \
+                         f"{self._returncode} {name}")
+
+        return self._returncode
+
+
+Process = WinProcess if _is_windows else UnixProcess
+process = Process # alias for the Process

@@ -5,10 +5,50 @@ import sys
 import threading
 from logging import getLogger
 from typing import List, Literal, Optional, Tuple, Union
-from ptrlib.binary.encoding import bytes2str, str2bytes, bytes2hex, bytes2utf8
+from ptrlib.binary.encoding import bytes2str, str2bytes, bytes2hex, bytes2utf8, hexdump
 from ptrlib.console.color import Color
 
 logger = getLogger(__name__)
+
+def tube_is_open(method):
+    """Ensure that connection is not *explicitly* closed
+    """
+    def decorator(self, *args, **kwargs):
+        assert isinstance(self, Tube), "Invalid usage of decorator"
+        if self._is_closed:
+            raise BrokenPipeError("Connection has already been closed by `close`")
+        return method(self, *args, **kwargs)
+    return decorator
+
+def tube_is_alive(method):
+    """Ensure that connection is not *implicitly* closed
+    """
+    def decorator(self, *args, **kwargs):
+        assert isinstance(self, Tube), "Invalid usage of decorator"
+        if not self.is_alive():
+            raise BrokenPipeError("Connection has already been closed by {str(args[0])}")
+        return method(self, *args, **kwargs)
+    return decorator
+
+def tube_is_send_open(method):
+    """Ensure that sender connection is not explicitly closed
+    """
+    def decorator(self, *args, **kwargs):
+        assert isinstance(self, Tube), "Invalid usage of decorator"
+        if self._is_send_closed:
+            raise BrokenPipeError("Connection has already been closed by `shutdown`")
+        return method(self, *args, **kwargs)
+    return decorator
+
+def tube_is_recv_open(method):
+    """Ensure that receiver connection is not explicitly closed
+    """
+    def decorator(self, *args, **kwargs):
+        assert isinstance(self, Tube), "Invalid usage of decorator"
+        if self._is_recv_closed:
+            raise BrokenPipeError("Connection has already been closed by `shutdown`")
+        return method(self, *args, **kwargs)
+    return decorator
 
 
 class Tube(metaclass=abc.ABCMeta):
@@ -21,41 +61,54 @@ class Tube(metaclass=abc.ABCMeta):
       - "_send_impl"
       - "_close_impl"
       - "_is_alive_impl
-      - "_shutdown_impl"
+      - "_shutdown_recv_impl"
+      - "_shutdown_send_impl"
     """
-    #
-    # Decorator
-    #
-    def not_closed(method):
-        """Ensure that socket is not *explicitly* closed
-        """
-        def decorator(*args, **kwargs):
-            assert isinstance(args[0], Tube), "Invalid usage of decorator"
-            if args[0]._is_closed:
-                raise BrokenPipeError("Socket has already been closed")
-            return method(*args, **kwargs)
-        return decorator
+    def __new__(cls, *args, **kwargs):
+        cls._settimeout_impl = tube_is_open(cls._settimeout_impl)
+        cls._recv_impl = tube_is_recv_open(tube_is_open(cls._recv_impl))
+        cls._send_impl = tube_is_send_open(tube_is_open(cls._send_impl))
+        cls._close_impl = tube_is_open(cls._close_impl)
+        cls._is_alive_impl = tube_is_open(cls._is_alive_impl)
+        cls._shutdown_recv_impl = tube_is_recv_open(cls._shutdown_recv_impl)
+        cls._shutdown_send_impl = tube_is_send_open(cls._shutdown_send_impl)
+        return super().__new__(cls)
 
     #
     # Constructor
     #
     def __init__(self,
-                 timeout: Optional[Union[int, float]]=None):
-        """
+                 timeout: Optional[Union[int, float]]=None,
+                 debug: bool=False):
+        """Base constructor
+
         Args:
             timeout (float): Default timeout
         """
         self._buffer = b''
+        self._debug = debug
 
         self._is_closed = False
+        self._is_send_closed = False
+        self._is_recv_closed = False
 
         self._default_timeout = timeout
         self.settimeout()
 
     #
+    # Properties
+    #
+    @property
+    def debug(self):
+        return self._debug
+
+    @debug.setter
+    def debug(self, is_debug):
+        self._debug = bool(is_debug)
+
+    #
     # Methods
     #
-    @not_closed
     def settimeout(self, timeout: Optional[Union[int, float]]=None):
         """Set timeout
         
@@ -122,10 +175,15 @@ class Tube(metaclass=abc.ABCMeta):
             return data
 
         if timeout is not None:
-            self.settimeout(timeout)
+            self.settimeout(0)
 
         try:
-            self._buffer += self._recv_impl(size - len(self._buffer))
+            data = self._recv_impl(size - len(self._buffer))
+            if self._debug and len(data) > 0:
+                logger.info(f"Received {hex(len(data))} ({len(data)}) bytes:")
+                hexdump(data, prefix="    " + Color.CYAN, postfix=Color.END)
+
+            self._buffer += data
 
         except TimeoutError as err:
             data = self._buffer + err.args[1]
@@ -419,7 +477,28 @@ class Tube(metaclass=abc.ABCMeta):
         """
         assert isinstance(data, (str, bytes)), "`data` must be either str or bytes"
 
-        return self._send_impl(str2bytes(data))
+        size = self._send_impl(str2bytes(data))
+        if self.debug:
+            logger.info(f"Sent {hex(size)} ({size}) bytes:")
+            hexdump(data[:size], prefix=Color.YELLOW, postfix=Color.END)
+
+        return size
+
+    def sendall(self, data: Union[str, bytes]):
+        """Send the whole data
+
+        Send the whole data.
+        This method will never return until it finishes sending
+        the whole data, unlike `send`.
+
+        Args:
+            data: Data to send
+        """
+        to_send = len(data)
+        while to_send > 0:
+            sent = self.send(data)
+            data = data[sent:]
+            to_send -= sent
 
     def sendline(self,
                  data: Union[int, float, str, bytes],
@@ -509,26 +588,24 @@ class Tube(metaclass=abc.ABCMeta):
             raise ValueError(f"Invalid control key name: {name}")
 
     def sh(self,
-           timeout: Optional[Union[int, float]]=None,
            prompt: str="[ptrlib]$ ",
            raw: bool=False):
         """Alias for interactive
 
         Args:
-            timeout: Timeout in second
-            prompt : Prompt string to show on input
+            prompt: Prompt string to show on input
+            raw   : Escape non-printable characters or not
         """
-        self.interactive(timeout, prompt, raw)
+        self.interactive(prompt, raw)
 
     def interactive(self,
-                    timeout: Union[int, float]=1,
                     prompt: str="[ptrlib]$ ",
                     raw: bool=False):
         """Interactive mode
 
         Args:
-            timeout: Timeout in second
-            prompt : Prompt string to show on input
+            prompt: Prompt string to show on input
+            raw   : Escape non-printable characters or not
         """
         prompt = f"{Color.BOLD}{Color.BLUE}{prompt}{Color.END}"
 
@@ -572,7 +649,7 @@ class Tube(metaclass=abc.ABCMeta):
                 try:
                     sys.stdout.write(prompt)
                     sys.stdout.flush()
-                    data = self.recv(timeout=timeout)
+                    data = self.recv()
                     leftover = pretty_print(data, leftover)
 
                     if not self.is_alive():
@@ -601,6 +678,9 @@ class Tube(metaclass=abc.ABCMeta):
                     self.send(sys.stdin.readline())
                 except (ConnectionResetError, ConnectionAbortedError, OSError):
                     flag.set()
+
+        # Disable timeout
+        self.settimeout(0)
 
         flag = threading.Event()
         th_recv = threading.Thread(target=thread_recv, args=(flag,))
@@ -677,7 +757,14 @@ class Tube(metaclass=abc.ABCMeta):
            data = tube.recv() # NG
            ```
         """
-        return self._shutdown_impl(target)
+        if target in ['write', 'send', 'stdin']:
+            self._shutdown_send_impl()
+            self._is_send_closed = True
+        elif target in ['read', 'recv', 'stdout', 'stderr']:
+            self._shutdown_recv_impl()
+            self._is_recv_closed = True
+        else:
+            raise ValueError("`target` must either 'send' or 'recv'")
 
     def __enter__(self):
         return self
@@ -693,7 +780,6 @@ class Tube(metaclass=abc.ABCMeta):
     # Abstract methods
     #
     @abc.abstractmethod
-    @not_closed
     def _recv_impl(self, size: int) -> bytes:
         """Abstract method for `recv`
 
@@ -703,7 +789,6 @@ class Tube(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    @not_closed
     def _send_impl(self, data: bytes) -> int:
         """Abstract method for `send`
 
@@ -715,7 +800,6 @@ class Tube(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    @not_closed
     def _close_impl(self):
         """Abstract method for `close`
 
@@ -725,7 +809,6 @@ class Tube(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    @not_closed
     def _is_alive_impl(self) -> bool:
         """Abstract method for `is_alive`
 
@@ -734,8 +817,13 @@ class Tube(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    @not_closed
-    def _shutdown_impl(self, target: Literal['send', 'recv']):
-        """Kill one connection
+    def _shutdown_recv_impl(self):
+        """Kill receiver connection
+        """
+        pass
+
+    @abc.abstractmethod
+    def _shutdown_send_impl(self):
+        """Kill sender connection
         """
         pass

@@ -4,7 +4,9 @@ import socket
 from logging import getLogger
 from typing import Literal, Optional, Union
 from ptrlib.binary.encoding import *
-from .tube import Tube
+from .tube import Tube, tube_is_open
+
+logger = getLogger(__name__)
 
 
 class Socket(Tube):
@@ -30,8 +32,6 @@ class Socket(Tube):
         Returns:
             Socket: ``Socket`` instance.
         """
-        super().__init__()
-
         # Interpret host name and port number
         host = bytes2str(host)
         if port is None:
@@ -74,6 +74,8 @@ class Socket(Tube):
             logger.error(f"Connection to {self._host}:{self._port} refused")
             raise e from None
 
+        super().__init__(**kwargs)
+
     #
     # Implementation of Tube methods
     #
@@ -103,8 +105,19 @@ class Socket(Tube):
             TimeoutError: Timeout exceeded
             OSError: System error
         """
+        # NOTE: We cannot rely on the blocking behavior of `recv`
+        #       because the socket might be non-blocking mode
+        #       due to `_is_alive_impl` on multi-thread environment.
+        select.select([self._sock], [], [])
+
         try:
             data = self._sock.recv(size)
+
+        except BlockingIOError:
+            # NOTE: This exception can occur if this method is called
+            #       while `_is_alive_impl` is running in multi-thread.
+            #       We make `_recv_impl` fail in this case.
+            return b''
 
         except socket.timeout:
             raise TimeoutError("Timeout (_recv_impl)", b'') from None
@@ -135,7 +148,7 @@ class Socket(Tube):
         data = str2bytes(data)
 
         try:
-            self._sock.send(data)
+            return self._sock.send(data)
 
         except BrokenPipeError as e:
             logger.error("Broken pipe")
@@ -157,6 +170,7 @@ class Socket(Tube):
         """Close socket
         """
         self._sock.close()
+        logger.info(f"Connection to {str(self)} closed")
 
     def _is_alive_impl(self) -> bool:
         """Check if socket is alive
@@ -181,22 +195,15 @@ class Socket(Tube):
 
         return ret
 
-    def _shutdown_impl(self, target: Literal['send', 'recv']):
-        """Kill one connection
-
-        Close send/recv socket.
-
-        Args:
-            target (str): Connection to close (`send` or `recv`)
+    def _shutdown_recv_impl(self):
+        """Close read
         """
-        if target in ['write', 'send', 'stdin']:
-            self._sock.shutdown(socket.SHUT_WR)
+        self._sock.shutdown(socket.SHUT_RD)
 
-        elif target in ['read', 'recv', 'stdout', 'stderr']:
-            self._sock.shutdown(socket.SHUT_RD)
-
-        else:
-            raise ValueError("`target` must either 'send' or 'recv'")
+    def _shutdown_send_impl(self):
+        """Close write
+        """
+        self._sock.shutdown(socket.SHUT_WR)
 
     def __str__(self) -> str:
         return f"{self._host}:{self._port}"
@@ -205,6 +212,7 @@ class Socket(Tube):
     #
     # Custom methods
     #
+    @tube_is_open
     def set_keepalive(self,
                       keep_idle: Optional[Union[int, float]]=None,
                       keep_interval: Optional[Union[int, float]]=None,
@@ -229,4 +237,4 @@ class Socket(Tube):
             self._sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, keep_count)
 
 
-remote = Socket
+remote = Socket # alias
