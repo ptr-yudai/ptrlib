@@ -269,7 +269,7 @@ class Tube(metaclass=abc.ABCMeta):
             for i, d in enumerate(delim):
                 assert isinstance(d, (str, bytes)), \
                     f"`delim[{i}]` must be either str or bytes"
-                delim[i] = str2bytes(delim)
+                delim[i] = str2bytes(delim[i])
         else:
             delim = [str2bytes(delim)]
 
@@ -282,6 +282,9 @@ class Tube(metaclass=abc.ABCMeta):
                 data += self.recv(size, timeout)
             except TimeoutError as err:
                 raise TimeoutError("Timeout (recvuntil)", data + err.args[1])
+            except Exception as err:
+                err.args = (err.args[0], data)
+                raise err from None
 
             for d in delim:
                 if d in data[max(0, prev_len-len(d)):]:
@@ -549,16 +552,32 @@ class Tube(metaclass=abc.ABCMeta):
             tube.sendafter("command: ", 1) # b"1" is sent
             ```
         """
-        assert isinstance(data, (int, float, str, bytes)), \
-            "`data` must be int, float, str, or bytes"
-
-        if isinstance(data, (int, float)):
-            data = str(data).encode()
-        else:
-            data = str2bytes(data)
-
         recv_data = self.recvuntil(delim, size, timeout, drop, lookahead)
         self.send(data)
+
+        return recv_data
+
+    def sendlineafter(self,
+                      delim: Union[str, bytes],
+                      data: Union[str, bytes, int],
+                      size: int=4096,
+                      timeout: Optional[Union[int, float]]=None,
+                      drop: bool=False,
+                      lookahead: bool=False) -> bytes:
+        """Send raw data after a delimiter
+
+        Send raw data with newline after `delim` is received.
+
+        Args:
+            delim (bytes): The delimiter
+            data (bytes) : Data to send
+            timeout (int): Timeout (in second)
+
+        Returns:
+            bytes: Received bytes before `delim` comes.
+        """
+        recv_data = self.recvuntil(delim, size, timeout, drop, lookahead)
+        self.sendline(data, timeout=timeout)
 
         return recv_data
 
@@ -679,9 +698,6 @@ class Tube(metaclass=abc.ABCMeta):
                 except (ConnectionResetError, ConnectionAbortedError, OSError):
                     flag.set()
 
-        # Disable timeout
-        self.settimeout(0)
-
         flag = threading.Event()
         th_recv = threading.Thread(target=thread_recv, args=(flag,))
         th_send = threading.Thread(target=thread_send, args=(flag,))
@@ -775,6 +791,10 @@ class Tube(metaclass=abc.ABCMeta):
 
     def __str__(self) -> str:
         return "<unknown tube>"
+
+    def __del__(self):
+        if not self._is_closed:
+            self.close()
 
     #
     # Abstract methods

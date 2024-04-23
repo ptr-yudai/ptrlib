@@ -29,18 +29,20 @@ class TestSocket(unittest.TestCase):
         sock = Socket("www.example.com", 80)
         sock.sendline(b'GET / HTTP/1.1\r')
         sock.send(b'Host: www.example.com\r\n\r\n')
-        try:
-            sock.recvuntil("*** never expected ***", timeout=2)
-            result = False
-        except TimeoutError as err:
-            self.assertEqual(b"200 OK" in err.args[1], True)
-            result = True
-        except:
-            result = False
-        finally:
-            sock.close()
 
-        self.assertEqual(result, True)
+        with self.assertRaises(TimeoutError) as cm:
+            sock.recvuntil("*** never expected ***", timeout=2)
+        self.assertEqual(b"200 OK" in cm.exception.args[1], True)
+
+    def test_reset(self):
+        sock = Socket("www.example.com", 80)
+        sock.sendline(b'GET / HTTP/1.1\r')
+        sock.send(b'Host: www.example.com\r\n')
+        sock.send(b'Connection: close\r\n\r\n')
+
+        with self.assertRaises(ConnectionResetError) as cm:
+            sock.recvuntil("*** never expected ***", timeout=2)
+        self.assertEqual(b"200 OK" in cm.exception.args[1], True)
 
     def test_tls(self):
         host = "www.example.com"

@@ -110,14 +110,19 @@ class Socket(Tube):
         # NOTE: We cannot rely on the blocking behavior of `recv`
         #       because the socket might be non-blocking mode
         #       due to `_is_alive_impl` on multi-thread environment.
-        ready, [], [] = select.select(
-            [self._sock], [], [], self._current_timeout
-        )
+        if self._current_timeout == 0:
+            timeout = None
+        else:
+            timeout = self._current_timeout
+
+        ready, [], [] = select.select([self._sock], [], [], timeout)
         if len(ready) == 0:
             raise TimeoutError("Timeout (_recv_impl)", b'') from None
 
         try:
             data = self._sock.recv(size)
+            if len(data) == 0:
+                raise ConnectionResetError("Empty reply") from None
 
         except BlockingIOError:
             # NOTE: This exception can occur if this method is called

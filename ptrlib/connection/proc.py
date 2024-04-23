@@ -85,10 +85,8 @@ class UnixProcess(Tube):
                 args = list(map(bytes2str, args))
 
         # Prepare stdio
-        if raw:
-            # TODO
-            pass
-        else:
+        master = self._slave = None
+        if not raw:
             master, self._slave = pty.openpty()
             tty.setraw(master)
             tty.setraw(self._slave)
@@ -118,7 +116,7 @@ class UnixProcess(Tube):
         self._current_timeout = self._default_timeout
 
         # Duplicate master
-        if not raw and master is not None:
+        if master is not None:
             self._proc.stdout = os.fdopen(os.dup(master), 'r+b', 0)
             os.close(master)
 
@@ -153,8 +151,13 @@ class UnixProcess(Tube):
         Returns:
             bytes: The received data
         """
+        if self._current_timeout == 0:
+            timeout = None
+        else:
+            timeout = self._current_timeout
+
         ready, [], [] = select.select(
-            [self._proc.stdout.fileno()], [], [], self._current_timeout
+            [self._proc.stdout.fileno()], [], [], timeout
         )
         if len(ready) == 0:
             raise TimeoutError("Timeout (_recv_impl)", b'') from None
@@ -196,14 +199,16 @@ class UnixProcess(Tube):
     def _close_impl(self):
         """Close process
         """
-        self._proc.stdin.close()
-        self._proc.stdout.close()
         if self._is_alive_impl():
             self._proc.kill()
             self._proc.wait()
-            logger.info(f"{str(self)} killed")
-        else:
-            logger.info(f"{str(self)} has already exited")
+            logger.info(f"{str(self)} killed by `close`")
+
+        if self._slave is not None: # PTY mode
+            os.close(self._slave)
+
+        self._proc.stdin.close()
+        self._proc.stdout.close()
 
     def _is_alive_impl(self) -> bool:
         """Check if the process is alive"""
@@ -216,7 +221,6 @@ class UnixProcess(Tube):
     #
     # Custom method
     #
-    @tube_is_open
     def poll(self) -> Optional[int]:
         """Check if the process has exited
         """
@@ -228,11 +232,24 @@ class UnixProcess(Tube):
             self._returncode = self._proc.returncode
             name = signal_name(-self._returncode, detail=True)
             if name:
-                name = '--> ' + name
-            logger.error(f"{str(self)} stopped with exit code " \
-                         f"{self._returncode} {name}")
+                name = ' --> ' + name
+
+            logger_func = logger.info if self._returncode == 0 else logger.error
+            logger_func(f"{str(self)} stopped with exit code " \
+                            f"{self._returncode}{name}")
 
         return self._returncode
+
+    @tube_is_open
+    def wait(self, timeout: Optional[Union[int, float]]=None) -> int:
+        """Wait until the process dies
+
+        Wait until the process exits and get the status code.
+
+        Returns:
+            code (int): Status code of the process
+        """
+        return self._proc.wait(timeout)
 
 
 Process = WinProcess if _is_windows else UnixProcess
