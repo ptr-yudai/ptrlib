@@ -2,7 +2,7 @@ import errno
 import select
 import socket
 from logging import getLogger
-from typing import Literal, Optional, Union
+from typing import Optional, Union
 from ptrlib.binary.encoding import bytes2str
 from .tube import Tube, tube_is_open
 

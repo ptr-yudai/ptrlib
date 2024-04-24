@@ -70,7 +70,7 @@ class TestProcess(unittest.TestCase):
         with self.assertLogs(module_name) as cm:
             p.close()
         self.assertEqual(len(cm.output), 1)
-        self.assertEqual(cm.output[0], fr'INFO:{module_name}:{str(p)} stopped with exit code {p.poll()}')
+        self.assertEqual(cm.output[0], fr'INFO:{module_name}:{str(p)} stopped with exit code 0')
 
     def test_timeout(self):
         module_name = inspect.getmodule(Process).__name__

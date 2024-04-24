@@ -23,7 +23,7 @@ class TestFSB(unittest.TestCase):
             with self.assertLogs(module_name) as cm:
                 p = Process("./tests/test.bin/test_fsb.x86")
             self.assertEqual(len(cm.output), 1)
-            self.assertRegex(cm.output[0], fr'^INFO:{module_name}:Successfully created new process \(PID=\d+\)$')
+            self.assertEqual(cm.output[0], f'INFO:{module_name}:Successfully created new process {str(p)}')
             p.recvuntil(": ")
             target = int(p.recvline(), 16)
             payload = fsb(
@@ -42,7 +42,7 @@ class TestFSB(unittest.TestCase):
             with self.assertLogs(module_name) as cm:
                 p = Process("./tests/test.bin/test_fsb.x86")
             self.assertEqual(len(cm.output), 1)
-            self.assertRegex(cm.output[0], fr'^INFO:{module_name}:Successfully created new process \(PID=\d+\)$')
+            self.assertEqual(cm.output[0], f'INFO:{module_name}:Successfully created new process {str(p)}')
             p.recvuntil(": ")
             target = int(p.recvline(), 16)
             payload = fsb(
@@ -65,7 +65,7 @@ class TestFSB(unittest.TestCase):
             with self.assertLogs(module_name) as cm:
                 p = Process("./tests/test.bin/test_fsb.x64")
             self.assertEqual(len(cm.output), 1)
-            self.assertRegex(cm.output[0], fr'^INFO:{module_name}:Successfully created new process \(PID=\d+\)$')
+            self.assertEqual(cm.output[0], f'INFO:{module_name}:Successfully created new process {str(p)}')
             p.recvuntil(": ")
             target = int(p.recvline(), 16)
             payload = fsb(

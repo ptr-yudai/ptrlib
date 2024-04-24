@@ -2,7 +2,7 @@ import os
 import select
 import subprocess
 from logging import getLogger
-from typing import List, Literal, Mapping, Optional, Union
+from typing import List, Mapping, Optional, Union
 from ptrlib.arch.linux.sig import signal_name
 from ptrlib.binary.encoding import bytes2str, str2bytes
 from .tube import Tube, tube_is_open
@@ -190,6 +190,7 @@ class UnixProcess(Tube):
         """Close stdin
         """
         self._proc.stdout.close()
+        self._proc.stderr.close()
 
     def _shutdown_send_impl(self):
         """Close stdout
@@ -209,6 +210,7 @@ class UnixProcess(Tube):
 
         self._proc.stdin.close()
         self._proc.stdout.close()
+        self._proc.stderr.close()
 
     def _is_alive_impl(self) -> bool:
         """Check if the process is alive"""
