@@ -1,6 +1,5 @@
 import abc
 import re
-import select
 import sys
 import threading
 from logging import getLogger
@@ -690,9 +689,6 @@ class Tube(metaclass=abc.ABCMeta):
             #sys.stdout.write(f"{Color.BOLD}{Color.BLUE}{prompt}{Color.END}")
             #sys.stdout.flush()
             while not flag.isSet():
-                (ready, _, _) = select.select([sys.stdin], [], [], 0.1)
-                if not ready: continue
-
                 try:
                     self.send(sys.stdin.readline())
                 except (ConnectionResetError, ConnectionAbortedError, OSError):
@@ -799,6 +795,17 @@ class Tube(metaclass=abc.ABCMeta):
     #
     # Abstract methods
     #
+    @abc.abstractmethod
+    def _settimeout_impl(self, timeout: Union[int, float]):
+        """Abstract method for `settimeout`
+
+        Set timeout for receive and send.
+
+        Args:
+            timeout: Timeout in second
+        """
+        pass
+
     @abc.abstractmethod
     def _recv_impl(self, size: int) -> bytes:
         """Abstract method for `recv`
