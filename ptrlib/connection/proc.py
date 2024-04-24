@@ -210,10 +210,14 @@ class UnixProcess(Tube):
 
         if self._slave is not None: # PTY mode
             os.close(self._slave)
+            self._slave = None
 
-        self._proc.stdin.close()
-        self._proc.stdout.close()
-        self._proc.stderr.close()
+        if self._proc.stdin is not None:
+            self._proc.stdin.close()
+        if self._proc.stdout is not None:
+            self._proc.stdout.close()
+        if self._proc.stderr is not None:
+            self._proc.stderr.close()
 
     def _is_alive_impl(self) -> bool:
         """Check if the process is alive"""

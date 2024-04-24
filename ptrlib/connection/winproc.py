@@ -64,7 +64,7 @@ class WinPipe(object):
         return self._access
     
     @property
-    def attributes(self) -> pywintypes.SECURITY_ATTRIBUTES:
+    def attributes(self) -> any:
         return self._attr
 
     @property

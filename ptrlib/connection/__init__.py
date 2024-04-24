@@ -1,4 +1,3 @@
-from .proc import *
-from .sock import *
+from .proc import Process, process
+from .sock import Socket, remote
 from .ssh import *
-from .winproc import *
