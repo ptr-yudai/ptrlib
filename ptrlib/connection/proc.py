@@ -190,7 +190,7 @@ class UnixProcess(Tube):
             self._proc.stdin.flush()
             return n_written
         except IOError as err:
-            logger.error("Broken pipe: {str(self)}")
+            logger.error(f"Broken pipe: {str(self)}")
             raise err from None
 
     def _shutdown_recv_impl(self):

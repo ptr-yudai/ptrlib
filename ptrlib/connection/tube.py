@@ -638,8 +638,7 @@ class Tube(metaclass=abc.ABCMeta):
                     if t:
                         if 0x7f <= ord(c) < 0x100:
                             pretty_print_hex(c)
-                        elif ord(c) not in [0x09, 0x0a, 0x0d] and \
-                             ord(c) < 0x20:
+                        elif ord(c) in [0x00]: # TODO: What is printable?
                             pretty_print_hex(c)
                         else:
                             sys.stdout.write(c)
