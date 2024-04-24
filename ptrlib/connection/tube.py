@@ -19,16 +19,6 @@ def tube_is_open(method):
         return method(self, *args, **kwargs)
     return decorator
 
-def tube_is_alive(method):
-    """Ensure that connection is not *implicitly* closed
-    """
-    def decorator(self, *args, **kwargs):
-        assert isinstance(self, Tube), "Invalid usage of decorator"
-        if not self.is_alive():
-            raise BrokenPipeError("Connection has already been closed by {str(args[0])}")
-        return method(self, *args, **kwargs)
-    return decorator
-
 def tube_is_send_open(method):
     """Ensure that sender connection is not explicitly closed
     """
@@ -746,6 +736,8 @@ class Tube(metaclass=abc.ABCMeta):
                 print(tube.recv())
             ```
         """
+        if self._is_closed:
+            return False
         return self._is_alive_impl()
 
     def shutdown(self, target: Literal['send', 'recv']):

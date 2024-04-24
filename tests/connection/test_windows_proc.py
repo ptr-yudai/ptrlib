@@ -27,7 +27,7 @@ class TestWinProcess(unittest.TestCase):
         with self.assertLogs(module_name) as cm:
             p = Process("./tests/test.bin/test_echo.pe.exe")
         self.assertEqual(len(cm.output), 1)
-        self.assertRegex(cm.output[0], fr'^INFO:{module_name}:Successfully created new process \(PID=\d+\)$')
+        self.assertEqual(cm.output[0], f'INFO:{module_name}:Successfully created new process {str(p)}')
         pid = p.pid
 
         # send / recv
@@ -58,7 +58,7 @@ class TestWinProcess(unittest.TestCase):
         with self.assertLogs(module_name) as cm:
             p = Process("./tests/test.bin/test_echo.pe.exe")
         self.assertEqual(len(cm.output), 1)
-        self.assertRegex(cm.output[0], fr'^INFO:{module_name}:Successfully created new process \(PID=\d+\)$')
+        self.assertEqual(cm.output[0], f'INFO:{module_name}:Successfully created new process {str(p)}')
 
         with self.assertRaises(TimeoutError):
             p.recvuntil("*** never expected ***", timeout=1)

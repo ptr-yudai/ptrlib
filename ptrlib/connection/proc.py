@@ -136,6 +136,10 @@ class UnixProcess(Tube):
     @property
     def returncode(self) -> Optional[int]:
         return self._returncode
+    
+    @property
+    def pid(self) -> int:
+        return self._proc.pid
 
     #
     # Implementation of Tube methods

@@ -187,7 +187,20 @@ class WinProcess(Tube):
         win32pipe.ConnectNamedPipe(self._stdout.handle)
         win32pipe.ConnectNamedPipe(self._stderr.handle)
 
+        self._returncode = None
+
         logger.info(f"Successfully created new process {str(self)}")
+
+    #
+    # Property
+    #
+    @property
+    def returncode(self) -> Optional[int]:
+        return self._returncode
+
+    @property
+    def pid(self) -> int:
+        return self._pid
 
     #
     # Implementation of Tube
@@ -266,17 +279,21 @@ class WinProcess(Tube):
             bool: True if process is alive, otherwise False
         """
         status = win32process.GetExitCodeProcess(self._proc)
-        return status == win32con.STILL_ACTIVE
+        if status == win32con.STILL_ACTIVE:
+            return True
+        else:
+            self._returncode = status
+            return False
     
     def _shutdown_recv_impl(self):
         """Kill receiver connection
         """
-        self._stdin.close()
+        self._stdout.close()
     
     def _shutdown_send_impl(self):
         """Kill sender connection
         """
-        self._stdout.close()
+        self._stdin.close()
 
     def __str__(self) -> str:
         return f'{self._filepath} (PID={self._pid})'
