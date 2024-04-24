@@ -32,6 +32,12 @@ class Socket(Tube):
         Returns:
             Socket: ``Socket`` instance.
         """
+        assert isinstance(host, (str, bytes)), \
+            "`host` must be either str or bytes"
+
+        # NOTE: We need to initialize _current_timeout before super constructor
+        #       because it may call _settimeout_impl
+        self._current_timeout = 0
         super().__init__(**kwargs)
 
         # Interpret host name and port number
@@ -75,8 +81,6 @@ class Socket(Tube):
         except ConnectionRefusedError as e:
             logger.error(f"Connection to {self._host}:{self._port} refused")
             raise e from None
-
-        self._current_timeout = self._default_timeout
 
     #
     # Implementation of Tube methods

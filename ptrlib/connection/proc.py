@@ -4,8 +4,9 @@ import subprocess
 from logging import getLogger
 from typing import List, Literal, Mapping, Optional, Union
 from ptrlib.arch.linux.sig import signal_name
-from ptrlib.binary.encoding import bytes2str, str2bytes
+from ptrlib.binary.encoding import bytes2str
 from .tube import Tube, tube_is_open
+from .winproc import WinProcess
 
 
 _is_windows = os.name == 'nt'
@@ -63,6 +64,9 @@ class UnixProcess(Tube):
         assert cwd is None or isinstance(cwd, (str, bytes)), \
             "`cwd` must be either str or bytes"
 
+        # NOTE: We need to initialize _current_timeout before super constructor
+        #       because it may call _settimeout_impl
+        self._current_timeout = 0
         super().__init__(**kwargs)
 
         # Guess shell mode based on args
@@ -113,7 +117,6 @@ class UnixProcess(Tube):
         self._filepath = args[0]
 
         self._returncode = None
-        self._current_timeout = self._default_timeout
 
         # Duplicate master
         if master is not None:
