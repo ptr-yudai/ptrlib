@@ -1,15 +1,13 @@
-# coding: utf-8
-from logging import getLogger
-from typing import Any, List, Mapping
-from ptrlib.arch.linux.sig import *
-from ptrlib.binary.encoding import *
-from .tube import *
-from .winproc import *
-import errno
-import select
 import os
+import select
 import subprocess
-import time
+from logging import getLogger
+from typing import List, Mapping, Optional, Union
+from ptrlib.arch.linux.sig import signal_name
+from ptrlib.binary.encoding import bytes2str
+from .tube import Tube, tube_is_open
+from .winproc import WinProcess
+
 
 _is_windows = os.name == 'nt'
 if not _is_windows:
@@ -19,208 +17,245 @@ if not _is_windows:
 
 logger = getLogger(__name__)
 
-
 class UnixProcess(Tube):
-    def __init__(
-        self,
-        args: Union[Union[bytes, str], List[Union[bytes, str]]],
-        env: Optional[Union[Mapping[bytes, Union[bytes, str]], Mapping[str, Union[bytes, str]]]]=None,
-        cwd: Optional[Union[bytes, str]]=None,
-        timeout: Optional[int]=None
-    ):
-        """Create a process
+    #
+    # Constructor
+    #
+    def __init__(self,
+                 args: Union[bytes, str, List[Union[bytes, str]]],
+                 env: Optional[Union[Mapping[bytes, Union[bytes, str]], Mapping[str, Union[bytes, str]]]]=None,
+                 cwd: Optional[Union[bytes, str]]=None,
+                 shell: Optional[bool]=None,
+                 raw: bool=False,
+                 stdin : Optional[int]=None,
+                 stdout: Optional[int]=None,
+                 stderr: Optional[int]=None,
+                 **kwargs):
+        """Create a UNIX process
 
-        Create a new process and make a pipe.
+        Create a UNIX process and make a pipe.
 
         Args:
-            args (list): The arguments to pass
-            env (list) : The environment variables
+            args   : The arguments to pass
+            env    : The environment variables
+            cwd    : Working directory
+            shell  : If true, `args` is a shell command
+            raw    : Disable pty if this parameter is true
+            stdin  : File descriptor of standard input
+            stdout : File descriptor of standard output
+            stderr : File descriptor of standard error
 
         Returns:
-            Process: ``Process`` instance.
+            Process: ``Process`` instance
+
+        Examples:
+            ```
+            p = Process("/bin/ls", cwd="/tmp")
+            p = Process(["wget", "www.example.com"],
+                        stderr=subprocess.DEVNULL)
+            p = Process("cat /proc/self/maps", env={"LD_PRELOAD": "a.so"})
+            ```
         """
-        assert not _is_windows
-        super().__init__()
+        assert not _is_windows, "UnixProcess cannot work on Windows"
+        assert isinstance(args, (str, bytes, list)), \
+            "`args` must be either str, bytes, or list"
+        assert env is None or isinstance(env, dict), \
+            "`env` must be a dictionary"
+        assert cwd is None or isinstance(cwd, (str, bytes)), \
+            "`cwd` must be either str or bytes"
 
-        if isinstance(args, list):
-            self.args = args
-            self.filepath = args[0]
+        # NOTE: We need to initialize _current_timeout before super constructor
+        #       because it may call _settimeout_impl
+        self._current_timeout = 0
+        super().__init__(**kwargs)
+
+        # Guess shell mode based on args
+        if shell is None:
+            if isinstance(args, (str, bytes)):
+                args = [bytes2str(args)]
+                if ' ' in args[0]:
+                    shell = True
+                    logger.info("Detected whitespace in arguments: " \
+                                "`shell=True` enabled")
+                else:
+                    shell = False
+            else:
+                shell = False
+
         else:
-            self.args = [args]
-            self.filepath = args
-        self.env = env
-        self.default_timeout = timeout
-        self.timeout = self.default_timeout
-        self.proc = None
-        self.returncode = None
+            if isinstance(args, (str, bytes)):
+                args = [bytes2str(args)]
+            else:
+                args = list(map(bytes2str, args))
 
-        # Open pty on Unix
-        master, self.slave = pty.openpty()
-        tty.setraw(master)
-        tty.setraw(self.slave)
+        # Prepare stdio
+        master = self._slave = None
+        if not raw:
+            master, self._slave = pty.openpty()
+            tty.setraw(master)
+            tty.setraw(self._slave)
+            stdout = self._slave
 
-        # Create a new process
+        if stdin  is None: stdin  = subprocess.PIPE
+        if stdout is None: stdout = subprocess.PIPE
+        if stderr is None: stderr = subprocess.STDOUT
+
+        # Open process
+        assert isinstance(shell, bool), "`shell` must be boolean"
         try:
-            self.proc = subprocess.Popen(
-                self.args,
-                cwd = cwd,
-                env = self.env,
-                shell = False,
-                stdout=self.slave,
-                stderr=subprocess.STDOUT,
-                stdin=subprocess.PIPE
+            self._proc = subprocess.Popen(
+                args, cwd=cwd, env=env,
+                shell=shell,
+                stdin=stdin,
+                stdout=stdout,
+                stderr=stderr,
             )
-        except FileNotFoundError:
-            logger.warning("Executable not found: '{0}'".format(self.filepath))
-            return
+        except FileNotFoundError as err:
+            logger.error(f"Could not execute {args[0]}")
+            raise err from None
+
+        self._filepath = args[0]
+
+        self._returncode = None
 
         # Duplicate master
         if master is not None:
-            self.proc.stdout = os.fdopen(os.dup(master), 'r+b', 0)
+            self._proc.stdout = os.fdopen(os.dup(master), 'r+b', 0)
             os.close(master)
 
         # Set in non-blocking mode
-        fd = self.proc.stdout.fileno()
+        fd = self._proc.stdout.fileno()
         fl = fcntl.fcntl(fd, fcntl.F_GETFL)
         fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
-        logger.info("Successfully created new process (PID={})".format(self.proc.pid))
 
-    def _settimeout(self, timeout: Optional[Union[int, float]]):
-        if timeout is None:
-            self.timeout = self.default_timeout
-        elif timeout > 0:
-            self.timeout = timeout
+        logger.info(f"Successfully created new process {str(self)}")
+        self._init_done = True
 
-    def _socket(self) -> Optional[Any]:
-        return self.proc
+    #
+    # Properties
+    #
+    @property
+    def returncode(self) -> Optional[int]:
+        return self._returncode
+    
+    @property
+    def pid(self) -> int:
+        return self._proc.pid
 
-    def _poll(self) -> Optional[int]:
-        if self.proc is None:
-            return False
+    #
+    # Implementation of Tube methods
+    #
+    def _settimeout_impl(self, timeout: Union[int, float]):
+        self._current_timeout = timeout
 
-        # Check if the process exits
-        self.proc.poll()
-        returncode = self.proc.returncode
-        if returncode is not None and self.returncode is None:
-            self.returncode = returncode
-            name = signal_name(-returncode, detail=True)
-            if name: name = '--> ' + name
-            logger.error(
-                "Process '{}' (pid={}) stopped with exit code {} {}".format(
-                    self.filepath, self.proc.pid, returncode, name
-                ))
-        return returncode
-
-    def is_alive(self) -> bool:
-        """Check if the process is alive"""
-        return self._poll() is None
-
-    def _can_recv(self) -> bool:
-        """Check if receivable"""
-        if self.proc is None:
-            return False
-
-        try:
-            r = select.select(
-                [self.proc.stdout], [], [], self.timeout
-            )
-            if r == ([], [], []):
-                raise TimeoutError("Receive timeout", b'')
-            else:
-                # assert r == ([self.proc.stdout], [], [])
-                return True
-        except TimeoutError as e:
-            raise e from None
-        except select.error as v:
-            if v[0] == errno.EINTR:
-                return False
-        assert False, "unreachable"
-
-    def _recv(self, size: int=4096, timeout: Optional[Union[int, float]]=None) -> bytes:
+    def _recv_impl(self, size: int) -> bytes:
         """Receive raw data
 
-        Receive raw data of maximum `size` bytes length through the pipe.
+        Receive raw data of maximum `size` bytes through the pipe.
 
         Args:
-            size    (int): The data size to receive
-            timeout (int): Timeout (in second)
+            size: Data size to receive
 
         Returns:
             bytes: The received data
         """
-        self._settimeout(timeout)
+        if self._current_timeout == 0:
+            timeout = None
+        else:
+            timeout = self._current_timeout
 
-        if not self._can_recv():
-            return b''
+        ready, [], [] = select.select(
+            [self._proc.stdout.fileno()], [], [], timeout
+        )
+        if len(ready) == 0:
+            raise TimeoutError("Timeout (_recv_impl)", b'') from None
 
         try:
-            data = self.proc.stdout.read(size)
+            data = self._proc.stdout.read(size)
         except subprocess.TimeoutExpired:
-            # TODO: Unreachable?
-            raise TimeoutError("Receive timeout", b'') from None
+            raise TimeoutError("Timeout (_recv_impl)", b'') from None
 
-        self._poll() # poll after received all data
         return data
 
-    def _send(self, data: Union[str, bytes]):
+    def _send_impl(self, data: bytes) -> int:
         """Send raw data
 
-        Send raw data through the socket
-
-        Args:
-            data (bytes) : Data to send
+        Raises:
+            ConnectionAbortedError: Connection is aborted by process
+            ConnectionResetError: Connection is closed by peer
+            TimeoutError: Timeout exceeded
+            OSError: System error
         """
-        self._poll()
-        if isinstance(data, str):
-            data = str2bytes(data)
-        elif not isinstance(data, bytes):
-            logger.warning("Expected 'str' or 'bytes' but {} given".format(
-                type(data)
-            ))
-
         try:
-            self.proc.stdin.write(data)
-            self.proc.stdin.flush()
-        except IOError:
-            logger.warning("Broken pipe")
+            n_written = self._proc.stdin.write(data)
+            self._proc.stdin.flush()
+            return n_written
+        except IOError as err:
+            logger.error(f"Broken pipe: {str(self)}")
+            raise err from None
 
-    def close(self):
-        """Close the socket
-
-        Close the socket.
-        This method is called from the destructor.
+    def _shutdown_recv_impl(self):
+        """Close stdin
         """
-        if self.proc:
-            os.close(self.slave)
-            self.proc.stdin.close()
-            self.proc.stdout.close()
-            if self.is_alive():
-                self.proc.kill()
-                self.proc.wait()
-                logger.info("'{0}' (PID={1}) killed".format(self.filepath, self.proc.pid))
-                self.proc = None
-            else:
-                logger.info("'{0}' (PID={1}) has already exited".format(self.filepath, self.proc.pid))
-                self.proc = None
+        self._proc.stdout.close()
+        self._proc.stderr.close()
 
-    def shutdown(self, target: Literal['send', 'recv']):
-        """Kill one connection
-
-        Close send/recv pipe.
-
-        Args:
-            target (str): Connection to close (`send` or `recv`)
+    def _shutdown_send_impl(self):
+        """Close stdout
         """
-        if target in ['write', 'send', 'stdin']:
-            self.proc.stdin.close()
+        self._proc.stdin.close()
 
-        elif target in ['read', 'recv', 'stdout', 'stderr']:
-            self.proc.stdout.close()
+    def _close_impl(self):
+        """Close process
+        """
+        if self._is_alive_impl():
+            self._proc.kill()
+            self._proc.wait()
+            logger.info(f"{str(self)} killed by `close`")
 
-        else:
-            logger.error("You must specify `send` or `recv` as target.")
+        if self._slave is not None: # PTY mode
+            os.close(self._slave)
+            self._slave = None
 
-    def wait(self) -> int:
+        if self._proc.stdin is not None:
+            self._proc.stdin.close()
+        if self._proc.stdout is not None:
+            self._proc.stdout.close()
+        if self._proc.stderr is not None:
+            self._proc.stderr.close()
+
+    def _is_alive_impl(self) -> bool:
+        """Check if the process is alive"""
+        return self.poll() is None
+
+    def __str__(self) -> str:
+        return f"'{self._filepath}' (PID={self._proc.pid})"
+
+
+    #
+    # Custom method
+    #
+    def poll(self) -> Optional[int]:
+        """Check if the process has exited
+        """
+        if self._proc.poll() is None:
+            return None
+
+        if self._returncode is None:
+            # First time to detect process exit
+            self._returncode = self._proc.returncode
+            name = signal_name(-self._returncode, detail=True)
+            if name:
+                name = ' --> ' + name
+
+            logger_func = logger.info if self._returncode == 0 else logger.error
+            logger_func(f"{str(self)} stopped with exit code " \
+                            f"{self._returncode}{name}")
+
+        return self._returncode
+
+    @tube_is_open
+    def wait(self, timeout: Optional[Union[int, float]]=None) -> int:
         """Wait until the process dies
 
         Wait until the process exits and get the status code.
@@ -228,12 +263,8 @@ class UnixProcess(Tube):
         Returns:
             code (int): Status code of the process
         """
-        while self.is_alive():
-            time.sleep(0.1)
-        return self.returncode
+        return self._proc.wait(timeout)
 
-    def __del__(self):
-        self.close()
 
 Process = WinProcess if _is_windows else UnixProcess
-process = Process   # alias for the Process
+process = Process # alias for the Process
