@@ -1,7 +1,8 @@
 ptrlib
 ====
 
-![Python application](https://github.com/ptr-yudai/ptrlib/workflows/Python%20application/badge.svg)
+![Python Test (Windows)](https://github.com/ptr-yudai/ptrlib/workflows/Python%20Test%20%28Windows%29/badge.svg)
+![Python Test (Ubuntu)](https://github.com/ptr-yudai/ptrlib/workflows/Python%20Test%20%28Ubuntu%29/badge.svg)
 
 Python library which bundles security-related utilities.
 
@@ -38,9 +39,11 @@ In this section we try using it for a pwnable task.
 
 You can run executable or create socket like this:
 ```python
-sock = Process("./pwn01")
-sock = Process(["./pwn01", "--debug"])
+sock = Process("./pwn01", cwd="/home/ctf")
+sock = Process(["./pwn01", "--debug"], env={"FLAG": "flag{dummy}"})
+sock = Process("make menuconfig", shell=True)
 sock = Socket("localhost", 1234)
+sock = Socket("example.com", 443, ssl=True, sni="neko")
 sock = SSH("example.com", 22, username="ubuntu", password="p4s$w0rd")
 sock = SSH("example.com", 22, username="ubuntu", identity="./id_rsa")
 ```
@@ -131,6 +134,10 @@ Run `pip install --upgrade ptrlib` or `python setup.py install`.
 ## Contributor
 Feel free to make a pull request / issue :)
 
+- [jptomoya](https://github.com/jptomoya)
+  - Added CI for Windows
+  - Added SSL support
+  - Refactored test cases
 - [theoremoon](https://github.com/theoremoon)
   - Added/fixed several cryptography functions
   - Added buffering of Socket/Process

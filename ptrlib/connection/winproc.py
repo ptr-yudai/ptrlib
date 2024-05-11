@@ -1,16 +1,16 @@
-# coding: utf-8
 from logging import getLogger
-from typing import List, Mapping
-from ptrlib.binary.encoding import *
-from .tube import *
-import ctypes
+from typing import List, Mapping, Optional, Union
 import os
-import time
+import subprocess
+from ptrlib.binary.encoding import bytes2str
+from .tube import Tube
 
 _is_windows = os.name == 'nt'
 if _is_windows:
+    import pywintypes
     import win32api
     import win32con
+    import win32event
     import win32file
     import win32pipe
     import win32process
@@ -18,233 +18,282 @@ if _is_windows:
 
 logger = getLogger(__name__)
 
-
 class WinPipe(object):
-    def __init__(self, inherit_handle: bool=True):
+    def __init__(self,
+                 read: Optional[bool]=False,
+                 write: Optional[bool]=False,
+                 size: Optional[int]=65536):
         """Create a pipe for Windows
 
-        Create a new pipe
+        Create a new pipe with overlapped I/O.
 
         Args:
-            inherit_handle (bool): Whether the child can inherit this handle
-
-        Returns:
-            WinPipe: ``WinPipe`` instance.
+            read: True if read mode
+            write: True if write mode
+            size: Default buffer size for this pipe
+            timeout: Default timeout in second
         """
-        attr = win32security.SECURITY_ATTRIBUTES()
-        attr.bInheritHandle = inherit_handle
-        self.rp, self.wp = win32pipe.CreatePipe(attr, 0)
-
-    @property
-    def handle0(self) -> int:
-        return self.get_handle('recv')
-    @property
-    def handle1(self) -> int:
-        return self.get_handle('send')
-
-    def get_handle(self, name: Literal['recv', 'send']='recv') -> int:
-        """Get endpoint of this pipe
-
-        Args:
-            name (str): Handle to get (`recv` or `send`)
-        """
-        if name in ['read', 'recv', 'stdin']:
-            return self.rp
-
-        elif name in ['write', 'send', 'stdout', 'stderr']:
-            return self.wp
-
+        if read and write:
+            mode = win32pipe.PIPE_ACCESS_DUPLEX
+            self._access = win32con.GENERIC_READ | win32con.GENERIC_WRITE
+        elif write:
+            mode = win32pipe.PIPE_ACCESS_OUTBOUND
+            self._access = win32con.GENERIC_READ
         else:
-            logger.error("You must specify `send` or `recv` as target.")
+            mode = win32pipe.PIPE_ACCESS_INBOUND
+            self._access = win32con.GENERIC_WRITE
+
+        self._attr = win32security.SECURITY_ATTRIBUTES()
+        self._attr.bInheritHandle = True
+
+        self._name = f"\\\\.\\pipe\\ptrlib.{os.getpid()}.{os.urandom(8).hex()}"
+        self._handle = win32pipe.CreateNamedPipe(
+            self._name, mode | win32file.FILE_FLAG_OVERLAPPED,
+            win32pipe.PIPE_TYPE_BYTE | win32pipe.PIPE_READMODE_BYTE | win32pipe.PIPE_WAIT,
+            1, size, size, 0, self._attr
+        )
+        assert self._handle != win32file.INVALID_HANDLE_VALUE, \
+            "Could not create a pipe"
 
     @property
-    def size(self) -> int:
-        """Get the number of bytes available to read on this pipe"""
-        # (lpBytesRead, lpTotalBytesAvail, lpBytesLeftThisMessage)
-        return win32pipe.PeekNamedPipe(self.handle0, 0)[1]
+    def name(self) -> str:
+        return self._name
+    
+    @property
+    def access(self) -> int:
+        return self._access
+    
+    @property
+    def attributes(self) -> any:
+        return self._attr
 
-    def _recv(self, size: int=4096):
-        if size <= 0:
-            logger.error("`size` must be larger than 0")
-            return b''
-
-        buf = ctypes.create_string_buffer(size)
-        win32file.ReadFile(self.handle0, buf)
-
-        return buf.raw
-
-    def recv(self, size: int=4096, timeout: Optional[Union[int, float]]=None):
-        """Receive raw data
-
-        Receive raw data of maximum `size` bytes length through the pipe.
-
-        Args:
-            size    (int): The data size to receive
-            timeout (int): Timeout (in second)
-
-        Returns:
-            bytes: The received data
-        """
-        start = time.time()
-        # Wait until data arrives
-        while self.size == 0:
-            # Check timeout
-            if timeout is not None and time.time() - start > timeout:
-                raise TimeoutError("Receive timeout")
-            time.sleep(0.01)
-
-        return self._recv(min(self.size, size))
-
-    def send(self, data: bytes):
-        """Send raw data
-
-        Send raw data through the socket
-
-        Args:
-            data (bytes) : Data to send
-            timeout (int): Timeout (in second)
-        """
-        win32file.WriteFile(self.handle1, data)
+    @property
+    def handle(self) -> int:
+        return self._handle
 
     def close(self):
-        """Cleanly close this pipe"""
-        win32api.CloseHandle(self.rp)
-        win32api.CloseHandle(self.wp)
+        """Gracefully close this pipe
+        """
+        win32api.CloseHandle(self._handle)
 
     def __del__(self):
         self.close()
 
 class WinProcess(Tube):
-    def __init__(self, args: Union[List[Union[str, bytes]], str], env: Optional[Mapping[str, str]]=None, cwd: Optional[str]=None, flags: int=0, timeout: Optional[Union[int, float]]=None):
-        """Create a process
+    #
+    # Constructor
+    #
+    def __init__(self,
+                 args: Union[List[Union[str, bytes]], str],
+                 env: Optional[Union[Mapping[bytes, Union[bytes, str]], Mapping[str, Union[bytes, str]]]]=None,
+                 cwd: Optional[Union[bytes, str]]=None,
+                 flags: int = 0,
+                 raw: bool=False,
+                 stdin : Optional[WinPipe]=None,
+                 stdout: Optional[WinPipe]=None,
+                 stderr: Optional[WinPipe]=None,
+                 **kwargs):
+        """Create a Windows process
 
-        Create a new process and make a pipe.
+        Create a Windows process and make a pipe.
 
         Args:
-            args (list): The arguments to pass
-            env (list) : The environment variables
+            args   : The arguments to pass
+            env    : The environment variables
+            cwd    : Working directory
+            flags  : dwCreationFlags passed to CreateProcess
+            raw    : Disable pty if this parameter is true
+            stdin  : File descriptor of standard input
+            stdout : File descriptor of standard output
+            stderr : File descriptor of standard error
 
         Returns:
-            Process: ``Process`` instance.
+            WinProcess: ``WinProcess`` instance
+
+        Examples:
+            ```
+            p = Process("cmd.exe", cwd="C:\\")
+            p = Process(["cmd", "dir"],
+                        stderr=subprocess.DEVNULL)
+            p = Process("more C:\\test.txt", env={"X": "123"})
+            ```
         """
-        assert _is_windows
-        super().__init__()
+        assert _is_windows, "WinProcess cannot work on Unix"
+        assert isinstance(args, (str, bytes, list)), \
+            "`args` must be either str, bytes, or list"
+        assert env is None or isinstance(env, dict), \
+            "`env` must be a dictionary"
+        assert cwd is None or isinstance(cwd, (str, bytes)), \
+            "`cwd` must be either str or bytes"
+
+        self._current_timeout = 0
+        super().__init__(**kwargs)
 
         if isinstance(args, list):
             for i, arg in enumerate(args):
                 if isinstance(arg, bytes):
                     args[i] = bytes2str(arg)
-            self.args = ' '.join(args)
-            self.filepath = args[0]
-
-            # Check if arguments are safe for Windows
-            for arg in args:
-                if '"' not in arg: continue
-                if arg[0] == '"' and arg[-1] == '"': continue
-                logger.error("You have to escape the arguments by yourself.")
-                logger.error("Be noted what you are executing is")
-                logger.error("> " + self.args)
+            args = subprocess.list2cmdline(args)
 
         else:
-            self.args = args
+            args = bytes2str(args)
 
-        # Create pipe
-        self.stdin = WinPipe()
-        self.stdout = WinPipe()
-        self.default_timeout = timeout
-        self.timeout = timeout
-        self.proc = None
+        self._filepath = args
 
-        # Create process
-        info = win32process.STARTUPINFO()
-        info.dwFlags = win32con.STARTF_USESTDHANDLES
-        info.hStdInput = self.stdin.handle0
-        info.hStdOutput = self.stdout.handle1
-        info.hStdError = self.stdout.handle1
-        # (hProcess, hThread, dwProcessId, dwThreadId)
-        self.proc, _, self.pid, _ = win32process.CreateProcess(
-            None, self.args, # lpApplicationName, lpCommandLine
-            None, None,      # lpProcessAttributes, lpThreadAttributes
-            True, flags,     # bInheritHandles, dwCreationFlags
-            env, cwd,        # lpEnvironment, lpCurrentDirectory
-            info             # lpStartupInfo
+        # Prepare stdio
+        if stdin is None:
+            self._stdin  = WinPipe(write=True)
+        proc_stdin = win32file.CreateFile(
+            self._stdin.name, self._stdin.access,
+            0, self._stdin.attributes,
+            win32con.OPEN_EXISTING, win32file.FILE_ATTRIBUTE_NORMAL, None
         )
 
-        logger.info("Successfully created new process (PID={})".format(self.pid))
+        if stdout is None:
+            self._stdout = WinPipe(read=True)
+        proc_stdout = win32file.CreateFile(
+            self._stdout.name, self._stdout.access,
+            0, self._stdout.attributes,
+            win32con.OPEN_EXISTING, win32file.FILE_ATTRIBUTE_NORMAL, None
+        )
+        
+        if stderr is None:
+            self._stderr = self._stdout
+            proc_stderr = proc_stdout
+        else:
+            proc_stderr = win32file.CreateFile(
+                self._stderr.name, self._stderr.access,
+                0, self._stderr.attributes,
+                win32con.OPEN_EXISTING, win32file.FILE_ATTRIBUTE_NORMAL, None
+            )
 
-    def _settimeout(self, timeout: Optional[Union[int, float]]):
-        """Set timeout value"""
-        if timeout is None:
-            self.timeout = self.default_timeout
-        elif timeout > 0:
-            self.timeout = timeout
+        # Open process
+        info = win32process.STARTUPINFO()
+        info.dwFlags = win32con.STARTF_USESTDHANDLES
+        info.hStdInput  = proc_stdin
+        info.hStdOutput = proc_stdout
+        info.hStdError  = proc_stderr
+        self._proc, _, self._pid, _ = win32process.CreateProcess(
+            None, args, None, None, True, flags, env, cwd, info
+        )
 
-    def _socket(self):
-        return self.proc
+        win32file.CloseHandle(proc_stdin)
+        win32file.CloseHandle(proc_stdout)
+        if proc_stdout != proc_stderr:
+            win32file.CloseHandle(proc_stderr)
 
-    def _recv(self, size: int, timeout: Optional[Union[int, float]]=None) -> bytes:
-        """Receive raw data
+        # Wait until connection
+        win32pipe.ConnectNamedPipe(self._stdin.handle)
+        win32pipe.ConnectNamedPipe(self._stdout.handle)
+        win32pipe.ConnectNamedPipe(self._stderr.handle)
 
-        Receive raw data of maximum `size` bytes length through the pipe.
+        self._returncode = None
+
+        logger.info(f"Successfully created new process {str(self)}")
+
+    #
+    # Property
+    #
+    @property
+    def returncode(self) -> Optional[int]:
+        return self._returncode
+
+    @property
+    def pid(self) -> int:
+        return self._pid
+
+    #
+    # Implementation of Tube
+    #
+    def _settimeout_impl(self, timeout: Union[int, float]):
+        """Set timeout
 
         Args:
-            size    (int): The data size to receive
-            timeout (int): Timeout (in second)
+            timeout: Timeout in second (Maximum precision is millisecond)
+        """
+        self._current_timeout = timeout
+
+    def _recv_impl(self, size: int) -> bytes:
+        """Receive raw data
+
+        Args:
+            size: Size to receive
 
         Returns:
-            bytes: The received data
+            bytes: Received data
         """
-        self._settimeout(timeout)
-        if size <= 0:
-            logger.error("`size` must be larger than 0")
-            return b''
+        if self._current_timeout == 0:
+            # Without timeout
+            try:
+                _, data = win32file.ReadFile(self._stdout.handle, size)
+                return data
+            except Exception as err:
+                raise err from None
 
-        buf = self.stdout.recv(size, self.timeout)
-        return buf
+        else:
+            # With timeout
+            overlapped = pywintypes.OVERLAPPED()
+            overlapped.hEvent = win32event.CreateEvent(None, 0, 0, None)
+            try:
+                _, data = win32file.ReadFile(self._stdout.handle, size, overlapped)
+                state = win32event.WaitForSingleObject(
+                    overlapped.hEvent, int(self._current_timeout * 1000)
+                )
+                if state == win32event.WAIT_OBJECT_0:
+                    result = win32file.GetOverlappedResult(self._stdout.handle, overlapped, True)
+                    if isinstance(result, int):
+                        # NOTE: GetOverlappedResult does not return data
+                        #       when overlapped ReadFile is successful.
+                        #       We need to use the result of this API because 
+                        #       we cannot access the number of bytes read by ReadFile.
+                        #       See https://github.com/mhammond/pywin32/issues/430
+                        return data[:result]
+                    else:
+                        return result[1]
+                else:
+                    raise TimeoutError("Timeout (_recv_impl)", b'')
+            finally:
+                win32file.CloseHandle(overlapped.hEvent)
 
-    def is_alive(self) -> bool:
+    def _send_impl(self, data: bytes) -> int:
+        """Send raw data
+
+        Args:
+            data: Data to send
+
+        Returns:
+            int: The number of bytes written
+        """
+        _, n = win32file.WriteFile(self._stdin.handle, data)
+        return n
+    
+    def _close_impl(self):
+        win32api.TerminateProcess(self._proc, 0)
+        win32api.CloseHandle(self._proc)
+        logger.info(f"Process killed {str(self)}")
+
+    def _is_alive_impl(self) -> bool:
         """Check if process is alive
 
         Returns:
             bool: True if process is alive, otherwise False
         """
-        if self.proc is None:
+        status = win32process.GetExitCodeProcess(self._proc)
+        if status == win32con.STILL_ACTIVE:
+            return True
+        else:
+            self._returncode = status
             return False
-        else:
-            status = win32process.GetExitCodeProcess(self.proc)
-            return status == win32con.STILL_ACTIVE
-
-    def close(self):
-        if self.proc:
-            win32api.TerminateProcess(self.proc, 0)
-            win32api.CloseHandle(self.proc)
-            self.proc = None
-            logger.info("Process killed (PID={0})".format(self.pid))
-
-    def _send(self, data: bytes):
-        """Send raw data
-
-        Send raw data through the socket
-
-        Args:
-            data (bytes) : Data to send
+    
+    def _shutdown_recv_impl(self):
+        """Kill receiver connection
         """
-        self.stdin.send(data)
-
-    def shutdown(self, target: Literal['send', 'recv']):
-        """Close a connection
-
-        Args:
-            target (str): Pipe to close (`recv` or `send`)
+        self._stdout.close()
+    
+    def _shutdown_send_impl(self):
+        """Kill sender connection
         """
-        if target in ['write', 'send', 'stdin']:
-            self.stdin.close()
+        self._stdin.close()
 
-        elif target in ['read', 'recv', 'stdout', 'stderr']:
-            self.stdout.close()
-
-        else:
-            logger.error("You must specify `send` or `recv` as target.")
-
-    def __del__(self):
-        self.close()
+    def __str__(self) -> str:
+        return f'{self._filepath} (PID={self._pid})'

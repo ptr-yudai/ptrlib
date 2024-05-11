@@ -1,9 +1,11 @@
-import unittest
+import inspect
 import os
 import random
 import subprocess
+import unittest
+from logging import FATAL, getLogger
+
 from ptrlib import Process, is_scanf_safe
-from logging import getLogger, FATAL
 
 _is_windows = os.name == 'nt'
 
@@ -15,12 +17,17 @@ class TestWinProcess(unittest.TestCase):
             self.skipTest("This test is for Windows architecture")
 
     def test_basic(self):
+        module_name = inspect.getmodule(Process).__name__
+
         while True:
             msg = os.urandom(16)
-            if is_scanf_safe(msg):
+            if is_scanf_safe(msg) and b'\x1a' not in msg:
                 break
 
-        p = Process("./tests/test.bin/test_echo.pe.exe")
+        with self.assertLogs(module_name) as cm:
+            p = Process("./tests/test.bin/test_echo.pe.exe")
+        self.assertEqual(len(cm.output), 1)
+        self.assertEqual(cm.output[0], f'INFO:{module_name}:Successfully created new process {str(p)}')
         pid = p.pid
 
         # send / recv
@@ -46,15 +53,13 @@ class TestWinProcess(unittest.TestCase):
         self.assertFalse(str(pid) in subprocess.getoutput(f'tasklist /FI "PID eq {pid}"').split())
 
     def test_timeout(self):
-        p = Process("./tests/test.bin/test_echo.pe.exe")
-        try:
-            p.recvuntil("*** never expected ***", timeout=1)
-            result = False
-        except TimeoutError:
-            result = True
-        except:
-            result = False
-        finally:
-            p.close()
+        module_name = inspect.getmodule(Process).__name__
 
-        self.assertEqual(result, True)
+        with self.assertLogs(module_name) as cm:
+            p = Process("./tests/test.bin/test_echo.pe.exe")
+        self.assertEqual(len(cm.output), 1)
+        self.assertEqual(cm.output[0], f'INFO:{module_name}:Successfully created new process {str(p)}')
+
+        with self.assertRaises(TimeoutError):
+            p.recvuntil("*** never expected ***", timeout=1)
+        p.close()

@@ -1,8 +1,10 @@
-import unittest
+import inspect
 import os
 import random
+import unittest
+from logging import FATAL, getLogger
+
 from ptrlib import Process, is_scanf_safe
-from logging import getLogger, FATAL
 
 _is_windows = os.name == 'nt'
 
@@ -14,12 +16,17 @@ class TestProcess(unittest.TestCase):
             self.skipTest("This test is intended for the Linux platform")
 
     def test_basic(self):
+        module_name = inspect.getmodule(Process).__name__
+
         while True:
             msg = os.urandom(16)
             if is_scanf_safe(msg):
                 break
 
-        p = Process("./tests/test.bin/test_echo.x64")
+        with self.assertLogs(module_name) as cm:
+            p = Process("./tests/test.bin/test_echo.x64")
+        self.assertEqual(len(cm.output), 1)
+        self.assertEqual(cm.output[0], f'INFO:{module_name}:Successfully created new process {str(p)}')
 
         # sendline / recvline
         p.sendline(b"Message : " + msg)
@@ -60,56 +67,41 @@ class TestProcess(unittest.TestCase):
         # wait
         self.assertEqual(p.wait(), 0)
 
-        p.close()
+        with self.assertLogs(module_name) as cm:
+            p.close()
+        self.assertEqual(len(cm.output), 1)
+        self.assertEqual(cm.output[0], fr'INFO:{module_name}:{str(p)} stopped with exit code 0')
 
     def test_timeout(self):
-        p = Process("./tests/test.bin/test_echo.x64")
+        module_name = inspect.getmodule(Process).__name__
+
+        with self.assertLogs(module_name) as cm:
+            p = Process("./tests/test.bin/test_echo.x64")
+        self.assertEqual(len(cm.output), 1)
+        self.assertEqual(cm.output[0], fr'INFO:{module_name}:Successfully created new process {str(p)}')
         data = os.urandom(16).hex()
 
         # recv
-        try:
+        with self.assertRaises(TimeoutError) as cm:
             p.recv(timeout=0.5)
-            result = False
-        except TimeoutError as err:
-            self.assertEqual(err.args[1], b"")
-            result = True
-        except:
-            result = False
-        self.assertEqual(result, True)
+        self.assertEqual(cm.exception.args[1], b"")
 
         # recvonce
         p.sendline(data)
-        try:
+        with self.assertRaises(TimeoutError) as cm:
             p.recvonce(len(data) + 1 + 1, timeout=0.5)
-            result = False
-        except TimeoutError as err:
-            self.assertEqual(err.args[1].decode().strip(), data)
-            result = True
-        except:
-            result = False
-        self.assertEqual(result, True)
+        self.assertEqual(cm.exception.args[1].decode().strip(), data)
 
         # recvuntil
         p.sendline(data)
-        try:
+        with self.assertRaises(TimeoutError) as cm:
             p.recvuntil("*** never expected ***", timeout=0.5)
-            result = False
-        except TimeoutError as err:
-            self.assertEqual(err.args[1].decode().strip(), data)
-            result = True
-        except:
-            result = False
-        self.assertEqual(result, True)
+        self.assertEqual(cm.exception.args[1].decode().strip(), data)
 
         # sendlineafter
         a, b = os.urandom(16).hex(), os.urandom(16).hex()
         p.sendline(a)
-        try:
+        with self.assertRaises(TimeoutError) as cm:
             p.sendlineafter(b"neko", b, timeout=0.5)
-        except TimeoutError as err:
-            self.assertEqual(err.args[1].decode().strip(), a)
-            result = True
-        except:
-            result = False
-        self.assertEqual(result, True)
+        self.assertEqual(cm.exception.args[1].decode().strip(), a)
 

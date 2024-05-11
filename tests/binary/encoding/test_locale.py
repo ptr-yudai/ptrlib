@@ -1,5 +1,5 @@
 import unittest
-from ptrlib.binary.encoding.locale import *
+from ptrlib.binary.encoding.char import *
 from logging import getLogger, FATAL
 
 

@@ -3,7 +3,14 @@
 
 name: Python Test (Windows)
 
-on: [push, pull_request]
+on:
+  push:
+    paths:
+      - 'setup.py'
+      - 'requirements.txt'
+      - 'ptrlib/**'
+      - 'tests/**'
+  pull_request:
 
 jobs:
   build:

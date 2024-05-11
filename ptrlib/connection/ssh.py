@@ -1,20 +1,21 @@
-# coding: utf-8
 import shlex
 import os
 from ptrlib.binary.encoding import *
 from ptrlib.arch.common import which
 from .proc import *
 
-if os.name == 'nt':
-    _is_windows = True
-else:
-    _is_windows = False
+_is_windows = os.name == 'nt'
 
 
-def SSH(host: str, port: int, username: str,
-        password: Optional[str]=None, identity: Optional[str]=None,
-        ssh_path: Optional[str]=None, expect_path: Optional[str]=None,
-        option: str='', command: str=''):
+def SSH(host: str,
+        port: int,
+        username: str,
+        password: Optional[str]=None,
+        identity: Optional[str]=None,
+        ssh_path: Optional[str]=None,
+        expect_path: Optional[str]=None,
+        option: str='',
+        command: str=''):
     """Create an SSH shell
 
     Create a new process to connect to SSH server
