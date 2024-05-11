@@ -3,8 +3,8 @@ import re
 import sys
 import threading
 from logging import getLogger
-from typing import List, Literal, Optional, Tuple, Union
-from ptrlib.binary.encoding import bytes2str, str2bytes, bytes2hex, bytes2utf8, hexdump, draw_ansi
+from typing import Callable, List, Literal, Optional, Tuple, Union
+from ptrlib.binary.encoding import bytes2str, str2bytes, bytes2hex, bytes2utf8, hexdump, AnsiParser, AnsiInstruction
 from ptrlib.console.color import Color
 
 logger = getLogger(__name__)
@@ -404,52 +404,38 @@ class Tube(metaclass=abc.ABCMeta):
             return match.group()
 
     def recvscreen(self,
-                   delim: Optional[Union[str, bytes]]=b'\x1b[H',
-                   returns: Optional[type]=str,
-                   prev: Optional[Union[str, bytes, list]]=None,
-                   timeout: Optional[Union[int, float]]=None):
+                   returns: type=str,
+                   stop: Optional[Callable[[AnsiInstruction], bool]]=None,
+                   timeout: Union[int, float]=1.0):
         """Receive a screen
 
         Receive a screen drawn by ncurses (ANSI escape sequence)
 
         Args:
-            delim   : Refresh sequence
-            returns : Return value as string or list
-            prev    : Previous screen (Use when screen is partially updated)
-            timeout : Timeout until receiving the delimiter
+            returns: Either str or list
+            stop: Function to determine when to stop emulating instructions
+            timeout: Timeout until stopping recv
 
         Returns:
             str: Rectangle string drawing the screen
-
-        Raises:
-            ConnectionAbortedError: Connection is aborted by process
-            ConnectionResetError: Connection is closed by peer
-            TimeoutError: Timeout exceeded
-            OSError: System error
         """
         assert returns in [list, str, bytes], \
-            "`returns` must be either list, str, or bytes"
-        assert prev is None or isinstance(prev, (str, bytes, list)), \
-            "`prev` must be either list, str, or bytes"
+            "`returns` must be either list or str"
 
-        try:
-            self.recvuntil(delim, timeout=timeout)
-        except TimeoutError as err:
-            # NOTE: We do not set received value here
-            raise TimeoutError("Timeout (recvscreen)", b'')
+        def _ansi_stream(self):
+            """Generator for recvscreen
+            """
+            while True:
+                try:
+                    yield self.recv(timeout=timeout)
+                except TimeoutError as e:
+                    self.unget(e.args[1])
+                    break
 
-        try:
-            buf = self.recvuntil(delim, drop=True, lookahead=True, timeout=timeout2)
-        except TimeoutError as err:
-            buf = err.args[1]
-
-        screen = draw_ansi(buf)
-        if returns == str:
-            return '\n'.join(map(lambda row: ''.join(row), screen))
-        elif returns == bytes:
-            return b'\n'.join(map(lambda row: bytes(row), screen))
-        else:
-            return screen
+        ansi = AnsiParser(_ansi_stream(self))
+        scr = ansi.draw_screen(returns, stop)
+        self.unget(ansi.buffer)
+        return scr
 
     def send(self, data: Union[str, bytes]) -> int:
         """Send raw data
@@ -669,7 +655,7 @@ class Tube(metaclass=abc.ABCMeta):
                         flag.set()
 
                 except TimeoutError:
-                    pass
+                    pass # NOTE: We can ignore args since recv will never buffer
                 except EOFError:
                     logger.error("Receiver EOF")
                     break
