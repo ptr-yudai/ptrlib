@@ -82,6 +82,8 @@ class Socket(Tube):
             logger.error(f"Connection to {self._host}:{self._port} refused")
             raise e from None
 
+        self._init_done = True
+
     #
     # Implementation of Tube methods
     #

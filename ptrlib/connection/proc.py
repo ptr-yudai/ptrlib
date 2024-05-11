@@ -129,6 +129,7 @@ class UnixProcess(Tube):
         fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
         logger.info(f"Successfully created new process {str(self)}")
+        self._init_done = True
 
     #
     # Properties

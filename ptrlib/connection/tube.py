@@ -4,7 +4,7 @@ import sys
 import threading
 from logging import getLogger
 from typing import List, Literal, Optional, Tuple, Union
-from ptrlib.binary.encoding import bytes2str, str2bytes, bytes2hex, bytes2utf8, hexdump
+from ptrlib.binary.encoding import bytes2str, str2bytes, bytes2hex, bytes2utf8, hexdump, draw_ansi
 from ptrlib.console.color import Color
 
 logger = getLogger(__name__)
@@ -262,6 +262,9 @@ class Tube(metaclass=abc.ABCMeta):
         else:
             delim = [str2bytes(delim)]
 
+        if any(map(lambda d: len(d) == 0, delim)):
+            return b'' # Empty delimiter
+
         # Iterate until we find one of the delimiters
         found_delim = None
         prev_len = 0
@@ -403,17 +406,17 @@ class Tube(metaclass=abc.ABCMeta):
     def recvscreen(self,
                    delim: Optional[Union[str, bytes]]=b'\x1b[H',
                    returns: Optional[type]=str,
-                   timeout: Optional[Union[int, float]]=None,
-                   timeout2: Optional[Union[int, float]]=1):
+                   prev: Optional[Union[str, bytes, list]]=None,
+                   timeout: Optional[Union[int, float]]=None):
         """Receive a screen
 
-        Receive a screen drawn by ncurses
+        Receive a screen drawn by ncurses (ANSI escape sequence)
 
         Args:
             delim   : Refresh sequence
             returns : Return value as string or list
-            timeout : Timeout to receive the first delimiter
-            timeout2: Timeout to receive the second delimiter
+            prev    : Previous screen (Use when screen is partially updated)
+            timeout : Timeout until receiving the delimiter
 
         Returns:
             str: Rectangle string drawing the screen
@@ -426,6 +429,8 @@ class Tube(metaclass=abc.ABCMeta):
         """
         assert returns in [list, str, bytes], \
             "`returns` must be either list, str, or bytes"
+        assert prev is None or isinstance(prev, (str, bytes, list)), \
+            "`prev` must be either list, str, or bytes"
 
         try:
             self.recvuntil(delim, timeout=timeout)
@@ -780,7 +785,7 @@ class Tube(metaclass=abc.ABCMeta):
         return "<unknown tube>"
 
     def __del__(self):
-        if not self._is_closed:
+        if hasattr(self, '_init_done') and not self._is_closed:
             self.close()
 
     #
