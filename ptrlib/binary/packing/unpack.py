@@ -52,7 +52,7 @@ def u32(data: Union[str, bytes], byteorder: Literal["little", "big"]='little', s
     
     return int.from_bytes(data, byteorder=byteorder, signed=signed)
 
-def u32f(data: Union[str, bytes], byteorder: Literal["little", "big"]="little"):
+def u32f(data: Union[str, bytes], byteorder: Literal["little", "big"]="little") -> float:
     if isinstance(data, str):
         data = str2bytes(data)
 
@@ -86,7 +86,7 @@ def u64(data: Union[str, bytes], byteorder: Literal["little", "big"]='little', s
 
     return int.from_bytes(data, byteorder=byteorder, signed=signed)
 
-def u64f(data: Union[str, bytes], byteorder: Literal["little", "big"]="little"):
+def u64f(data: Union[str, bytes], byteorder: Literal["little", "big"]="little") -> float:
     if isinstance(data, str):
         data = str2bytes(data)
 
