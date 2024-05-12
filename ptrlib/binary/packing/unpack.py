@@ -1,7 +1,7 @@
 import builtins
 from logging import getLogger
 import struct
-from typing import Type, TypeVar, Union, overload
+from typing import Type, TypeVar, Union
 try:
     from typing import Literal
 except:
@@ -9,8 +9,6 @@ except:
 from ptrlib.binary.encoding.byteconv import str2bytes
 
 logger = getLogger(__name__)
-
-_T = TypeVar("_T", int, float)
 
 def u8(data: Union[str, bytes], signed: bool=False) -> int:
     if isinstance(data, str):
@@ -30,13 +28,7 @@ def u16(data: Union[str, bytes], byteorder: Literal["little", "big"]='little', s
 
     return int.from_bytes(data, byteorder=byteorder, signed=signed)
 
-@overload
-def u32(data: Union[str, bytes], byteorder: Literal["little", "big"]="little", signed: bool=False, result_type: Type[int]=int) -> int: ...
-
-@overload
-def u32(data: Union[str, bytes], byteorder: Literal["little", "big"]="little", signed: bool=False, result_type: Type[float]=float) -> float: ...
-
-def u32(data: Union[str, bytes], byteorder: Literal["little", "big"]='little', signed: bool=False, result_type: Type[_T]=int) -> _T:
+def u32(data: Union[str, bytes], byteorder: Literal["little", "big"]='little', signed: bool=False, result_type: Union[Type[int], Type[float]]=int) -> int:
     if isinstance(data, str):
         data = str2bytes(data)
 
@@ -64,13 +56,7 @@ def u32f(data: Union[str, bytes], byteorder: Literal["little", "big"]="little") 
         data
     )[0]
 
-@overload
-def u64(data: Union[str, bytes], byteorder: Literal["little", "big"]="little", signed: bool=False, type: Type[int]=int) -> int: ...
-
-@overload
-def u64(data: Union[str, bytes], byteorder: Literal["little", "big"]="little", signed: bool=False, type: Type[float]=float) -> float: ...
-
-def u64(data: Union[str, bytes], byteorder: Literal["little", "big"]='little', signed: bool=False, type: Type[_T]=int) -> _T:
+def u64(data: Union[str, bytes], byteorder: Literal["little", "big"]='little', signed: bool=False, type: Union[Type[int], Type[float]]=int) -> int:
     if isinstance(data, str):
         data = str2bytes(data)
 
