@@ -72,7 +72,7 @@ class Tube(metaclass=abc.ABCMeta):
     # Constructor
     #
     def __init__(self,
-                 timeout: Optional[Union[int, float]]=None,
+                 timeout: Union[int, float]=0,
                  debug: bool=False):
         """Base constructor
 
@@ -125,8 +125,7 @@ class Tube(metaclass=abc.ABCMeta):
             "`timeout` must be positive and either int or float"
 
         if timeout is None:
-            if self._default_timeout is not None:
-                self._settimeout_impl(self._default_timeout)
+            self._settimeout_impl(self._default_timeout)
         else:
             self._settimeout_impl(timeout)
 

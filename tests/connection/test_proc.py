@@ -111,4 +111,3 @@ class TestProcess(unittest.TestCase):
         with self.assertRaises(TimeoutError) as cm:
             p.sendlineafter(b"neko", b, timeout=0.5)
         self.assertEqual(cm.exception.args[1].decode().strip(), a)
-
