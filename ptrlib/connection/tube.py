@@ -1,5 +1,7 @@
 import abc
+import os
 import re
+import select
 import sys
 import threading
 from logging import getLogger
@@ -7,7 +9,10 @@ from typing import Callable, List, Literal, Optional, Tuple, Union
 from ptrlib.binary.encoding import bytes2str, str2bytes, bytes2hex, bytes2utf8, hexdump, AnsiParser, AnsiInstruction
 from ptrlib.console.color import Color
 
+_is_windows = os.name == 'nt'
+
 logger = getLogger(__name__)
+
 
 def tube_is_open(method):
     """Ensure that connection is not *explicitly* closed
@@ -667,12 +672,17 @@ class Tube(metaclass=abc.ABCMeta):
         def thread_send(flag: threading.Event):
             """Read user input and send it to tube
             """
-            #sys.stdout.write(f"{Color.BOLD}{Color.BLUE}{prompt}{Color.END}")
-            #sys.stdout.flush()
             while not flag.isSet():
                 try:
+                    if not _is_windows:
+                        # NOTE: Wait for data since sys.stdin.read blocks
+                        #       even if stdin is closed by keyboard interrupt
+                        while True:
+                            a, b, c = select.select([sys.stdin], [], [], 0.1)
+                            if a: break
+
                     self.send(sys.stdin.readline())
-                except (ConnectionResetError, ConnectionAbortedError, OSError):
+                except (ConnectionResetError, ConnectionAbortedError, OSError, ValueError):
                     flag.set()
 
         flag = threading.Event()
@@ -685,8 +695,8 @@ class Tube(metaclass=abc.ABCMeta):
             th_send.join()
         except KeyboardInterrupt:
             logger.warning("Intterupted by user")
-            sys.stdin.close()
             flag.set()
+            sys.stdin.close()
 
     def close(self):
         """Close this connection
