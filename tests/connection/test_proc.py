@@ -32,6 +32,13 @@ class TestProcess(unittest.TestCase):
         p.sendline(b"Message : " + msg)
         self.assertEqual(p.recvlineafter(" : "), msg)
 
+        # batch send
+        p.sendline([b"A", 3.14, msg, 0xdeadbeef])
+        self.assertEqual(p.recvline(), b"A")
+        self.assertEqual(p.recvline(), b"3.14")
+        self.assertEqual(p.recvline(), msg)
+        self.assertEqual(p.recvline(), str(0xdeadbeef).encode())
+
         # send / recvuntil
         for _ in range(10):
             a, b = os.urandom(16).hex(), os.urandom(16).hex()

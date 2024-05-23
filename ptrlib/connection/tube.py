@@ -473,7 +473,7 @@ class Tube(metaclass=abc.ABCMeta):
 
         return size
 
-    def sendall(self, data: Union[str, bytes]):
+    def sendonce(self, data: Union[str, bytes]):
         """Send the whole data
 
         Send the whole data.
@@ -490,18 +490,21 @@ class Tube(metaclass=abc.ABCMeta):
             to_send -= sent
 
     def sendline(self,
-                 data: Union[int, float, str, bytes],
-                 timeout: Optional[Union[int, float]]=None):
+                 data: Union[int, float, str, bytes, List[Union[int, float, str, bytes]]]):
         """Send a line
 
         Send a line of data.
 
         Args:
             data (bytes) : Data to send
-            timeout (int): Timeout (in second)
         """
-        assert isinstance(data, (int, float, str, bytes)), \
-            "`data` must be int, float, str, or bytes"
+        assert isinstance(data, (int, float, str, bytes, list)), \
+            "`data` must be int, float, str, bytes, or list"
+
+        if isinstance(data, list):
+            for d in data:
+                self.sendline(d)
+            return
 
         if isinstance(data, (int, float)):
             data = str(data).encode()
@@ -563,7 +566,7 @@ class Tube(metaclass=abc.ABCMeta):
             bytes: Received bytes before `delim` comes.
         """
         recv_data = self.recvuntil(delim, size, timeout, drop, lookahead)
-        self.sendline(data, timeout=timeout)
+        self.sendline(data)
 
         return recv_data
 
