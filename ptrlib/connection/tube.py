@@ -649,11 +649,11 @@ class Tube(metaclass=abc.ABCMeta):
             sys.stdout.flush()
             return leftover
 
-        def thread_recv(flag: threading.Event):
+        def thread_recv():
             """Receive data from tube and print to stdout
             """
             leftover = b''
-            while not flag.isSet():
+            while self.is_alive():
                 try:
                     sys.stdout.write(prompt)
                     sys.stdout.flush()
@@ -662,18 +662,20 @@ class Tube(metaclass=abc.ABCMeta):
 
                     if not self.is_alive():
                         logger.warning(f"Connection closed by {str(self)}")
-                        flag.set()
 
                 except TimeoutError:
                     pass # NOTE: We can ignore args since recv will never buffer
+                except BrokenPipeError as e:
+                    logger.warning(e)
+                    break
                 except (EOFError, ConnectionAbortedError, ConnectionResetError):
                     logger.warning(f"Connection closed by {str(self)}")
                     break
 
-        def thread_send(flag: threading.Event):
+        def thread_send():
             """Read user input and send it to tube
             """
-            while not flag.isSet():
+            while self.is_alive():
                 try:
                     if not _is_windows:
                         # NOTE: Wait for data since sys.stdin.read blocks
@@ -686,14 +688,11 @@ class Tube(metaclass=abc.ABCMeta):
 
                     if self.is_alive():
                         self.send(sys.stdin.readline())
-                    else:
-                        flag.set()
                 except (ConnectionResetError, ConnectionAbortedError, OSError, ValueError):
-                    flag.set()
+                    break
 
-        flag = threading.Event()
-        th_recv = threading.Thread(target=thread_recv, args=(flag,))
-        th_send = threading.Thread(target=thread_send, args=(flag,))
+        th_recv = threading.Thread(target=thread_recv)
+        th_send = threading.Thread(target=thread_send)
         th_recv.start()
         th_send.start()
         try:
@@ -701,7 +700,7 @@ class Tube(metaclass=abc.ABCMeta):
             th_send.join()
         except KeyboardInterrupt:
             logger.warning("Intterupted by user")
-            flag.set()
+            sys.stdin.close()
 
     def close(self):
         """Close this connection

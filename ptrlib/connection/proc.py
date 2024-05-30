@@ -208,8 +208,10 @@ class UnixProcess(Tube):
     def _shutdown_recv_impl(self):
         """Close stdin
         """
-        self._proc.stdout.close()
-        self._proc.stderr.close()
+        if self._proc.stdout is not None:
+            self._proc.stdout.close()
+        if self._proc.stderr is not None:
+            self._proc.stderr.close()
 
     def _shutdown_send_impl(self):
         """Close stdout
