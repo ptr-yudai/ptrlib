@@ -86,6 +86,8 @@ class Tube(metaclass=abc.ABCMeta):
         self._is_send_closed = False
         self._is_recv_closed = False
 
+        self._POLL_TIMEOUT = 0.1
+
         self._default_timeout = timeout
         self.settimeout()
 
@@ -659,16 +661,13 @@ class Tube(metaclass=abc.ABCMeta):
                     leftover = pretty_print(data, leftover)
 
                     if not self.is_alive():
-                        logger.error(f"Connection closed by {str(self)}")
+                        logger.warning(f"Connection closed by {str(self)}")
                         flag.set()
 
                 except TimeoutError:
                     pass # NOTE: We can ignore args since recv will never buffer
-                except EOFError:
-                    logger.error("Receiver EOF")
-                    break
-                except ConnectionAbortedError:
-                    logger.error("Receiver EOF")
+                except (EOFError, ConnectionAbortedError, ConnectionResetError):
+                    logger.warning(f"Connection closed by {str(self)}")
                     break
 
         def thread_send(flag: threading.Event):
@@ -679,11 +678,16 @@ class Tube(metaclass=abc.ABCMeta):
                     if not _is_windows:
                         # NOTE: Wait for data since sys.stdin.read blocks
                         #       even if stdin is closed by keyboard interrupt
-                        while True:
-                            a, b, c = select.select([sys.stdin], [], [], 0.1)
-                            if a: break
+                        while self.is_alive():
+                            r, [], [] = select.select(
+                                [sys.stdin], [], [], self._POLL_TIMEOUT
+                            )
+                            if r: break
 
-                    self.send(sys.stdin.readline())
+                    if self.is_alive():
+                        self.send(sys.stdin.readline())
+                    else:
+                        flag.set()
                 except (ConnectionResetError, ConnectionAbortedError, OSError, ValueError):
                     flag.set()
 
@@ -698,7 +702,6 @@ class Tube(metaclass=abc.ABCMeta):
         except KeyboardInterrupt:
             logger.warning("Intterupted by user")
             flag.set()
-            sys.stdin.close()
 
     def close(self):
         """Close this connection
