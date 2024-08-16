@@ -1,7 +1,8 @@
 import functools
 import os
 from logging import getLogger
-from typing import Dict, Generator, Optional
+from typing import Dict, Generator, Optional, Tuple
+from zlib import crc32
 from ptrlib.binary.packing import *
 from ptrlib.arch.common import assemble
 from ptrlib.binary.encoding import str2bytes, bytes2str
@@ -22,6 +23,76 @@ class ELF(object):
         self.filepath = os.path.realpath(filepath)
         self._parser = ELFParser(self.filepath)
         self._base = 0
+        self._debug_parser = self._get_debug_parser()
+
+    def _get_debug_parser(self):
+        # ref: https://sourceware.org/gdb/current/onlinedocs/gdb.html/Separate-Debug-Files.html
+        dirname = os.path.dirname(self.filepath)
+
+        debug_info_paths = []
+        def add(*args: str, crc=None):
+            debug_info_paths.append((os.path.realpath(os.path.join(*args)), crc))
+
+        if self.build_id is not None:
+            build_id_hex = self.build_id.hex()
+            add(f"/usr/lib/debug/.build-id/{build_id_hex[:2]}/{build_id_hex[2:]}.debug")
+            add(dirname, f".debug/.build-id/{build_id_hex[:2]}/{build_id_hex[2:]}.debug")
+
+        if self._debuglink_info is not None:
+            name, crc = self._debuglink_info
+            try:
+                decoded_name = name.decode()
+                add(dirname, decoded_name, crc=crc)
+                add(dirname, ".debug", decoded_name, crc=crc)
+                add("/usr/lib/debug", dirname, decoded_name, crc=crc)
+            except:
+                pass
+
+        for p, crc in debug_info_paths:
+            if not os.path.exists(p):
+                continue
+            if crc is not None:
+                with open(p, "rb") as f:
+                    content = f.read()
+                    if crc32(content) != crc:
+                        continue
+            logger.info("Debug file loaded from {}".format(p))
+            return ELFParser(p)
+        return None
+
+    @property
+    @cache
+    def build_id(self) -> Optional[bytes]:
+        shdr = self._offset_section(b'.note.gnu.build-id')
+        if shdr is None: return None
+
+        self._parser.stream.seek(shdr - self._load_address)
+        n_namesz = u32(self._parser.stream.read(4))
+        n_descsz = u32(self._parser.stream.read(4))
+        n_type = u32(self._parser.stream.read(4))
+        name = u32(self._parser.stream.read(n_namesz))
+        build_id = self._parser.stream.read(n_descsz)
+        return build_id
+
+    @property
+    @cache
+    def _debuglink_info(self) -> Optional[Tuple[bytes, int]]:
+        shdr = self._parser.section_by_name(b'.gnu_debuglink')
+        if shdr is None: return None
+
+        self._parser.stream.seek(shdr['sh_offset'] - self._load_address)
+        _debugfile_name = b""
+        while True:
+            next = self._parser.stream.read1(1)
+            if next == b'' or next == b'\x00':
+                break
+            _debugfile_name += next
+        
+        # seek to align
+        self._parser.stream.read(-(len(_debugfile_name) + 1) % 4)
+        crc = u32(self._parser.stream.read(4))
+
+        return _debugfile_name, crc
 
     @property
     def base(self) -> int:
@@ -101,20 +172,22 @@ class ELF(object):
             name = str2bytes(name)
 
         # Find symbol
-        for shdr in self._parser.iter_sections():
-            if shdr['sh_type'] not in ["SHT_SYMTAB", "SHT_DYNSYM", "SHT_SUNW_LDYNSYM"]:
-                continue
+        for parser in [self._parser, self._debug_parser]:
+            if parser is None: continue
+            for shdr in parser.iter_sections():
+                if shdr['sh_type'] not in ["SHT_SYMTAB", "SHT_DYNSYM", "SHT_SUNW_LDYNSYM"]:
+                   continue
 
-            strtab = self._parser.section_at(shdr['sh_link'])
-            for symtab in self._parser.iter_symtab(shdr):
-                sym_name = self._parser.string_at(
-                    strtab['sh_offset'] + symtab['st_name']
-                )
-                if sym_name == b'':
-                    continue
+                strtab = parser.section_at(shdr['sh_link'])
+                for symtab in parser.iter_symtab(shdr):
+                    sym_name = parser.string_at(
+                        strtab['sh_offset'] + symtab['st_name']
+                    )
+                    if sym_name == b'':
+                        continue
 
-                if sym_name == name:
-                    return symtab['st_value']
+                    if sym_name == name:
+                        return symtab['st_value']
 
         return None
 

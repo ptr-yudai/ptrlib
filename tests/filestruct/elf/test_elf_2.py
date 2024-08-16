@@ -18,6 +18,7 @@ class TestELF2(unittest.TestCase):
         self.assertEqual(self.elf.symbol('system'), 0x522c0) # test cache
         self.assertEqual(self.elf.symbol('__libc_system'), 0x522c0)
         self.assertEqual(self.elf.symbol('_IO_2_1_stdout_'), 0x1ed6a0)
+        self.assertEqual(self.elf.symbol('_IO_stdfile_1_lock'), 0x1ee7e0)
 
         self.elf.base = BASE
         self.assertEqual(self.elf.symbol('system'), BASE + 0x522c0)
