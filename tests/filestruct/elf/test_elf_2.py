@@ -48,8 +48,10 @@ class TestELF2(unittest.TestCase):
     def test_main_arena(self):
         self.elf.base = 0
         self.assertEqual(self.elf.main_arena(), 0x1ecb80)
+        self.assertEqual(self.elf.main_arena(use_symbol=False), 0x1ecb80)
         self.elf.base = BASE
         self.assertEqual(self.elf.main_arena(), BASE + 0x1ecb80)
+        self.assertEqual(self.elf.main_arena(use_symbol=False), BASE + 0x1ecb80)
 
     def test_security(self):
         self.assertEqual(self.elf.relro(), 1)

@@ -371,13 +371,16 @@ class ELF(object):
 
         return None
 
-    def main_arena(self) -> Optional[int]:
+    def main_arena(self, use_symbol: bool=True) -> Optional[int]:
         """Find main_arena offset
+
+        Args:
+            use_symbol (bool) Try to search for symbol first
 
         Returns:
             int: Offset to main_arena (returns None if it's not libc)
         """
-        offset = self._offset_main_arena()
+        offset = self._offset_main_arena(use_symbol)
         if offset is None:
             logger.warning('`main_arena` only works for libc binary.')
             return None
@@ -385,7 +388,12 @@ class ELF(object):
             return self._pie_add_base + offset
 
     @cache
-    def _offset_main_arena(self) -> Optional[int]:
+    def _offset_main_arena(self, use_symbol: bool=True) -> Optional[int]:
+        if use_symbol:
+            ofs_arena = self._offset_symbol('main_arena')
+            if ofs_arena is not None:
+                return ofs_arena
+
         # NOTE: This is a heuristic function
         ofs_stdin = self._offset_symbol('_IO_2_1_stdin_')
         ofs_realloc_hook = self._offset_symbol('__realloc_hook')

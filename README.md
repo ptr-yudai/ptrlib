@@ -56,6 +56,12 @@ libc = ELF("./libc.so.6")
 This doesn't fully analyse the binary so that it runs fast.
 Also, ELF class supports cache to reduce calculation.
 
+Since version 2.3.3, ptrlib supports loading debug symbol.
+```python
+libc = ELF("./libc.so.6")
+print(libc.symbol("_IO_stdfile_1_lock"))
+```
+
 You can use some useful methods such as `got`, `plt`, `symbol`, `section` and so on.
 The following is an example to craft ROP stager.
 ```python
@@ -144,3 +150,4 @@ Feel free to make a pull request / issue :)
   - Added status check (CI test)
 - [keymoon](https://github.com/key-moon)
   - Added algorithm package
+  - Added debug-symbol parser
