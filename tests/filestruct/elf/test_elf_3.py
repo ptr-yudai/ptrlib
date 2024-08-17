@@ -19,12 +19,14 @@ class TestELF3(unittest.TestCase):
         self.assertEqual(self.elf.symbol('__libc_system'), 0x54ae0)
         self.assertEqual(self.elf.symbol('_IO_2_1_stdout_'), 0x219760)
         self.assertEqual(self.elf.symbol('_IO_stdfile_1_lock'), 0x21b730)
+        self.assertEqual(self.elf.symbol('_IO_stdfile_1_lock'), 0x21b730) # test cache
 
         self.elf.base = BASE
         self.assertEqual(self.elf.symbol('system'), BASE + 0x54ae0)
         self.assertEqual(self.elf.symbol('system'), BASE + 0x54ae0)
         self.assertEqual(self.elf.symbol('__libc_system'), BASE + 0x54ae0)
         self.assertEqual(self.elf.symbol('_IO_2_1_stdout_'), BASE + 0x219760)
+        self.assertEqual(self.elf.symbol('_IO_stdfile_1_lock'), BASE + 0x21b730)
 
     def test_search(self):
         self.elf.base = 0

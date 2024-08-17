@@ -187,6 +187,7 @@ class ELF(object):
                         continue
 
                     if sym_name == name:
+                        # TODO: Support searching for multiple identical symbols
                         return symtab['st_value']
 
         return None
