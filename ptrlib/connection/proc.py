@@ -164,16 +164,27 @@ class UnixProcess(Tube):
         else:
             timeout = self._current_timeout
 
-        ready, [], [] = select.select(
-            [self._proc.stdout.fileno()], [], [], timeout
-        )
-        if len(ready) == 0:
-            raise TimeoutError("Timeout (_recv_impl)", b'') from None
+        if timeout is not None:
+            ready, [], [] = select.select(
+                [self._proc.stdout.fileno()], [], [], timeout
+            )
+            if len(ready) == 0:
+                raise TimeoutError("Timeout (_recv_impl)", b'') from None
+
+        else:
+            while self.is_alive():
+                ready, [], [] = select.select(
+                    [self._proc.stdout.fileno()], [], [], self._POLL_TIMEOUT
+                )
+                if ready: break
 
         try:
             data = self._proc.stdout.read(size)
         except subprocess.TimeoutExpired:
             raise TimeoutError("Timeout (_recv_impl)", b'') from None
+
+        if data is None:
+            raise ConnectionAbortedError("Connection closed (_recv_impl)", b'') from None
 
         return data
 
@@ -197,8 +208,10 @@ class UnixProcess(Tube):
     def _shutdown_recv_impl(self):
         """Close stdin
         """
-        self._proc.stdout.close()
-        self._proc.stderr.close()
+        if self._proc.stdout is not None:
+            self._proc.stdout.close()
+        if self._proc.stderr is not None:
+            self._proc.stderr.close()
 
     def _shutdown_send_impl(self):
         """Close stdout
@@ -217,12 +230,23 @@ class UnixProcess(Tube):
             os.close(self._slave)
             self._slave = None
 
-        if self._proc.stdin is not None:
-            self._proc.stdin.close()
-        if self._proc.stdout is not None:
-            self._proc.stdout.close()
-        if self._proc.stderr is not None:
-            self._proc.stderr.close()
+        try:
+            if self._proc.stdin is not None:
+                self._proc.stdin.close()
+        except BrokenPipeError:
+            pass
+
+        try:
+            if self._proc.stdout is not None:
+                self._proc.stdout.close()
+        except BrokenPipeError:
+            pass
+
+        try:
+            if self._proc.stderr is not None:
+                self._proc.stderr.close()
+        except BrokenPipeError:
+            pass
 
     def _is_alive_impl(self) -> bool:
         """Check if the process is alive"""

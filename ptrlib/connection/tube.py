@@ -73,18 +73,24 @@ class Tube(metaclass=abc.ABCMeta):
     #
     def __init__(self,
                  timeout: Union[int, float]=0,
-                 debug: bool=False):
+                 debug: bool=False,
+                 hexdump: bool=True):
         """Base constructor
 
         Args:
             timeout (float): Default timeout
+            debug (bool): Dump received and sent data
+            hexdump (bool): Print dump in hexdump format (Available when `debug` is true)
         """
         self._buffer = b''
         self._debug = debug
+        self._hexdump = hexdump
 
         self._is_closed = False
         self._is_send_closed = False
         self._is_recv_closed = False
+
+        self._POLL_TIMEOUT = 0.1
 
         self._default_timeout = timeout
         self.settimeout()
@@ -97,8 +103,16 @@ class Tube(metaclass=abc.ABCMeta):
         return self._debug
 
     @debug.setter
-    def debug(self, is_debug):
+    def debug(self, is_debug: bool):
         self._debug = bool(is_debug)
+
+    @property
+    def hexdump(self):
+        return self._hexdump
+
+    @debug.setter
+    def hexdump(self, is_hexdump: bool):
+        self._hexdump = bool(is_hexdump)
 
     #
     # Methods
@@ -174,7 +188,23 @@ class Tube(metaclass=abc.ABCMeta):
             data = self._recv_impl(size - len(self._buffer))
             if self._debug and len(data) > 0:
                 logger.info(f"Received {hex(len(data))} ({len(data)}) bytes:")
-                hexdump(data, prefix="    " + Color.CYAN, postfix=Color.END)
+                if self._hexdump:
+                    hexdump(data, prefix="    " + Color.CYAN, postfix=Color.END)
+                else:
+                    sys.stdout.write(f'{Color.BOLD}<< {Color.CYAN}')
+                    utf8str, leftover, marker = bytes2utf8(data)
+                    for c, t in zip(utf8str, marker):
+                        if t:
+                            if 0x7f <= ord(c) < 0x100 or c == 0:
+                                sys.stdout.write(f'{Color.RED}\\x{ord(c):02x}{Color.CYAN}')
+                            elif ord(c) == 0x0a:
+                                sys.stdout.write(f'{c}{Color.END}{Color.BOLD}<< {Color.CYAN}')
+                            else:
+                                sys.stdout.write(c)
+                        else:
+                            sys.stdout.write(f'{Color.RED}\\x{ord(c):02x}{Color.CYAN}')
+                    sys.stdout.write(bytes2str(leftover))
+                    sys.stdout.write(f'{Color.END}\n')
 
             self._buffer += data
 
@@ -464,11 +494,29 @@ class Tube(metaclass=abc.ABCMeta):
             ```
         """
         assert isinstance(data, (str, bytes)), "`data` must be either str or bytes"
+        data = str2bytes(data)
 
-        size = self._send_impl(str2bytes(data))
-        if self.debug:
+        size = self._send_impl(data)
+        if self._debug:
             logger.info(f"Sent {hex(size)} ({size}) bytes:")
-            hexdump(data[:size], prefix=Color.YELLOW, postfix=Color.END)
+            if self._hexdump:
+                hexdump(data[:size], prefix=Color.YELLOW, postfix=Color.END)
+            else:
+                sys.stdout.write(f'{Color.BOLD}>> {Color.YELLOW}')
+                utf8str, leftover, marker = bytes2utf8(data[:size])
+                for c, t in zip(utf8str, marker):
+                    if t:
+                        if 0x7f <= ord(c) < 0x100 or c == 0:
+                            sys.stdout.write(f'{Color.RED}\\x{ord(c):02x}{Color.YELLOW}')
+                        elif ord(c) == 0x0a:
+                            sys.stdout.write(f'{c}{Color.END}{Color.BOLD}>> {Color.YELLOW}')
+                        else:
+                            sys.stdout.write(c)
+                    else:
+                        sys.stdout.write(f'{Color.RED}\\x{ord(c):02x}{Color.YELLOW}')
+                sys.stdout.write(bytes2str(leftover))
+                sys.stdout.write(f'{Color.END}\n')
+
 
         return size
 
@@ -647,11 +695,11 @@ class Tube(metaclass=abc.ABCMeta):
             sys.stdout.flush()
             return leftover
 
-        def thread_recv(flag: threading.Event):
+        def thread_recv():
             """Receive data from tube and print to stdout
             """
             leftover = b''
-            while not flag.isSet():
+            while self.is_alive():
                 try:
                     sys.stdout.write(prompt)
                     sys.stdout.flush()
@@ -659,37 +707,38 @@ class Tube(metaclass=abc.ABCMeta):
                     leftover = pretty_print(data, leftover)
 
                     if not self.is_alive():
-                        logger.error(f"Connection closed by {str(self)}")
-                        flag.set()
+                        logger.warning(f"Connection closed by {str(self)}")
 
                 except TimeoutError:
                     pass # NOTE: We can ignore args since recv will never buffer
-                except EOFError:
-                    logger.error("Receiver EOF")
+                except BrokenPipeError as e:
+                    logger.warning(e)
                     break
-                except ConnectionAbortedError:
-                    logger.error("Receiver EOF")
+                except (EOFError, ConnectionAbortedError, ConnectionResetError):
+                    logger.warning(f"Connection closed by {str(self)}")
                     break
 
-        def thread_send(flag: threading.Event):
+        def thread_send():
             """Read user input and send it to tube
             """
-            while not flag.isSet():
+            while self.is_alive():
                 try:
                     if not _is_windows:
                         # NOTE: Wait for data since sys.stdin.read blocks
                         #       even if stdin is closed by keyboard interrupt
-                        while True:
-                            a, b, c = select.select([sys.stdin], [], [], 0.1)
-                            if a: break
+                        while self.is_alive():
+                            r, [], [] = select.select(
+                                [sys.stdin], [], [], self._POLL_TIMEOUT
+                            )
+                            if r: break
 
-                    self.send(sys.stdin.readline())
+                    if self.is_alive():
+                        self.send(sys.stdin.readline())
                 except (ConnectionResetError, ConnectionAbortedError, OSError, ValueError):
-                    flag.set()
+                    break
 
-        flag = threading.Event()
-        th_recv = threading.Thread(target=thread_recv, args=(flag,))
-        th_send = threading.Thread(target=thread_send, args=(flag,))
+        th_recv = threading.Thread(target=thread_recv)
+        th_send = threading.Thread(target=thread_send)
         th_recv.start()
         th_send.start()
         try:
@@ -697,7 +746,6 @@ class Tube(metaclass=abc.ABCMeta):
             th_send.join()
         except KeyboardInterrupt:
             logger.warning("Intterupted by user")
-            flag.set()
             sys.stdin.close()
 
     def close(self):
