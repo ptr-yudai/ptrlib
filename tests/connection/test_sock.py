@@ -1,3 +1,4 @@
+import json
 import unittest
 from socket import gethostbyname
 from ptrlib import Socket
@@ -45,21 +46,35 @@ class TestSocket(unittest.TestCase):
         self.assertEqual(b"200 OK" in cm.exception.args[1], True)
 
     def test_tls(self):
-        host = "www.example.com"
+        host = "check-tls.akamaized.net"
+        path = "/v1/tlssni.json"
 
-        # connect with sni
-        ip_addr = gethostbyname(host)
-        sock = Socket(ip_addr, 443, ssl=True, sni=host)
-        sock.sendline(b'GET / HTTP/1.1\r')
-        sock.send(b'Host: www.example.com\r\n')
-        sock.send(b'Connection: close\r\n\r\n')
-        self.assertTrue(int(sock.recvlineafter('Content-Length: ')) > 0)
-        sock.close()
-
-        # connect without sni
+        # connect with SNI enabled
         sock = Socket(host, 443, ssl=True)
-        sock.sendline(b'GET / HTTP/1.1\r')
-        sock.send(b'Host: www.example.com\r\n')
+        sock.sendline(f'GET {path} HTTP/1.1'.encode() + b'\r')
+        sock.send(f'Host: {host}'.encode() + b'\r\n')
         sock.send(b'Connection: close\r\n\r\n')
         self.assertTrue(int(sock.recvlineafter('Content-Length: ')) > 0)
         sock.close()
+
+        # connect with a specific SNI value
+        sock = Socket(host, 443, ssl=True, sni="example.com")
+        sock.sendline(f'GET {path} HTTP/1.1'.encode() + b'\r')
+        sock.send(f'Host: {host}'.encode() + b'\r\n')
+        sock.send(b'Connection: close\r\n\r\n')
+        self.assertTrue((contentlength := int(sock.recvlineafter('Content-Length: '))) > 0)
+        sock.recvuntil(b'\r\n\r\n')
+        content = json.loads(sock.recvonce(contentlength))
+        sock.close()
+        self.assertEqual(content['tls_sni_value'], "example.com")
+
+        # connect with SNI disabled
+        sock = Socket(host, 443, ssl=True, sni=False)
+        sock.sendline(f'GET {path} HTTP/1.1'.encode() + b'\r')
+        sock.send(f'Host: {host}'.encode() + b'\r\n')
+        sock.send(b'Connection: close\r\n\r\n')
+        self.assertTrue((contentlength := int(sock.recvlineafter('Content-Length: '))) > 0)
+        sock.recvuntil(b'\r\n\r\n')
+        content = json.loads(sock.recvonce(contentlength))
+        sock.close()
+        self.assertEqual(content['tls_sni_status'], "missing")
