@@ -54,8 +54,12 @@ class TestSocket(unittest.TestCase):
         sock.sendline(f'GET {path} HTTP/1.1'.encode() + b'\r')
         sock.send(f'Host: {host}'.encode() + b'\r\n')
         sock.send(b'Connection: close\r\n\r\n')
-        self.assertTrue(int(sock.recvlineafter('Content-Length: ')) > 0)
+        self.assertTrue((contentlength := int(sock.recvlineafter('Content-Length: '))) > 0)
+        sock.recvuntil(b'\r\n\r\n')
+        content = json.loads(sock.recvonce(contentlength))
         sock.close()
+        self.assertEqual(content['tls_sni_status'], "present")
+        self.assertEqual(content['tls_sni_value'], host)
 
         # connect with a specific SNI value
         ip_addr = gethostbyname(host)
@@ -67,6 +71,7 @@ class TestSocket(unittest.TestCase):
         sock.recvuntil(b'\r\n\r\n')
         content = json.loads(sock.recvonce(contentlength))
         sock.close()
+        self.assertEqual(content['tls_sni_status'], "invalid")
         self.assertEqual(content['tls_sni_value'], "example.com")
 
         # connect with SNI disabled
@@ -79,3 +84,4 @@ class TestSocket(unittest.TestCase):
         content = json.loads(sock.recvonce(contentlength))
         sock.close()
         self.assertEqual(content['tls_sni_status'], "missing")
+        self.assertEqual(content['tls_sni_value'], "")
