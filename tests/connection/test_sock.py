@@ -58,7 +58,8 @@ class TestSocket(unittest.TestCase):
         sock.close()
 
         # connect with a specific SNI value
-        sock = Socket(host, 443, ssl=True, sni="example.com")
+        ip_addr = gethostbyname(host)
+        sock = Socket(ip_addr, 443, ssl=True, sni="example.com")
         sock.sendline(f'GET {path} HTTP/1.1'.encode() + b'\r')
         sock.send(f'Host: {host}'.encode() + b'\r\n')
         sock.send(b'Connection: close\r\n\r\n')
