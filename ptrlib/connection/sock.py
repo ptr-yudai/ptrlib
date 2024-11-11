@@ -68,8 +68,10 @@ class Socket(Tube):
             self.context = _ssl.SSLContext(_ssl.PROTOCOL_TLS_CLIENT)
             self.context.check_hostname = False
             self.context.verify_mode = _ssl.CERT_NONE
-            if sni is True:
+            if not sni:
                 self._sock = self.context.wrap_socket(self._sock)
+            elif sni is True:
+                self._sock = self.context.wrap_socket(self._sock, server_hostname=host)
             else:
                 self._sock = self.context.wrap_socket(self._sock, server_hostname=sni)
 
