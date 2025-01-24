@@ -27,7 +27,7 @@ setup(
     keywords='pwn crypto algorithm',
     packages=find_packages(exclude=['examples', 'tests']),
     python_requires='>=3.8',
-    install_requires=['pycryptodome'],
+    install_requires=['pycryptodome', "pywin32; platform_system=='Windows'"],
     entry_points={
         'console_scripts': [
             'ptrlib=ptrlib.__init__:main',
