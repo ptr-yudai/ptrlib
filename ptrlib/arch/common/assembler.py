@@ -62,7 +62,7 @@ def assemble(code: Union[str, bytes],
 
 def nasm(code: Union[str, bytes],
          fmt: str='bin',
-         bits: Optional[int]=None,
+         bits: int=64,
          org: Optional[int]=None,
          nasm_path: Optional[str]=None):
     """Assemble x86/x86-64 code with NASM
@@ -70,7 +70,7 @@ def nasm(code: Union[str, bytes],
     Args:
       code (str): Assembly code
       fmt (str): Output format (See `nasm -hf` for availabel formats)
-      bits (int): Architecture bits (32 or 64)
+      bits (int): Architecture bits (Default is 64)
       org (int): Specify address (ORG instruction)
       nasm_path (str): Path to NASM executable
 
@@ -80,6 +80,9 @@ def nasm(code: Union[str, bytes],
     from ptrlib.arch.common import which
     if nasm_path is None:
         nasm_path = which('nasm')
+        if nasm_path is None:
+            raise FileNotFoundError("'nasm' not found.\n"
+                                    "You can install it with `apt install nasm`")
 
     if isinstance(code, str):
         code = str2bytes(code)
@@ -95,12 +98,17 @@ def nasm(code: Union[str, bytes],
         f.write(code)
 
     with open(fname_o, 'wb+') as f, contextlib.suppress(FileNotFoundError):
-        p = subprocess.Popen([nasm_path, "-f{}".format(fmt),
-                              fname_s, "-o", fname_o])
+        p = subprocess.Popen([nasm_path, "-f{}".format(fmt), fname_s, "-o", fname_o],
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if p.wait() != 0:
-            logger.warning("Assemble failed")
+            _, err = p.communicate()
+            logger.error("===== Assemble failed =====")
+            logger.error(err.decode())
+            logger.error("===== Code =====")
+            for i, line in enumerate(code.decode().split('\n')):
+                logger.error(f"{i+1:5d}: {line}")
             os.unlink(fname_s)
-            return None
+            raise SyntaxError("Assemble failed")
 
         f.seek(0)
         output = f.read()
