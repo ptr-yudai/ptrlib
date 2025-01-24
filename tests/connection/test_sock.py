@@ -63,7 +63,7 @@ class TestSocket(unittest.TestCase):
 
         # connect with a specific SNI value
         ip_addr = gethostbyname(host)
-        sock = Socket(ip_addr, 443, ssl=True, sni="example.com")
+        sock = Socket(ip_addr, 443, ssl=True, sni="akamaized.net")
         sock.sendline(f'GET {path} HTTP/1.1'.encode() + b'\r')
         sock.send(f'Host: {host}'.encode() + b'\r\n')
         sock.send(b'Connection: close\r\n\r\n')
@@ -72,7 +72,7 @@ class TestSocket(unittest.TestCase):
         content = json.loads(sock.recvonce(contentlength))
         sock.close()
         self.assertEqual(content['tls_sni_status'], "invalid")
-        self.assertEqual(content['tls_sni_value'], "example.com")
+        self.assertEqual(content['tls_sni_value'], "akamaized.net")
 
         # connect with SNI disabled
         sock = Socket(host, 443, ssl=True, sni=False)
