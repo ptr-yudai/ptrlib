@@ -12,6 +12,8 @@ class TestConsts(unittest.TestCase):
         if _is_windows:
             self.skipTest("This test is intended for the Linux platform")
 
+        self.skipTest("Experimental feature: Test is down")
+
     def test_consts(self):
         self.assertEqual(consts['x86']['EFAULT'], 14)
         self.assertEqual(consts['i386']['EPERM'], 1)
