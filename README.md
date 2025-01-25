@@ -22,11 +22,20 @@ Library Dependency:
 - pywin32 (when handling Windows process)
 
 External Program:
-- When using `SSH` function:
+- `SSH` requires:
   - ssh
   - expect
-- When using `nasm` function:
+- `nasm` requires:
   - nasm
+- `assemble` requires:
+  - gcc, objcopy (x86, x86-64)
+  - arm-linux-gnueabi-gcc, aarch64-linux-gnu-gcc (arm, aarch64)
+- `disassemble` requires:
+  - objdump (x86, x86-64)
+  - arm-linux-gnueabi-objdump, aarch64-linux-gnu-objdump (arm, aarch64)
+- `consts` requires:
+  - grep
+  - gcc (x86, x86-64)
 
 ## Usage
 Basic examples are available at [/examples](https://github.com/ptr-yudai/ptrlib/tree/master/examples/).

@@ -5,7 +5,7 @@ import re
 def syscall_table(arch, bits):
     table = {}
     r = requests.get(URL.format(arch=arch, bits=bits))
-    for num, _, name in re.findall("(\d+).+(common|64|i386).+\ssys_([a-z0-9_]+)", r.text):
+    for num, _, name in re.findall(r"(\d+).+(common|64|i386).+\ssys_([a-z0-9_]+)", r.text):
         table[name] = int(num)
     return table
 
@@ -13,7 +13,7 @@ def syscall_table_arm64():
     # WTF
     table = {}
     r = requests.get(URL)
-    for name, num in re.findall("#define\s+__NR_([a-z0-9_]+)\s+(\d+)", r.text):
+    for name, num in re.findall(r"#define\s+__NR_([a-z0-9_]+)\s+(\d+)", r.text):
         table[name] = int(num)
     return table
 
