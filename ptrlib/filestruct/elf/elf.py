@@ -258,6 +258,71 @@ class ELF(object):
         """
         for result in self.search(pattern, writable, executable):
             yield result
+    
+    def addr2offset(self, addr: int) -> int | None:
+        """Returns the offset in the ELF corresponding to a given virtual address.
+
+        Args:
+            addr (int): Address
+        """
+        parser = self._parser
+
+        # serach the segment
+        for segment in parser.segments():
+            if segment["p_type"] == "PT_LOAD":
+                start_vaddr = segment["p_vaddr"]
+                end_vaddr = start_vaddr + segment["p_memsz"]
+
+                if start_vaddr <= addr < end_vaddr:
+                    segment_offset = segment["p_offset"]
+                    offset_from_segment_base = addr - start_vaddr
+                    offset = segment_offset + offset_from_segment_base
+
+                    return offset
+
+        return None
+
+    def read(self, addr: int, size: int) -> bytes | None:
+        """Returns the bytes of a size from a virtual address.
+
+        If a non-existent address is specified, None is returned.
+
+        Unintended behaviour will occur if the segment is crossed.
+
+        Args:
+            addr (int): Start address
+            size (int): Size of bytes
+
+        Returns:
+            bytes: bytes in the file
+        """
+        parser = self._parser
+
+        offset = self.addr2offset(addr)
+
+        if offset is not None:
+            stream = parser.stream
+            # save pointer
+            current_offset = stream.tell()
+
+            # get bytes
+            stream.seek(offset)
+            ret = stream.read(size)
+
+            # recover pointer
+            stream.seek(current_offset)
+
+            return ret
+        
+        return None
+
+    # return bytes of elf by `range (b[start:end])`
+    def read_by_range(self, start: int, end: int) -> bytes | None:
+        """
+        Returns the bytes from a start virtual address to an end virtual address.
+        """
+        size = end - start
+        return self.read(start, size)
 
     def plt(self, name: Union[str, bytes]) -> Optional[int]:
         """Get a PLT address
