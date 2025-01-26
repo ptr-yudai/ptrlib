@@ -263,7 +263,10 @@ class ELF(object):
         """Returns the offset in the ELF corresponding to a given virtual address.
 
         Args:
-            addr (int): Address
+            addr (int): Virtual address.
+        
+        Returns:
+            int | None: Offset. If a non-existent address is specified, None is returned
         """
         parser = self._parser
 
@@ -290,11 +293,11 @@ class ELF(object):
         Unintended behaviour will occur if the segment is crossed.
 
         Args:
-            addr (int): Start address
+            addr (int): Start virtual address
             size (int): Size of bytes
 
         Returns:
-            bytes: bytes in the file
+            bytes | None: Bytes in the file. If a non-existent address is specified, None is returned
         """
         parser = self._parser
 
@@ -302,14 +305,14 @@ class ELF(object):
 
         if offset is not None:
             stream = parser.stream
-            # save pointer
+            # save position
             current_offset = stream.tell()
 
             # get bytes
             stream.seek(offset)
             ret = stream.read(size)
 
-            # recover pointer
+            # recover position
             stream.seek(current_offset)
 
             return ret
@@ -320,6 +323,15 @@ class ELF(object):
     def read_by_range(self, start: int, end: int) -> bytes | None:
         """
         Returns the bytes from a start virtual address to an end virtual address.
+
+        Just doing `elf.read(start, end-start)`
+
+        Args:
+            start (int): Start virtual address
+            end (int): End virtual address
+
+        Returns:
+            bytes | None: Bytes in the file. If a non-existent address is specified, None is returned
         """
         size = end - start
         return self.read(start, size)
