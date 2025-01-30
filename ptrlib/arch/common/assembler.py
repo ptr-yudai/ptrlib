@@ -113,7 +113,9 @@ def nasm(code: Union[str, bytes],
         f.seek(0)
         output = f.read()
 
+    with contextlib.suppress(FileNotFoundError):
+        # Seperate context for Windows
         os.unlink(fname_s)
         os.unlink(fname_o)
 
-        return output
+    return output
