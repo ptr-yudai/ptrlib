@@ -190,6 +190,7 @@ class WinProcess(Tube):
         self._returncode = None
 
         logger.info(f"Successfully created new process {str(self)}")
+        self._init_done = True
 
     #
     # Property
