@@ -45,6 +45,14 @@ class TestELF1(unittest.TestCase):
         self.assertEqual(next(self.elf.search('A', writable=True)), BASE + 4099264)
         self.assertEqual(next(self.elf.find(b'/bin/sh\0')), BASE + 1785498)
 
+    def test_read(self):
+        # syscall function
+        self.assertEqual(self.elf.read(0x11b820, 0x33), b"H\x89\xf8H\x89\xf7H\x89\xd6H\x89\xcaM\x89\xc2M\x89\xc8L\x8bL$\x08\x0f\x05H=\x01\xf0\xff\xffs\x01\xc3H\x8b\r\x1f\xf6,\x00\xf7\xd8d\x89\x01H\x83\xc8\xff\xc3")
+        self.assertEqual(self.elf.read_by_range(0x11b820, 0x11b820+0x33), b"H\x89\xf8H\x89\xf7H\x89\xd6H\x89\xcaM\x89\xc2M\x89\xc8L\x8bL$\x08\x0f\x05H=\x01\xf0\xff\xffs\x01\xc3H\x8b\r\x1f\xf6,\x00\xf7\xd8d\x89\x01H\x83\xc8\xff\xc3")
+        # "/bin/sh"
+        self.assertEqual(self.elf.read(1785498, 8), b"/bin/sh\0")
+        self.assertEqual(self.elf.read_by_range(1785498, 1785498 + 8), b"/bin/sh\0")
+
     def test_main_arena(self):
         self.elf.base = 0
         self.assertEqual(self.elf.main_arena(), 0x3ebc40)
