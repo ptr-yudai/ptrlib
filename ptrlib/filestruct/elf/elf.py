@@ -319,23 +319,6 @@ class ELF(object):
         
         return None
 
-    # return bytes of elf by `range (b[start:end])`
-    def read_by_range(self, start: int, end: int) -> bytes | None:
-        """
-        Returns the bytes from a start virtual address to an end virtual address.
-
-        Just doing `elf.read(start, end-start)`
-
-        Args:
-            start (int): Start virtual address
-            end (int): End virtual address
-
-        Returns:
-            bytes | None: Bytes in the file. If a non-existent address is specified, None is returned
-        """
-        size = end - start
-        return self.read(start, size)
-
     def plt(self, name: Union[str, bytes]) -> Optional[int]:
         """Get a PLT address
         Lookup the PLT table and find the corresponding address
