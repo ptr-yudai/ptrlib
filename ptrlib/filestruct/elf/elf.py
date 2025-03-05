@@ -259,7 +259,7 @@ class ELF(object):
         for result in self.search(pattern, writable, executable):
             yield result
     
-    def addr2offset(self, addr: int) -> int | None:
+    def addr2offset(self, addr: int) -> Optional[int]:
         """Returns the offset in the ELF corresponding to a given virtual address.
 
         Args:
@@ -285,7 +285,7 @@ class ELF(object):
 
         return None
 
-    def read(self, addr: int, size: int) -> bytes | None:
+    def read(self, addr: int, size: int) -> Optional[bytes]:
         """Returns the bytes of a size from a virtual address.
 
         If a non-existent address is specified, None is returned.
