@@ -258,6 +258,66 @@ class ELF(object):
         """
         for result in self.search(pattern, writable, executable):
             yield result
+    
+    def addr2offset(self, addr: int) -> Optional[int]:
+        """Returns the offset in the ELF corresponding to a given virtual address.
+
+        Args:
+            addr (int): Virtual address.
+        
+        Returns:
+            int | None: Offset. If a non-existent address is specified, None is returned
+        """
+        parser = self._parser
+
+        # serach the segment
+        for segment in parser.segments():
+            if segment["p_type"] == "PT_LOAD":
+                start_vaddr = segment["p_vaddr"]
+                end_vaddr = start_vaddr + segment["p_memsz"]
+
+                if start_vaddr <= addr < end_vaddr:
+                    segment_offset = segment["p_offset"]
+                    offset_from_segment_base = addr - start_vaddr
+                    offset = segment_offset + offset_from_segment_base
+
+                    return offset
+
+        return None
+
+    def read(self, addr: int, size: int) -> Optional[bytes]:
+        """Returns the bytes of a size from a virtual address.
+
+        If a non-existent address is specified, None is returned.
+
+        Unintended behaviour will occur if the segment is crossed.
+
+        Args:
+            addr (int): Start virtual address
+            size (int): Size of bytes
+
+        Returns:
+            bytes | None: Bytes in the file. If a non-existent address is specified, None is returned
+        """
+        parser = self._parser
+
+        offset = self.addr2offset(addr)
+
+        if offset is not None:
+            stream = parser.stream
+            # save position
+            current_offset = stream.tell()
+
+            # get bytes
+            stream.seek(offset)
+            ret = stream.read(size)
+
+            # recover position
+            stream.seek(current_offset)
+
+            return ret
+        
+        return None
 
     def plt(self, name: Union[str, bytes]) -> Optional[int]:
         """Get a PLT address

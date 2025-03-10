@@ -45,6 +45,16 @@ class TestELF10(unittest.TestCase):
         self.assertEqual(next(self.elf.search('A', writable=True)), BASE + 0x22fb8c)
         self.assertEqual(next(self.elf.find(b'/bin/sh\0')), BASE + 0x1c4de8)
 
+    def test_read(self):
+        # syscall function
+        start = 0x121a50
+        size = 0x37
+        code = b"UWVS\x8bl$,\x8b|$(\x8bt$$\x8bT$ \x8bL$\x1c\x8b\\$\x18\x8bD$\x14e\xff\x15\x10\x00\x00\x00[^_]=\x01\xf0\xff\xff\x0f\x83\xda3\xf0\xff\xc3"
+        self.assertEqual(self.elf.read(start, size), code)
+        # "/bin/sh"
+        start = 0x1c4de8
+        self.assertEqual(self.elf.read(start, 8), b"/bin/sh\0")
+
     def test_main_arena(self):
         self.elf.base = 0
         self.assertEqual(self.elf.main_arena(), 0x231760)
