@@ -250,7 +250,8 @@ class UnixProcess(Tube):
 
     def _is_alive_impl(self) -> bool:
         """Check if the process is alive"""
-        return self.poll() is None
+        ready, [], [] = select.select([self._proc.stdout.fileno()], [], [], 0)
+        return len(ready) != 0 or self.poll() is None
 
     def __str__(self) -> str:
         return f"'{self._filepath}' (PID={self._proc.pid})"
