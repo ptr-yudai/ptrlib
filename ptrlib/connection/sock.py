@@ -1,4 +1,3 @@
-import errno
 import select
 import socket
 from logging import getLogger

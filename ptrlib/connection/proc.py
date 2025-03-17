@@ -3,6 +3,7 @@ import select
 import subprocess
 from logging import getLogger
 from typing import List, Mapping, Optional, Union
+from ptrlib.arch.linux.memory import LinuxProcessMemory
 from ptrlib.arch.linux.sig import signal_name
 from ptrlib.binary.encoding import bytes2str
 from .tube import Tube, tube_is_open
@@ -128,6 +129,9 @@ class UnixProcess(Tube):
         fl = fcntl.fcntl(fd, fcntl.F_GETFL)
         fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
+        # Memory interface
+        self._memory = LinuxProcessMemory(self.pid)
+
         logger.info(f"Successfully created new process {str(self)}")
         self._init_done = True
 
@@ -141,6 +145,11 @@ class UnixProcess(Tube):
     @property
     def pid(self) -> int:
         return self._proc.pid
+
+    @property
+    @tube_is_open
+    def memory(self) -> LinuxProcessMemory:
+        return self._memory
 
     #
     # Implementation of Tube methods
@@ -289,7 +298,6 @@ class UnixProcess(Tube):
             code (int): Status code of the process
         """
         return self._proc.wait(timeout)
-
 
 Process = WinProcess if _is_windows else UnixProcess
 process = Process # alias for the Process
