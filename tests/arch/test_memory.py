@@ -1,14 +1,19 @@
 import hashlib
+import os
 import struct
 import unittest
 from ptrlib.connection.proc import *
 from ptrlib.arch.linux.memory import *
 from logging import getLogger, FATAL
 
+_is_windows = os.name == 'nt'
+
 
 class TestLinuxMemory(unittest.TestCase):
     def setUp(self):
         getLogger("ptrlib").setLevel(FATAL)
+        if _is_windows:
+            self.skipTest("This test is intended for the Linux platform")
 
     def test_vmmap(self):
         p = Process("./tests/test.bin/fastexit.x64")
