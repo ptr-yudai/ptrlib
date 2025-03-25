@@ -21,7 +21,7 @@ def struct_ret2dl(addrList: Mapping[str, int], elf: ELF, base: Optional[int]=Non
         logger.warning("PIE base is unknown. Set 0 if you handle it by yourself.")
         logger.warning("In that case make sure `reloc` is offset from PIE base.")
         raise ValueError("Lack of information")
-    
+
     addr_dynsym = elf._offset_section('.dynsym')
     addr_dynstr = elf._offset_section('.dynstr')
     addr_relplt = elf._offset_section('.rel.plt')
@@ -54,5 +54,8 @@ def struct_ret2dl(addrList: Mapping[str, int], elf: ELF, base: Optional[int]=Non
     else:
         logger.warning("Not implemented yet!")
         raise NotImplementedError()
-    
+
     return addr_reloc - addr_relplt, reloc, sym
+
+
+__all__ = ['struct_ret2dl']

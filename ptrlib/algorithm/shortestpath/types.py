@@ -25,4 +25,5 @@ ResultT = Tuple[NumberT, LazyList[EdgeT]]
 TransitionFuncT = Callable[[StateT], Iterator[Tuple[StateT, NumberT, EdgeT]]]
 CostEstimatorT = Callable[[StateT, StateT], NumberT]
 
+
 __all__ = ["SupportsGetItem", "StateT", "EdgeT", "NumberT", "ResultT", "TransitionFuncT", "CostEstimatorT", "AlgorithmsT"]

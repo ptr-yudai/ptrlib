@@ -1,3 +1,3 @@
-from .proc import Process, process
-from .sock import Socket, remote
+from .proc import *
+from .sock import *
 from .ssh import *

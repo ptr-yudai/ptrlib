@@ -1,6 +1,8 @@
 from ptrlib.binary.packing.pack import p64
 from ptrlib.binary.packing.flat import flat
 
+__all__ = ['sigreturn_frame_x64']
+
 def sigreturn_frame_x64(uc_flags: int = 0, uc_link: int = 0,
                         ss_sp: int = 0, ss_flags: int = 0, ss_size: int = 0,
                         r8: int = 0, r9: int = 0, r10: int = 0,
@@ -12,7 +14,7 @@ def sigreturn_frame_x64(uc_flags: int = 0, uc_link: int = 0,
                         cs: int = 0x33, gs: int = 0, fs: int = 0, pad0: int = 0,
                         err: int = 0, trapno: int = 0, oldmask: int = 0,
                         cr2: int = 0, pfpstate: int = 0, reserved: int = 0,
-                        mask: int = 0, fpstate: int = 0,):
+                        mask: int = 0, fpstate: int = 0) -> bytes:
     """Create sigreturn frame for x64
     """
     return flat([

@@ -26,7 +26,7 @@ class TestProcess(unittest.TestCase):
         with self.assertLogs(module_name) as cm:
             p = Process("./tests/test.bin/test_echo.x64")
         self.assertEqual(len(cm.output), 1)
-        self.assertEqual(cm.output[0], f'INFO:{module_name}:Successfully created new process {str(p)}')
+        self.assertEqual(cm.output[0], f'INFO:{module_name}:Successfully created a new process {str(p)}')
 
         # sendline / recvline
         p.sendline(b"Message : " + msg)
@@ -85,7 +85,7 @@ class TestProcess(unittest.TestCase):
         with self.assertLogs(module_name) as cm:
             p = Process("./tests/test.bin/test_echo.x64")
         self.assertEqual(len(cm.output), 1)
-        self.assertEqual(cm.output[0], fr'INFO:{module_name}:Successfully created new process {str(p)}')
+        self.assertEqual(cm.output[0], fr'INFO:{module_name}:Successfully created a new process {str(p)}')
         data = os.urandom(16).hex()
 
         # recv

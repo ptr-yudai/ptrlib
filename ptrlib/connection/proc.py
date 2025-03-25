@@ -1,3 +1,5 @@
+"""Process module
+"""
 import os
 import select
 import subprocess
@@ -11,6 +13,7 @@ from .winproc import WinProcess
 
 
 _is_windows = os.name == 'nt'
+
 if not _is_windows:
     import fcntl
     import pty
@@ -19,9 +22,8 @@ if not _is_windows:
 logger = getLogger(__name__)
 
 class UnixProcess(Tube):
-    #
-    # Constructor
-    #
+    """Unix process
+    """
     def __init__(self,
                  args: Union[bytes, str, List[Union[bytes, str]]],
                  env: Optional[Union[Mapping[bytes, Union[bytes, str]], Mapping[str, Union[bytes, str]]]]=None,
@@ -42,9 +44,9 @@ class UnixProcess(Tube):
             cwd    : Working directory
             shell  : If true, `args` is a shell command
             raw    : Disable pty if this parameter is true
-            stdin  : File descriptor of standard input
-            stdout : File descriptor of standard output
-            stderr : File descriptor of standard error
+            stdin  : File descriptor for standard input
+            stdout : File descriptor for standard output
+            stderr : File descriptor for standard error
 
         Returns:
             Process: ``Process`` instance
@@ -58,15 +60,9 @@ class UnixProcess(Tube):
             ```
         """
         assert not _is_windows, "UnixProcess cannot work on Windows"
-        assert isinstance(args, (str, bytes, list)), \
-            "`args` must be either str, bytes, or list"
-        assert env is None or isinstance(env, dict), \
-            "`env` must be a dictionary"
-        assert cwd is None or isinstance(cwd, (str, bytes)), \
-            "`cwd` must be either str or bytes"
 
         # NOTE: We need to initialize _current_timeout before super constructor
-        #       because it may call _settimeout_impl
+        #       because the super may call _settimeout_impl
         self._current_timeout = 0
         super().__init__(**kwargs)
 
@@ -97,9 +93,12 @@ class UnixProcess(Tube):
             tty.setraw(self._slave)
             stdout = self._slave
 
-        if stdin  is None: stdin  = subprocess.PIPE
-        if stdout is None: stdout = subprocess.PIPE
-        if stderr is None: stderr = subprocess.STDOUT
+        if stdin is None:
+            stdin = subprocess.PIPE
+        if stdout is None:
+            stdout = subprocess.PIPE
+        if stderr is None:
+            stderr = subprocess.STDOUT
 
         # Open process
         assert isinstance(shell, bool), "`shell` must be boolean"
@@ -112,7 +111,7 @@ class UnixProcess(Tube):
                 stderr=stderr,
             )
         except FileNotFoundError as err:
-            logger.error(f"Could not execute {args[0]}")
+            logger.error("Could not execute %s", args[0])
             raise err from None
 
         self._filepath = args[0]
@@ -132,41 +131,50 @@ class UnixProcess(Tube):
         # Memory interface
         self._memory = LinuxProcessMemory(self.pid)
 
-        logger.info(f"Successfully created new process {str(self)}")
+        logger.info("Successfully created a new process %s", str(self))
         self._init_done = True
 
-    #
-    # Properties
-    #
     @property
     def returncode(self) -> Optional[int]:
+        """Get the exit code of this process.
+        None is returned if the process is still running.
+        """
         return self._returncode
     
     @property
     def pid(self) -> int:
+        """Get the process ID.
+        """
         return self._proc.pid
 
     @property
     @tube_is_open
     def memory(self) -> LinuxProcessMemory:
+        """Get a `LinuxProcessMemory` instance for this process.
+        """
         return self._memory
 
     #
     # Implementation of Tube methods
     #
     def _settimeout_impl(self, timeout: Union[int, float]):
+        """Set timeout.
+
+        Args:
+            timeout (float): Timeout seconds.
+        """
         self._current_timeout = timeout
 
     def _recv_impl(self, size: int) -> bytes:
-        """Receive raw data
+        """Receive raw data.
 
         Receive raw data of maximum `size` bytes through the pipe.
 
         Args:
-            size: Data size to receive
+            size (int): The maximum number of bytes to receive.
 
         Returns:
-            bytes: The received data
+            bytes: The received data.
         """
         if self._current_timeout == 0:
             timeout = None
@@ -185,7 +193,8 @@ class UnixProcess(Tube):
                 ready, [], [] = select.select(
                     [self._proc.stdout.fileno()], [], [], self._POLL_TIMEOUT
                 )
-                if ready: break
+                if ready:
+                    break
 
         try:
             data = self._proc.stdout.read(size)
@@ -198,7 +207,10 @@ class UnixProcess(Tube):
         return data
 
     def _send_impl(self, data: bytes) -> int:
-        """Send raw data
+        """Send raw data.
+
+        Args:
+            data (bytes): Data to send.
 
         Raises:
             ConnectionAbortedError: Connection is aborted by process
@@ -210,8 +222,9 @@ class UnixProcess(Tube):
             n_written = self._proc.stdin.write(data)
             self._proc.stdin.flush()
             return n_written
+
         except IOError as err:
-            logger.error(f"Broken pipe: {str(self)}")
+            logger.error("Broken pipe: %s", str(self))
             raise err from None
 
     def _shutdown_recv_impl(self):
@@ -219,13 +232,15 @@ class UnixProcess(Tube):
         """
         if self._proc.stdout is not None:
             self._proc.stdout.close()
+
         if self._proc.stderr is not None:
             self._proc.stderr.close()
 
     def _shutdown_send_impl(self):
         """Close stdout
         """
-        self._proc.stdin.close()
+        if self._proc.stdin is not None:
+            self._proc.stdin.close()
 
     def _close_impl(self):
         """Close process
@@ -233,7 +248,7 @@ class UnixProcess(Tube):
         if self._is_alive_impl():
             self._proc.kill()
             self._proc.wait()
-            logger.info(f"{str(self)} killed by `close`")
+            logger.info("%s killed by `close`", str(self))
 
         if self._slave is not None: # PTY mode
             os.close(self._slave)
@@ -283,8 +298,7 @@ class UnixProcess(Tube):
                 name = ' --> ' + name
 
             logger_func = logger.info if self._returncode == 0 else logger.error
-            logger_func(f"{str(self)} stopped with exit code " \
-                            f"{self._returncode}{name}")
+            logger_func("%s stopped with exit code %d%s", str(self), self._returncode, name)
 
         return self._returncode
 
@@ -300,4 +314,6 @@ class UnixProcess(Tube):
         return self._proc.wait(timeout)
 
 Process = WinProcess if _is_windows else UnixProcess
-process = Process # alias for the Process
+
+
+__all__ = ['Process']

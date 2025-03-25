@@ -6,12 +6,11 @@ from .console import *
 from .crypto import *
 from .filestruct import *
 from .pwn import *
-from logging import getLogger, StreamHandler
+from logging import getLogger, INFO, StreamHandler
 
 # ptrlib root logger
-handler = StreamHandler()
-handler.setFormatter(ColoredFormatter("%(funcName)s: %(message)s"))
+_handler = StreamHandler()
+_handler.setFormatter(ColoredFormatter("%(funcName)s: %(message)s"))
 logger = getLogger(__name__)
 logger.setLevel(INFO)
-logger.addHandler(handler)
-
+logger.addHandler(_handler)

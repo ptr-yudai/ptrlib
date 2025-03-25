@@ -1,5 +1,6 @@
 import select
 import socket
+import ssl as _ssl
 from logging import getLogger
 from typing import Optional, Union
 from ptrlib.binary.encoding import bytes2str
@@ -9,9 +10,8 @@ logger = getLogger(__name__)
 
 
 class Socket(Tube):
-    #
-    # Constructor
-    #
+    """Network socket
+    """
     def __init__(self,
                  host: Union[str, bytes],
                  port: Optional[int]=None,
@@ -20,22 +20,27 @@ class Socket(Tube):
                  **kwargs):
         """Create a socket
 
-        Create a new socket and establish a connection to the host.
+        Create a new socket and establish a connection to the server.
 
         Args:
-            host: Host name or ip address
-            port: Port number
-            ssl : Enable SSL/TLS
-            sni : SNI
+            host (str): Host name or IP address.
+            port (int): Port number.
+            ssl (bool): SSL/TLS is enabled if this parameter is set to True.
+            sni (Union[str, bool]): SNI name. SNI will be disabled if this parameter is set to False.
 
         Returns:
             Socket: ``Socket`` instance.
-        """
-        assert isinstance(host, (str, bytes)), \
-            "`host` must be either str or bytes"
 
+        Examples:
+            ```
+            sock = Socket("192.168.1.1", 12345)
+            sock = Socket("nc localhost 9999")
+            sock = Socket("localhost:9999")
+            sock = Socket("www.example.com", 443, ssl=True)
+            ```
+        """
         # NOTE: We need to initialize _current_timeout before super constructor
-        #       because it may call _settimeout_impl
+        #       because the super may call _settimeout_impl
         self._current_timeout = 0
         super().__init__(**kwargs)
 
@@ -55,7 +60,7 @@ class Socket(Tube):
 
         else:
             port = int(port)
-            
+
         self._host = host
         self._port = port
 
@@ -63,7 +68,6 @@ class Socket(Tube):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         if ssl:
-            import ssl as _ssl
             self.context = _ssl.SSLContext(_ssl.PROTOCOL_TLS_CLIENT)
             self.context.check_hostname = False
             self.context.verify_mode = _ssl.CERT_NONE
@@ -77,10 +81,10 @@ class Socket(Tube):
         # Establish a connection
         try:
             self._sock.connect((self._host, self._port))
-            logger.info(f"Successfully connected to {self._host}:{self._port}")
+            logger.info("Successfully connected to %s:%d", self._host, self._port)
 
         except ConnectionRefusedError as e:
-            logger.error(f"Connection to {self._host}:{self._port} refused")
+            logger.error("Connection to %s:%d refused", self._host, self._port)
             raise e from None
 
         self._init_done = True
@@ -90,29 +94,29 @@ class Socket(Tube):
     #
     def _settimeout_impl(self,
                          timeout: Union[int, float]):
-        """Set timeout
+        """Set timeout.
 
         Args:
-            timeout: Timeout in second
+            timeout (float): Timeout seconds.
         """
         self._current_timeout = timeout
 
     def _recv_impl(self, size: int) -> bytes:
         """Receive raw data
 
-        Receive raw data of maximum `size` bytes length through the socket.
+        Receive raw data of maximum `size` bytes through the socket.
 
         Args:
-            size: Maximum data size to receive at once
+            size (int): The maximum number of bytes to receive.
 
         Returns:
-            bytes: The received data
+            bytes: The received data.
 
         Raises:
-            ConnectionAbortedError: Connection is aborted by process
-            ConnectionResetError: Connection is closed by peer
-            TimeoutError: Timeout exceeded
-            OSError: System error
+            ConnectionAbortedError: Connection is aborted by process.
+            ConnectionResetError: Connection is closed by peer.
+            TimeoutError: Timeout exceeded.
+            OSError: System error.
         """
         # NOTE: We cannot rely on the blocking behavior of `recv`
         #       because the socket might be non-blocking mode
@@ -145,7 +149,7 @@ class Socket(Tube):
             raise e from None
 
         except ConnectionResetError as e:
-            logger.error(f"Connection reset by {str(self)}")
+            logger.error("Connection reset by %s", str(self))
             raise e from None
 
         except OSError as e:
