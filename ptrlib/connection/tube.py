@@ -19,7 +19,7 @@ def tube_is_open(method):
     """
     def decorator(self, *args, **kwargs):
         assert isinstance(self, Tube), "Invalid usage of decorator"
-        if self._is_closed:
+        if self.is_closed:
             raise BrokenPipeError("Connection has already been closed by `close`")
         return method(self, *args, **kwargs)
     return decorator
@@ -29,7 +29,7 @@ def tube_is_send_open(method):
     """
     def decorator(self, *args, **kwargs):
         assert isinstance(self, Tube), "Invalid usage of decorator"
-        if self._is_send_closed:
+        if self.is_send_closed:
             raise BrokenPipeError("Connection has already been closed by `shutdown`")
         return method(self, *args, **kwargs)
     return decorator
@@ -39,7 +39,7 @@ def tube_is_recv_open(method):
     """
     def decorator(self, *args, **kwargs):
         assert isinstance(self, Tube), "Invalid usage of decorator"
-        if self._is_recv_closed:
+        if self.is_recv_closed:
             raise BrokenPipeError("Connection has already been closed by `shutdown`")
         return method(self, *args, **kwargs)
     return decorator
@@ -100,6 +100,10 @@ class Tube(metaclass=abc.ABCMeta):
     #
     @property
     def debug(self):
+        """Debug mode
+
+        If this parameter is set to True, packet logs are displayed on terminal.
+        """
         return self._debug
 
     @debug.setter
@@ -108,11 +112,34 @@ class Tube(metaclass=abc.ABCMeta):
 
     @property
     def hexdump(self):
+        """Hexdump mode
+
+        If this parameter is set to True and debug mode is on,
+        packet logs are displayed in hex format.
+        """
         return self._hexdump
 
-    @debug.setter
+    @hexdump.setter
     def hexdump(self, is_hexdump: bool):
         self._hexdump = bool(is_hexdump)
+
+    @property
+    def is_closed(self):
+        """Get if this tube is explicitly closed.
+        """
+        return self._is_closed
+
+    @property
+    def is_send_closed(self):
+        """Get if the tube for sending data is explicitly closed.
+        """
+        return self._is_send_closed
+
+    @property
+    def is_recv_closed(self):
+        """Get if the tube for receiving data is explicitly closed.
+        """
+        return self._is_recv_closed
 
     #
     # Methods
@@ -187,7 +214,7 @@ class Tube(metaclass=abc.ABCMeta):
         try:
             data = self._recv_impl(size - len(self._buffer))
             if self._debug and len(data) > 0:
-                logger.info(f"Received {hex(len(data))} ({len(data)}) bytes:")
+                logger.info("Received %s (%d}) bytes:", hex(len(data)), len(data))
                 if self._hexdump:
                     hexdump(data, prefix="    " + Color.CYAN, postfix=Color.END)
                 else:
@@ -211,7 +238,7 @@ class Tube(metaclass=abc.ABCMeta):
         except TimeoutError as err:
             data = self._buffer + err.args[1]
             self._buffer = b''
-            raise TimeoutError("Timeout (recv)", data)
+            raise TimeoutError("Timeout (recv)", data) from err
 
         finally:
             if timeout is not None:
@@ -241,7 +268,7 @@ class Tube(metaclass=abc.ABCMeta):
             try:
                 data += self.recv(size - len(data), timeout)
             except TimeoutError as err:
-                raise TimeoutError("Timeout (recvonce)", data + err.args[1])
+                raise TimeoutError("Timeout (recvonce)", data + err.args[1]) from err
 
         if len(data) > size:
             self.unget(data[size:])
@@ -252,8 +279,7 @@ class Tube(metaclass=abc.ABCMeta):
                   size: int=4096,
                   timeout: Optional[Union[int, float]]=None,
                   drop: bool=False,
-                  lookahead: bool=False,
-                  sleep_time: float=0.01) -> bytes:
+                  lookahead: bool=False) -> bytes:
         """Receive raw data until `delim` comes
 
         Args:
@@ -308,7 +334,7 @@ class Tube(metaclass=abc.ABCMeta):
             try:
                 data += self.recv(size, timeout)
             except TimeoutError as err:
-                raise TimeoutError("Timeout (recvuntil)", data + err.args[1])
+                raise TimeoutError("Timeout (recvuntil)", data + err.args[1]) from err
             except Exception as err:
                 err.args = (err.args[0], data)
                 raise err from None
@@ -353,7 +379,7 @@ class Tube(metaclass=abc.ABCMeta):
         try:
             line = self.recvuntil(b'\n', size, timeout, lookahead=lookahead)
         except TimeoutError as err:
-            raise TimeoutError("Timeout (recvline)", err.args[1])
+            raise TimeoutError("Timeout (recvline)", err.args[1]) from err
 
         return line.rstrip() if drop else line
 
@@ -385,12 +411,12 @@ class Tube(metaclass=abc.ABCMeta):
             self.recvuntil(delim, size, timeout)
         except TimeoutError as err:
             # NOTE: We do not set received value here
-            raise TimeoutError("Timeout (recvlineafter)", b'')
+            raise TimeoutError("Timeout (recvlineafter)", b'') from err
 
         try:
             return self.recvline(size, timeout, drop, lookahead)
         except TimeoutError as err:
-            raise TimeoutError("Timeout (recvlineafter)", err.args[1])
+            raise TimeoutError("Timeout (recvlineafter)", err.args[1]) from err
 
     def recvregex(self,
                   regex: Union[str, bytes, re.Pattern],
@@ -428,7 +454,7 @@ class Tube(metaclass=abc.ABCMeta):
             try:
                 data += self.recv(size, timeout)
             except TimeoutError as err:
-                raise TimeoutError("Timeout (recvregex)", data + err.args[1])
+                raise TimeoutError("Timeout (recvregex)", data + err.args[1]) from err
             match = regex.search(data)
 
         self.unget(data[match.end():])
@@ -498,7 +524,7 @@ class Tube(metaclass=abc.ABCMeta):
 
         size = self._send_impl(data)
         if self._debug:
-            logger.info(f"Sent {hex(size)} ({size}) bytes:")
+            logger.info("Sent %s (%d) bytes:", hex(size), size)
             if self._hexdump:
                 hexdump(data[:size], prefix=Color.YELLOW, postfix=Color.END)
             else:
@@ -685,7 +711,8 @@ class Tube(metaclass=abc.ABCMeta):
                     if t:
                         if 0x7f <= ord(c) < 0x100:
                             pretty_print_hex(c)
-                        elif ord(c) in [0x00]: # TODO: What is printable?
+                        elif ord(c) in [0x00]:
+                            # TODO: What is printable?
                             pretty_print_hex(c)
                         else:
                             sys.stdout.write(c)
@@ -707,7 +734,7 @@ class Tube(metaclass=abc.ABCMeta):
                     leftover = pretty_print(data, leftover)
 
                     if not self.is_alive():
-                        logger.warning(f"Connection closed by {str(self)}")
+                        logger.warning("Connection closed by %s", str(self))
 
                 except TimeoutError:
                     pass # NOTE: We can ignore args since recv will never buffer
@@ -715,7 +742,7 @@ class Tube(metaclass=abc.ABCMeta):
                     logger.warning(e)
                     break
                 except (EOFError, ConnectionAbortedError, ConnectionResetError):
-                    logger.warning(f"Connection closed by {str(self)}")
+                    logger.warning("Connection closed by %s", str(self))
                     break
 
         def thread_send():
@@ -730,7 +757,8 @@ class Tube(metaclass=abc.ABCMeta):
                             r, [], [] = select.select(
                                 [sys.stdin], [], [], self._POLL_TIMEOUT
                             )
-                            if r: break
+                            if r:
+                                break
 
                     if self.is_alive():
                         self.send(sys.stdin.readline())
@@ -847,7 +875,6 @@ class Tube(metaclass=abc.ABCMeta):
         Args:
             timeout: Timeout in second
         """
-        pass
 
     @abc.abstractmethod
     def _recv_impl(self, size: int) -> bytes:
@@ -856,7 +883,6 @@ class Tube(metaclass=abc.ABCMeta):
         Receives at most `size` bytes from tube.
         This method must be a blocking method.
         """
-        pass
 
     @abc.abstractmethod
     def _send_impl(self, data: bytes) -> int:
@@ -867,7 +893,6 @@ class Tube(metaclass=abc.ABCMeta):
         Args:
             data: Data to send
         """
-        pass
 
     @abc.abstractmethod
     def _close_impl(self):
@@ -876,7 +901,6 @@ class Tube(metaclass=abc.ABCMeta):
         Close the connection.
         This method is ensured to be called only once.
         """
-        pass
 
     @abc.abstractmethod
     def _is_alive_impl(self) -> bool:
@@ -884,16 +908,16 @@ class Tube(metaclass=abc.ABCMeta):
 
         This method must return True iff the connection is alive.
         """
-        pass
 
     @abc.abstractmethod
     def _shutdown_recv_impl(self):
         """Kill receiver connection
         """
-        pass
 
     @abc.abstractmethod
     def _shutdown_send_impl(self):
         """Kill sender connection
         """
-        pass
+
+
+__all__ = ['Tube']

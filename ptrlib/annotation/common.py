@@ -2,7 +2,9 @@
 """
 from typing import Literal
 
-PtrlibArch = Literal['x86', 'x64', 'arm', 'aarch64']
+PtrlibArchT = Literal['intel', 'arm', 'risc-v', 'sparc', 'mips']
+PtrlibBitsT = Literal[32, 64]
+PtrlibEndiannessT = Literal['little', 'big']
 
 
-__all__ = ['PtrlibArch']
+__all__ = ['PtrlibArchT', 'PtrlibBitsT', 'PtrlibEndiannessT']

@@ -8,7 +8,7 @@ from ptrlib import SROPx64, u16, u64
 
 
 class TestSROP(unittest.TestCase):
-    """Tests for SROP feature.
+    """Tests for SROP class.
     """
     def setUp(self):
         getLogger("ptrlib").setLevel(FATAL)

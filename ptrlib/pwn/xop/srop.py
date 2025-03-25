@@ -1,7 +1,7 @@
-"""This package provides utilities for sigreturn oriented programming.
+"""This package provides some utilities for sigreturn oriented programming.
 """
 from typing import Optional
-from ptrlib.annotation import PtrlibArch
+from ptrlib.annotation import PtrlibArchT
 from ptrlib.binary.packing.pack import p64
 from ptrlib.binary.packing.flat import flat
 
@@ -15,7 +15,7 @@ class SROP:
         print(srop.payload)
         ```
     """
-    def __init__(self, arch: Optional[PtrlibArch]=None, **kwargs: int):
+    def __init__(self, arch: Optional[PtrlibArchT]=None, **kwargs: int):
         if arch is None:
             # TODO: Infer architecture
             pass
