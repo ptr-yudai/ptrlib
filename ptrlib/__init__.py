@@ -1,4 +1,7 @@
+"""This package provides every feature of ptrlib
+"""
 from .algorithm import *
+from .annotation import *
 from .arch import *
 from .binary import *
 from .connection import *
