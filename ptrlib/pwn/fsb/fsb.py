@@ -8,6 +8,7 @@ from ptrlib.binary.packing import u32, p32, p64, flat
 
 logger = getLogger(__name__)
 
+
 class FSBOp(NamedTuple):
     """Representation of a single FSB operation
     """
@@ -19,27 +20,34 @@ class FSBOp(NamedTuple):
 
 
 class FSB:
-    """Craft payload for FSB (format string bug).
+    """FSB (format string bug) payload builder.
 
-    Attributes:
+    Args:
         position (int): The argument index where the payload is located.
                         For example, if you feed "%p.%p.%p..." and get 0x70252e70252e7025
                         (="%p.%p.%p") at 7th (1-indexed), the position should be 7.
+        bits (int): The bits of the target architecture. Must be either 32 or 64.
+        byteorder (str): The endianness. Must be either 'little' or 'big'.
         written (int): The number of bytes already printed. This parameter is useful when
                        your payload is appended to a constant string by `strcat`,
                        or the address of the format string is not aligned.
-        payload (bytes): FSB payload.
 
     Examples:
         ```
-        fsb = FSB(position=10, bits=64)
-        fsb.write(0x404010, p64(), size=2)
-        fsb.write(0x404020, 0xff, size=1)
-        print(fsb.payload)
+        # Overwrite atoi@got with system@plt
+        fsb = FSB(position=10, bits=32)
+        fsb.write(elf.got('atoi'), p64(elf.plt('system')), size=2)
+        sock.sendline(fsb.payload)
+        ```
 
-        fsb.written = 3
-        fsb.rear = True # Default
-        print("ABC" + fsb.payload)
+        ```
+        # Partially overwrite exit@got and leak puts@libc
+        fsb = FSB(6)
+        fsb.write(elf.got('exit'), p8(elf.symbol('_start')))
+        fsb.print('LEAK=')
+        fsb.read(elf.got('puts'))
+        sock.sendline(fsb.payload)
+        libc.base = u64(sock.recvlineafter('LEAK=')[:6]) - libc.symbol('puts')
         ```
     """
     WRITE_PREFIX = {1: 'hhn', 2: 'hn', 4: 'n'}
@@ -56,7 +64,7 @@ class FSB:
         self.written = kwargs.get('written', 0)
         self._rear = bits == 64
         self._bits = bits
-        self._byteorder = byteorder
+        self._byteorder: PtrlibEndiannessT = byteorder
 
     @property
     def rear(self) -> bool:
@@ -95,15 +103,15 @@ class FSB:
         Examples:
             ```
             fsb = FSB(position=10)
-            fsb.write(elf.got['atoi'], p64(elf.plt['system']), block_size=2)
+            fsb.write(elf.got('atoi'), p64(elf.plt('system')), block_size=2)
             sock.sendline(fsb.payload)
             ```
 
             ```
             fsb = FSB(6)
             fsb.print(b"AAA")
-            fsb.write(elf.got['exit'], p8(elf.symbol('_start') & 0xff))
-            fsb.read(elf.got['puts'])
+            fsb.write(elf.got('exit'), p8(elf.symbol('_start') & 0xff))
+            fsb.read(elf.got('puts'))
             sock.sendline(fsb.payload)
             ```
         """
@@ -124,11 +132,11 @@ class FSB:
         Examples:
             ```
             fsb = FSB(6)
-            fsb.read(elf.got['atoi'])
+            fsb.read(elf.got('atoi'))
             fsb.print("XXX")
-            fsb.read(elf.got['system'])
+            fsb.read(elf.got('system'))
             fsb.print("XXX")
-            fsb.read(elf.got['abc'])
+            fsb.read(elf.got('abc'))
             ```
         """
         data = str2bytes(data)

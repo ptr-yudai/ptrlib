@@ -1,10 +1,12 @@
-from typing import Tuple, List
+"""This package provides byte and string converters.
+"""
+from typing import Tuple, List, Union
 from logging import getLogger
 
 logger = getLogger(__name__)
 
 
-def bytes2str(data: bytes) -> str:
+def bytes2str(data: Union[str, bytes]) -> str:
     """Convert bytes to str
     """
     if isinstance(data, bytes):
@@ -12,9 +14,9 @@ def bytes2str(data: bytes) -> str:
     elif isinstance(data, str):
         return data # Fallback
     else:
-        raise ValueError("{} given ('bytes' expected)".format(type(data)))
+        raise TypeError(f"{type(data)} given ('bytes' expected)")
 
-def str2bytes(data: str) -> bytes:
+def str2bytes(data: Union[str, bytes]) -> bytes:
     """Convert str to bytes
     """
     if isinstance(data, str):
@@ -25,7 +27,7 @@ def str2bytes(data: str) -> bytes:
     elif isinstance(data, bytes):
         return data # Fallback
     else:
-        raise ValueError("{} given ('str' expected)".format(type(data)))
+        raise TypeError(f"{type(data)} given ('str' expected)")
 
 def bytes2utf8(data: bytes) -> Tuple[str, bytes, List[bool]]:
     """Convert bytes to UTF-8 (!!! EXPERIMENTAL !!!)
@@ -127,12 +129,12 @@ def bytes2hex(data: bytes) -> str:
     if isinstance(data, bytes):
         return ''.join(list(map(lambda c: f'\\x{c:02x}', data)))
     else:
-        raise ValueError("{} given ('bytes' expected)".format(type(data)))
+        raise TypeError(f"{type(data)} given ('bytes' expected)")
 
 def str2hex(data: str) -> str:
     """Convert string to hex string
     """
     if isinstance(data, str):
-        return bytes2hex(data.encode())
+        return bytes2hex(str2bytes(data))
     else:
-        raise ValueError("{} given ('str' expected)".format(type(data)))
+        raise ValuTypeErroreError(f"{type(data)} given ('str' expected)")
