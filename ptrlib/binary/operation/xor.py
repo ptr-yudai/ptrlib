@@ -1,18 +1,33 @@
+"""This package provides a generic XOR implementation.
+"""
+from logging import getLogger
 from typing import List, Union
 from ptrlib.binary.encoding import str2bytes
-from logging import getLogger
 
 logger = getLogger(__name__)
 
 
 def xor(data: Union[str, bytes, List[int]], key: Union[int, str, bytes, List[int]]) -> bytes:
-    assert isinstance(data, str) \
-        or isinstance(data, bytes) \
-        or isinstance(data, list)
-    assert isinstance(key, str) \
-        or isinstance(key, bytes) \
-        or isinstance(key, int) \
-        or isinstance(key, list)
+    """Xor data with a key.
+
+    Args:
+        data (Union[str, bytes, List[int]]): The plaintext.
+        key (Union[str, bytes, int, List[int]]): The key.
+            The key is used repeatedly if the key length is shorter than the data length.
+
+    Returns:
+        bytes: The encrypted data.
+
+    Examples:
+        ```
+        xor("Hello, World", "key")
+        xor(b"Hello, World", 47)
+        xor("Hello", b"ALongKeyWillBeTruncated")
+        xor([1,2,3,4,5], [0xaa,0x55])
+        ```
+    """
+    assert isinstance(data, (str, bytes, list))
+    assert isinstance(key, (str, bytes, int, list))
 
     if isinstance(data, str):
         data = str2bytes(data)
@@ -25,11 +40,14 @@ def xor(data: Union[str, bytes, List[int]], key: Union[int, str, bytes, List[int
         key = bytes(key)
     elif isinstance(key, int):
         if key < 0 or key > 0xff:
-            logger.warning("key (int) should be larger than 0 and less than 0x100 ({:x} given)".format(key))
+            logger.warning("key (int) should be in [0, 0x100) (%x given)", key)
         key = bytes([key & 0xff])
-    
+
     result = b''
-    for i in range(len(data)):
-        result += bytes([data[i] ^ key[i % len(key)]])
+    for i, c in enumerate(data):
+        result += bytes([c ^ key[i % len(key)]])
 
     return result
+
+
+__all__ = ['xor']
