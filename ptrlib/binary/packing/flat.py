@@ -1,29 +1,34 @@
-from typing import Callable, List, Optional, TypeVar, Union, overload
+"""This package provides `flat` function.
+"""
+from typing import Callable, List
 
-_T = TypeVar("_T")
-_U = TypeVar("_U")
 
-@overload
-def flat(chunks: List[_T], map: None=None) -> _T: ...
-
-@overload
-def flat(chunks: List[_T], map: Optional[Callable[[_T], _U]]=None) -> _U: ...
-
-def flat(chunks: List[_T], map: Optional[Callable[[_T], _U]]=None) -> Union[_T, _U]:
-    """Concatnate chunks into a data
-    Aimed for the use of crafting ROP chains
+def flat(chunks: List[int], map: Callable[[int], bytes]) -> bytes:
+    """Concatnate chunks into bytes.
 
     Args:
-        chunks    : The target chunks to concat
+        chunks (List[int]): The chunks to concatenate.
+        map (Callable[[int], bytes]): A function that converts each element into bytes.
 
     Returns:
-        bytes: split chunks
+        bytes: The concatenated chunks.
+
+    Examples:
+        ```
+        a = flat([1, 2, 3], p32)
+        b = p32(1) + p32(2) + p32(3)
+        assert a == b
+        ```
     """
-    assert isinstance(chunks, list), "Invalid input"
+    assert isinstance(chunks, list), f"flat: {type(chunks)} given ('list' expected)"
 
-    result = chunks[0] if map is None else map(chunks[0])
+    if len(chunks) == 0:
+        return b''
+
+    result = map(chunks[0])
     for i in range(1, len(chunks)):
-        result += chunks[i] if map is None else map(chunks[i])
-
+        result += map(chunks[i])
     return result
 
+
+__all__ = ['flat']
