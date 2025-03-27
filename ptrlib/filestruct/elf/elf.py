@@ -1,24 +1,26 @@
+"""This package provides a simple ELF file analyzer.
+"""
 import functools
 import os
 from logging import getLogger
-from typing import Dict, Generator, Optional, Tuple
+from typing import Dict, Generator, Optional, Tuple, Union
 from zlib import crc32
-from ptrlib.binary.packing import *
+from ptrlib.binary.packing import u32
 from ptrlib.arch.common import assemble
 from ptrlib.binary.encoding import str2bytes, bytes2str
 from .parser import ELFParser
 
 logger = getLogger(__name__)
-
-try:
-    cache = functools.cache
-except AttributeError:
-    cache = functools.lru_cache
+cache = functools.lru_cache
 
 
-class ELF(object):
-    def __init__(self, filepath):
-        """ELF Parser
+class ELF:
+    """ELF file analyzer.
+    """
+    def __init__(self, filepath: str):
+        """
+        Args:
+            filepath (str): The path to an ELF file to parser.
         """
         self.filepath = os.path.realpath(filepath)
         self._parser = ELFParser(self.filepath)
@@ -56,21 +58,27 @@ class ELF(object):
                     content = f.read()
                     if crc32(content) != crc:
                         continue
-            logger.info("Debug file loaded from {}".format(p))
+            logger.info("Debug file loaded from %s", p)
             return ELFParser(p)
         return None
 
     @property
     @cache
     def build_id(self) -> Optional[bytes]:
+        """Get the build-id of this ELF file.
+
+        returns:
+            bytes: The build-id, or None if there is no build-id section.
+        """
         shdr = self._offset_section(b'.note.gnu.build-id')
-        if shdr is None: return None
+        if shdr is None:
+            return None
 
         self._parser.stream.seek(shdr - self._load_address)
         n_namesz = u32(self._parser.stream.read(4))
         n_descsz = u32(self._parser.stream.read(4))
-        n_type = u32(self._parser.stream.read(4))
-        name = u32(self._parser.stream.read(n_namesz))
+        self._parser.stream.read(4)
+        self._parser.stream.read(n_namesz)
         build_id = self._parser.stream.read(n_descsz)
         return build_id
 
@@ -78,7 +86,8 @@ class ELF(object):
     @cache
     def _debuglink_info(self) -> Optional[Tuple[bytes, int]]:
         shdr = self._parser.section_by_name(b'.gnu_debuglink')
-        if shdr is None: return None
+        if shdr is None:
+            return None
 
         self._parser.stream.seek(shdr['sh_offset'] - self._load_address)
         _debugfile_name = b""
@@ -116,9 +125,11 @@ class ELF(object):
         # Support integer-like types such as mpz int
         base = int(base)
 
-        logger.info("New base address: 0x{:x}".format(base))
+        logger.info("New base address: 0x%x", base)
         if base & 0xfff != 0:
-            logger.error("The address doesn't look valid.")
+            logger.error(" *****************************************\n" \
+                         " * The base address does not look valid! *\n" \
+                         " *****************************************")
 
         self._base = base
 
@@ -192,7 +203,7 @@ class ELF(object):
 
         return None
 
-    def symbols(self) -> Dict[str, int]:
+    def symbols(self) -> Dict[bytes, int]:
         """Get all symbols
 
         Find all symbols and their addresses.
@@ -563,12 +574,11 @@ class ELF(object):
         flags_1 = self._parser.tag('DT_FLAGS_1')
         if self._parser.tag('DT_BIND_NOW'):
             return 2
-        elif flags and flags['d_un'] & 0x8:
+        if flags and flags['d_un'] & 0x8:
             return 2
-        elif flags_1 and flags_1['d_un'] & 0x8:
+        if flags_1 and flags_1['d_un'] & 0x8:
             return 2
-        else:
-            return 1
+        return 1
 
     @cache
     def nx(self) -> bool:
@@ -599,8 +609,7 @@ class ELF(object):
            or self.symbol('__stack_chk_fail') is not None \
            or self.symbol('__stack_smash_handler') is not None:
             return True
-        else:
-            return False
+        return False
 
     @cache
     def pie(self) -> bool:
@@ -616,6 +625,7 @@ class ELF(object):
         if self._parser.ehdr['e_type'] == 'ET_DYN':
             if self._parser.tag('DT_DEBUG'):
                 return True
-            else:
-                return True # What's this?
+            return True # What's this?
         return False
+
+__all__ = ['ELF']

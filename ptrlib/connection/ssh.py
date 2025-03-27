@@ -1,10 +1,10 @@
+"""This package provides SSH function.
+"""
 import shlex
 import os
-from ptrlib.binary.encoding import *
+from typing import Optional
 from ptrlib.arch.common import which
-from .proc import *
-
-_is_windows = os.name == 'nt'
+from .proc import Process
 
 
 def SSH(host: str,
@@ -33,35 +33,35 @@ def SSH(host: str,
         Process: ``Process`` instance.
     """
     assert isinstance(port, int)
-    if password is None and identity is None:
-        raise ValueError("You must give either password or identity")
 
     if ssh_path is None:
         ssh_path = which('ssh')
     if expect_path is None:
         expect_path = which('expect')
 
-    if not os.path.isfile(ssh_path):
-        raise FileNotFoundError("{}: SSH not found".format(ssh_path))
-    if not os.path.isfile(expect_path):
-        raise FileNotFoundError("{}: 'expect' not found".format(expect_path))
+    if ssh_path is None or not os.path.isfile(ssh_path):
+        raise FileNotFoundError(f"{ssh_path}: SSH not found")
+    if expect_path is None or not os.path.isfile(expect_path):
+        raise FileNotFoundError(f"{expect_path}: 'expect' not found")
 
     if identity is not None:
-        option += ' -i {}'.format(shlex.quote(identity))
+        option += f' -i {shlex.quote(identity)}'
 
-    script = 'eval spawn {} -oStrictHostKeyChecking=no -oCheckHostIP=no {}@{} -p{} {} {}; interact; lassign [wait] pid spawnid err value; exit "$value"'.format(
-        ssh_path,
-        shlex.quote(username),
-        shlex.quote(host),
-        port,
-        option,
-        command
-    )
+    script = f'eval spawn {ssh_path} ' \
+        f'-oStrictHostKeyChecking=no -oCheckHostIP=no ' \
+        f'{shlex.quote(username)}@{shlex.quote(host)} '\
+        f'-p{port} {option} {command}; '\
+        f'interact; lassign [wait] pid spawnid err value; exit "$value"'
 
     proc = Process(
         [expect_path, '-c', script],
     )
     if identity is None:
+        if password is None:
+            raise ValueError("You must give either password or identity")
         proc.sendlineafter("password: ", password)
 
     return proc
+
+
+__all__ = ['SSH']

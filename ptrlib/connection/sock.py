@@ -1,3 +1,5 @@
+"""This package provides Socket class
+"""
 import select
 import socket
 import ssl as _ssl
@@ -26,7 +28,8 @@ class Socket(Tube):
             host (str): Host name or IP address.
             port (int): Port number.
             ssl (bool): SSL/TLS is enabled if this parameter is set to True.
-            sni (Union[str, bool]): SNI name. SNI will be disabled if this parameter is set to False.
+            sni (Union[str, bool]): SNI name. SNI will be disabled
+                                    if this parameter is set to False.
 
         Returns:
             Socket: ``Socket`` instance.
@@ -179,7 +182,7 @@ class Socket(Tube):
             raise e from None
 
         except ConnectionResetError as e:
-            logger.error(f"Connection reset by {str(self)}")
+            logger.error("Connection reset by %s", str(self))
             raise e from None
 
         except OSError as e:
@@ -190,20 +193,20 @@ class Socket(Tube):
         """Close socket
         """
         self._sock.close()
-        logger.info(f"Connection to {str(self)} closed")
+        logger.info("Connection to %s closed", str(self))
 
     def _is_alive_impl(self) -> bool:
         """Check if socket is alive
         """
+        timeout = self._sock.gettimeout() or 0
         try:
             # Save timeout value since non-blocking mode will clear it
-            timeout = self._sock.gettimeout()
             self._sock.setblocking(False)
 
             # Connection is closed if recv returns empty buffer
             ret = len(self._sock.recv(1, socket.MSG_PEEK)) == 1
 
-        except BlockingIOError as e:
+        except BlockingIOError:
             ret = True
 
         except (ConnectionResetError, socket.timeout):
@@ -234,9 +237,9 @@ class Socket(Tube):
     #
     @tube_is_open
     def set_keepalive(self,
-                      keep_idle: Optional[Union[int, float]]=None,
-                      keep_interval: Optional[Union[int, float]]=None,
-                      keep_count: Optional[Union[int, float]]=None):
+                      keep_idle: Optional[int]=None,
+                      keep_interval: Optional[int]=None,
+                      keep_count: Optional[int]=None):
         """Set TCP keep-alive mode
 
         Send a keep-alive ping once every `keep_interval` seconds if activates
@@ -257,4 +260,4 @@ class Socket(Tube):
             self._sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, keep_count)
 
 
-remote = Socket # alias
+__all__ = ['Socket']

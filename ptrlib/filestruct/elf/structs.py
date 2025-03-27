@@ -1,5 +1,5 @@
 import functools
-from ptrlib.filestruct.bunkai import *
+from ptrlib.filestruct.bunkai import Array, Enum, Struct, BitStruct, BitInt
 from .enums import *
 
 try:
@@ -9,6 +9,8 @@ except AttributeError:
 
 @cache
 def Elf_Ehdr(parser):
+    """Get Elf_Ehdr struct
+    """
     return 'Elf_ESR' <= Struct(
         'e_ident' <= Struct(
             'EI_MAG'     <= Array(4, parser.Elf_Byte),
@@ -36,6 +38,8 @@ def Elf_Ehdr(parser):
 
 @cache
 def Elf_Phdr(parser):
+    """Get Elf_Phdr struct
+    """
     e_machine = parser.ehdr['e_machine']
     p_type_dict = ENUM_P_TYPE_BASE
     if e_machine == 'EM_ARM':
@@ -70,6 +74,8 @@ def Elf_Phdr(parser):
 
 @cache
 def Elf_Shdr(parser):
+    """Get Elf_Shdr struct
+    """
     sh_type_dict = ENUM_SH_TYPE_BASE
     e_machine = parser.ehdr['e_machine']
     if e_machine == 'EM_ARM':
@@ -94,6 +100,8 @@ def Elf_Shdr(parser):
 
 @cache
 def Elf_Chdr(parser):
+    """Get Elf_Chdr struct
+    """
     fields = [
         'ch_type'      <= Enum(parser.Elf_Word, **ENUM_ELFCOMPRESS_TYPE),
         'ch_size'      <= parser.Elf_Xword,
@@ -105,6 +113,8 @@ def Elf_Chdr(parser):
 
 @cache
 def Elf_Rel(parser):
+    """Get Elf_Rel struct
+    """
     return 'Elf_Rel' <= Struct(
         'r_offset' <= parser.Elf_Addr,
         'r_info'   <= parser.Elf_Xword,
@@ -112,6 +122,8 @@ def Elf_Rel(parser):
 
 @cache
 def Elf_Rela(parser):
+    """Get Elf_Rela struct
+    """
     return 'Elf_Rela' <= Struct(
         'r_offset' <= parser.Elf_Addr,
         'r_info'   <= parser.Elf_Xword,
@@ -120,6 +132,8 @@ def Elf_Rela(parser):
 
 @cache
 def Elf_Dyn(parser):
+    """Get Elf_Dyn struct
+    """
     e_machine = parser.ehdr['e_machine']
     e_ident_osabi = parser.ehdr['e_ident']['EI_OSABI']
     d_tag_dict = dict(ENUM_D_TAG_COMMON)
@@ -135,6 +149,8 @@ def Elf_Dyn(parser):
 
 @cache
 def Elf_Sym(parser):
+    """Get Elf_Sym struct
+    """
     st_info_struct = 'st_info' <= BitStruct(
         'bind' <= BitInt(4),
         'type' <= BitInt(4)
@@ -143,6 +159,7 @@ def Elf_Sym(parser):
         '_' <= BitInt(5),
         'visibility' <= BitInt(3)
     )
+
     if parser.elfclass == 32:
         return 'Elf_Sym' <= Struct(
             'st_name'  <= parser.Elf_Word,
@@ -152,12 +169,12 @@ def Elf_Sym(parser):
             st_other_struct,
             'st_shndx' <= Enum(parser.Elf_Half, **ENUM_ST_SHNDX),
         )
-    else:
-        return 'Elf_Sym' <= Struct(
-            'st_name'  <= parser.Elf_Word,
-            st_info_struct,
-            st_other_struct,
-            'st_shndx' <= Enum(parser.Elf_Half, **ENUM_ST_SHNDX),
-            'st_value' <= parser.Elf_Addr,
-            'st_size'  <= parser.Elf_Xword,
-        )
+
+    return 'Elf_Sym' <= Struct(
+        'st_name'  <= parser.Elf_Word,
+        st_info_struct,
+        st_other_struct,
+        'st_shndx' <= Enum(parser.Elf_Half, **ENUM_ST_SHNDX),
+        'st_value' <= parser.Elf_Addr,
+        'st_size'  <= parser.Elf_Xword,
+    )

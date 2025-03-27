@@ -79,7 +79,7 @@ def is_fgets_safe(data: Union[str, bytes], warn: bool=True) -> bool:
     if isinstance(data, str):
         data = str2bytes(data)
 
-    offset = bytes(data).index(b'\n')
+    offset = bytes(data).find(b'\n')
     if offset == -1:
         return True
 

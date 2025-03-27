@@ -8,12 +8,10 @@ from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 from typing import Any, BinaryIO, Callable, Dict, List, Optional, Union as TypingUnion
 
-CTypesPrimitiveT = TypingUnion[
-    ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32, ctypes.c_uint64,
-    ctypes.c_int8, ctypes.c_int16, ctypes.c_int32, ctypes.c_int64,
-]
+
 BunkaiStructT = TypingUnion[
-    'Struct', 'BitStruct', 'BitInt', 'Array', 'VariableArray', 'Union', 'Enum', 'BunkaiPrimitive'
+    'Struct', 'BitStruct', 'BitInt', 'Array', 'VariableArray',
+    'Union', 'Enum', 'BunkaiPrimitive'
 ]
 
 
@@ -25,14 +23,9 @@ class BunkaiMember:
         struct (BunkaiStructT): The struct corresponding to this member.
     """
     def __init__(self, name: str, struct: BunkaiStructT):
-        assert isinstance(struct, Struct) \
-            or isinstance(struct, BitStruct) \
-            or isinstance(struct, BitInt) \
-            or isinstance(struct, Array) \
-            or isinstance(struct, VariableArray) \
-            or isinstance(struct, Union) \
-            or isinstance(struct, Enum) \
-            or isinstance(struct, BunkaiPrimitive)
+        assert isinstance(struct, (
+            Struct, BitStruct, BitInt, Array, VariableArray, Union, Enum, BunkaiPrimitive
+        ))
         self.name = name
         """The name of this member."""
         self.struct = struct
@@ -53,7 +46,7 @@ class BunkaiMember:
             stream (BinaryIO): A stream to receive data from.
         """
         return self.struct.parse_stream(stream)
-    
+
 class BunkaiStructBase(metaclass=ABCMeta):
     """An abstract class for structs.
     """
@@ -72,8 +65,8 @@ class BunkaiStructBase(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def __getattr__(self, key: str) -> BunkaiMember:
-        """Get a :obj:`BunkaiMember`
+    def __getattr__(self, key: str) -> BunkaiStructT:
+        """Get a member
 
         Args:
             key (str): The name of the member to look up.
@@ -91,7 +84,7 @@ class Struct(BunkaiStructBase):
     """A class representing a struct.
     """
     def __init__(self, *args: BunkaiMember):
-        self._members: OrderedDict[str, BunkaiMember] = OrderedDict()
+        self._members: OrderedDict[str, BunkaiStructT] = OrderedDict()
         for member in args:
             if member.name in self._members:
                 raise IndexError(f"Member name '{member.name}' duplicates.")
@@ -110,7 +103,7 @@ class Struct(BunkaiStructBase):
             res[name] = self._members[name].parse_stream(stream)
         return res
 
-    def __getattr__(self, key: str) -> BunkaiMember:
+    def __getattr__(self, key: str) -> BunkaiStructT:
         return self._members[key]
 
     def __ge__(self, other: str) -> BunkaiMember:
@@ -135,7 +128,7 @@ class BitStruct(BunkaiStructBase):
         ```
     """
     def __init__(self, *args: BunkaiMember):
-        self._members: OrderedDict[str, BunkaiMember] = OrderedDict()
+        self._members: OrderedDict[str, BitInt] = OrderedDict()
         self.bitlen = 0
         for member in args:
             if member.name in self._members:
@@ -149,7 +142,7 @@ class BitStruct(BunkaiStructBase):
     def size(self) -> int:
         return (self.bitlen + 7 & ~7) // 8
 
-    def parse_stream(self, stream: BinaryIO) -> Dict[str, Any]:
+    def parse_stream(self, stream: BinaryIO) -> Any:
         res = {}
         data = stream.read((self.bitlen + 7 & ~7) // 8)
         offset = 0
@@ -164,7 +157,7 @@ class BitStruct(BunkaiStructBase):
             res[name] = self._members[name].parse(extracted)
         return res
 
-    def __getattr__(self, key: str) -> BunkaiMember:
+    def __getattr__(self, key: str) -> BunkaiStructT:
         return self._members[key]
 
     def __ge__(self, other: str) -> BunkaiMember:
@@ -179,8 +172,6 @@ class BitInt(BunkaiStructBase):
 
     @property
     def size(self) -> int:
-        """Get the size of this data.
-        """
         return (self.bitlen + 7 & ~7) // 8
 
     def parse(self, data: bytes) -> int:
@@ -194,7 +185,7 @@ class BitInt(BunkaiStructBase):
         """
         return int.from_bytes(data, 'little')
 
-    def parse_stream(self, stream: BinaryIO):
+    def parse_stream(self, stream: BinaryIO) -> Any:
         raise NotImplementedError("BitInt is not supposed to read a stream")
 
     def __getattr__(self, key: str):
@@ -215,7 +206,7 @@ class Array(BunkaiStructBase):
     def size(self) -> int:
         return self._length * self._ty.size
 
-    def parse_stream(self, stream: BinaryIO) -> List[Any]:
+    def parse_stream(self, stream: BinaryIO) -> Any:
         res = []
         for _ in range(self._length):
             res.append(self._ty.parse_stream(stream))
@@ -239,16 +230,9 @@ class VariableArray(BunkaiStructBase):
 
     @property
     def size(self):
-        """Get the size of this struct.
-        """
         raise NotImplementedError('Cannot calculate the size of variable array')
 
-    def parse_stream(self, stream):
-        """Parse from a stream.
-
-        Args:
-            stream (BinaryIO): A stream to receive data from.
-        """
+    def parse_stream(self, stream: BinaryIO) -> Any:
         res = []
         while True:
             newval = self._ty.parse_stream(stream)
@@ -277,7 +261,7 @@ class Union(BunkaiStructBase):
         """
         return self._size
 
-    def parse_stream(self, stream: BinaryIO) -> Dict[str, Any]:
+    def parse_stream(self, stream: BinaryIO) -> Any:
         """Parse from a stream.
 
         Args:
@@ -286,7 +270,7 @@ class Union(BunkaiStructBase):
         Returns:
             Parsed members in a dictionary.
         """
-        res: Dict[str, Any] = {}
+        res = {}
         data = stream.read(self.size)
         for member in self._members:
             res[member.name] = member.parse(data)
@@ -303,12 +287,12 @@ class Enum(BunkaiStructBase):
     """A class representing an enum type.
     """
     def __init__(self,
-                 ty: CTypesPrimitiveT,
+                 ty: Any,
                  members: Optional[List[str]] = None,
                  startsfrom: Optional[int] = None,
-                 **kwargs: int):
+                 **kwargs: Any):
         self._ty = ty
-        self._items: Dict[str, int] = {}
+        self._items = {}
 
         if members is not None:
             if startsfrom is None:
@@ -318,6 +302,7 @@ class Enum(BunkaiStructBase):
                 if v in self._items.values():
                     raise ValueError(f"Duplicated Enum value: {v}")
                 self._items[k] = v
+
         else:
             for k, v in kwargs.items():
                 if v in self._items.values():
@@ -330,7 +315,7 @@ class Enum(BunkaiStructBase):
         """
         return self._ty.size
 
-    def parse_stream(self, stream: BinaryIO) -> TypingUnion[int, str]:
+    def parse_stream(self, stream: BinaryIO) -> Any:
         """
         Returns:
             The name of the enum type, or a raw integer value
@@ -352,7 +337,7 @@ class Enum(BunkaiStructBase):
 class BunkaiPrimitive(BunkaiStructBase):
     """Primitive data struct
     """
-    def __init__(self, ty: CTypesPrimitiveT, is_bigendian: bool=False):
+    def __init__(self, ty: Any, is_bigendian: bool=False):
         self._ty = ty
         self._is_bigendian = is_bigendian
 
@@ -360,7 +345,7 @@ class BunkaiPrimitive(BunkaiStructBase):
     def size(self) -> int:
         return ctypes.sizeof(self._ty)
 
-    def parse_stream(self, stream: BinaryIO) -> int:
+    def parse_stream(self, stream: BinaryIO) -> Any:
         """Parse from a stream.
 
         Args:

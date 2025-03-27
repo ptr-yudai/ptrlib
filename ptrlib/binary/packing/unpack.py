@@ -44,7 +44,7 @@ def u16(data: Union[str, bytes], byteorder: PtrlibEndiannessT="little", signed: 
     return int.from_bytes(data, byteorder=byteorder, signed=signed)
 
 def u32(data: Union[str, bytes], byteorder: PtrlibEndiannessT="little", signed: bool=False) -> int:
-    """Unpack a dword into integer
+    """Unpack a dword into integer.
 
     Args:
         data (bytes): A dword of bytes to unpack.
@@ -61,7 +61,7 @@ def u32(data: Union[str, bytes], byteorder: PtrlibEndiannessT="little", signed: 
     return int.from_bytes(data, byteorder=byteorder, signed=signed)
 
 def u32f(data: Union[str, bytes], byteorder: PtrlibEndiannessT="little") -> float:
-    """Unpack q dword into float
+    """Unpack q dword into float.
 
     Args:
         data (bytes): A dword of bytes to unpack.
@@ -78,7 +78,7 @@ def u32f(data: Union[str, bytes], byteorder: PtrlibEndiannessT="little") -> floa
     return struct.unpack('<f' if byteorder == 'little' else '>f', data)[0]
 
 def u64(data: Union[str, bytes], byteorder: PtrlibEndiannessT='little', signed: bool=False) -> int:
-    """Unpack a qword into integer
+    """Unpack a qword into integer.
 
     Args:
         data (bytes): A qword of bytes to unpack.
@@ -95,7 +95,7 @@ def u64(data: Union[str, bytes], byteorder: PtrlibEndiannessT='little', signed: 
     return int.from_bytes(data, byteorder=byteorder, signed=signed)
 
 def u64f(data: Union[str, bytes], byteorder: PtrlibEndiannessT="little") -> float:
-    """Unpack a qword into float
+    """Unpack a qword into float.
 
     Args:
         data (bytes): A qword of bytes to unpack.

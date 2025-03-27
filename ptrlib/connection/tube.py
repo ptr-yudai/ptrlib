@@ -419,9 +419,9 @@ class Tube(metaclass=abc.ABCMeta):
             raise TimeoutError("Timeout (recvlineafter)", err.args[1]) from err
 
     def recvregex(self,
-                  regex: Union[str, bytes, re.Pattern],
+                  regex: Union[str, bytes, re.Pattern[bytes]],
                   size: int=4096,
-                  timeout: Optional[Union[int, float]]=None) -> Union[bytes, Tuple[bytes, ...]]:
+                  timeout: Optional[Union[int, float]]=None) -> re.Match[bytes]:
         """Receive until a pattern comes
 
         Receive data until a specified regex pattern matches.
@@ -432,7 +432,7 @@ class Tube(metaclass=abc.ABCMeta):
             timeout: Timeout in second
 
         Returns:
-            tuple: If the given regex has multiple patterns to find,
+            re.Match: If the given regex has multiple patterns to find,
                    it returns all matches. Otherwise, it returns the
                    matched string.
 
@@ -446,7 +446,8 @@ class Tube(metaclass=abc.ABCMeta):
             "`regex` must be either str, bytes, or re.Pattern"
 
         if isinstance(regex, str):
-            regex = re.compile(str2bytes(regex))
+            regex = str2bytes(regex)
+        regex = re.compile(regex)
 
         data = b''
         match = None
@@ -458,11 +459,7 @@ class Tube(metaclass=abc.ABCMeta):
             match = regex.search(data)
 
         self.unget(data[match.end():])
-
-        if match.groups():
-            return match.groups()
-        else:
-            return match.group()
+        return match
 
     def recvscreen(self,
                    returns: type=str,
