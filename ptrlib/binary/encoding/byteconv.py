@@ -7,27 +7,41 @@ logger = getLogger(__name__)
 
 
 def bytes2str(data: Union[str, bytes]) -> str:
-    """Convert bytes to str
+    """Convert bytes to str.
+
+    Args:
+        data (bytes): The data to convert.
+
+    Returns:
+        str: The converted data.
     """
     if isinstance(data, bytes):
         return ''.join(list(map(chr, data)))
-    elif isinstance(data, str):
-        return data # Fallback
-    else:
-        raise TypeError(f"{type(data)} given ('bytes' expected)")
+
+    if isinstance(data, str):
+        return data
+
+    raise TypeError(f"{type(data)} given ('bytes' expected)")
 
 def str2bytes(data: Union[str, bytes]) -> bytes:
-    """Convert str to bytes
+    """Convert str to bytes.
+
+    Args:
+        data (str): The data to convert.
+
+    Returns:
+        bytes: The converted data.
     """
     if isinstance(data, str):
         try:
             return bytes(list(map(ord, data)))
         except ValueError:
             return data.encode('utf-8')
-    elif isinstance(data, bytes):
-        return data # Fallback
-    else:
-        raise TypeError(f"{type(data)} given ('str' expected)")
+
+    if isinstance(data, bytes):
+        return data
+
+    raise TypeError(f"{type(data)} given ('str' expected)")
 
 def bytes2utf8(data: bytes) -> Tuple[str, bytes, List[bool]]:
     """Convert bytes to UTF-8 (!!! EXPERIMENTAL !!!)
@@ -39,10 +53,11 @@ def bytes2utf8(data: bytes) -> Tuple[str, bytes, List[bool]]:
     converted into a character just like `bytes2str` do.
 
     Args:
-        data: Byte array to convert into UTF-8 (bytes)
+        data (bytes): Byte array to convert into UTF-8.
 
     Returns:
-        tuple(str, bytes, list): UTF-8 string, leftover bytes, and marker indicating if each character is valid as UTF-8.
+        tuple(str, bytes, list): UTF-8 string, leftover bytes, and marker
+                                 indicating if each character is valid as UTF-8.
     """
     output = ''
     leftover = b''
@@ -126,15 +141,18 @@ def bytes2utf8(data: bytes) -> Tuple[str, bytes, List[bool]]:
 def bytes2hex(data: bytes) -> str:
     """Convert bytes to hex string
     """
-    if isinstance(data, bytes):
-        return ''.join(list(map(lambda c: f'\\x{c:02x}', data)))
-    else:
+    if not isinstance(data, bytes):
         raise TypeError(f"{type(data)} given ('bytes' expected)")
+
+    return ''.join(list(map(lambda c: f'\\x{c:02x}', data)))
 
 def str2hex(data: str) -> str:
     """Convert string to hex string
     """
-    if isinstance(data, str):
-        return bytes2hex(str2bytes(data))
-    else:
-        raise ValuTypeErroreError(f"{type(data)} given ('str' expected)")
+    if not isinstance(data, str):
+        raise TypeError(f"{type(data)} given ('str' expected)")
+
+    return bytes2hex(str2bytes(data))
+
+
+__all__ = ['bytes2str', 'str2bytes', 'bytes2utf8', 'bytes2hex', 'str2hex']
