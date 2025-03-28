@@ -1,10 +1,13 @@
+"""This package provides Process module for Windows systems
+"""
 from logging import getLogger
-from typing import List, Mapping, Optional, Union
+from typing import Any, List, Mapping, Optional, Union
 import os
 import subprocess
-from ptrlib.binary.encoding import bytes2str
+from ptrlib.binary.encoding import bytes2str, str2bytes
 from .tube import Tube
 
+logger = getLogger(__name__)
 _is_windows = os.name == 'nt'
 if _is_windows:
     import pywintypes
@@ -16,22 +19,23 @@ if _is_windows:
     import win32process
     import win32security
 
-logger = getLogger(__name__)
 
 class WinPipe(object):
+    """Pipe for Windows.
+    """
     def __init__(self,
                  read: Optional[bool]=False,
                  write: Optional[bool]=False,
                  size: Optional[int]=65536):
-        """Create a pipe for Windows
+        """Create a pipe for Windows.
 
         Create a new pipe with overlapped I/O.
 
         Args:
-            read: True if read mode
-            write: True if write mode
-            size: Default buffer size for this pipe
-            timeout: Default timeout in second
+            read (bool, optional): Set pipe to read mode if true.
+            write (bool, optional): Set pipe to write mode if true.
+            size (int, optional): Default buffer size for this pipe.
+            timeout (float, optional): Default timeout in second.
         """
         if read and write:
             mode = win32pipe.PIPE_ACCESS_DUPLEX
@@ -57,22 +61,30 @@ class WinPipe(object):
 
     @property
     def name(self) -> str:
+        """Get the name of this pipe.
+        """
         return self._name
-    
+
     @property
     def access(self) -> int:
+        """Get the access rights of this pipe.
+        """
         return self._access
-    
+
     @property
-    def attributes(self) -> any:
+    def attributes(self) -> Any:
+        """Get the attributes of this pipe.
+        """
         return self._attr
 
     @property
     def handle(self) -> int:
+        """Get the handle value of this pipe.
+        """
         return self._handle
 
     def close(self):
-        """Gracefully close this pipe
+        """Gracefully close this pipe.
         """
         win32api.CloseHandle(self._handle)
 
@@ -80,15 +92,17 @@ class WinPipe(object):
         self.close()
 
 class WinProcess(Tube):
+    """Windows process.
+    """
     #
     # Constructor
     #
     def __init__(self,
                  args: Union[List[Union[str, bytes]], str],
-                 env: Optional[Union[Mapping[bytes, Union[bytes, str]], Mapping[str, Union[bytes, str]]]]=None,
+                 env: Optional[Union[Mapping[bytes, Union[bytes, str]],
+                                     Mapping[str, Union[bytes, str]]]]=None,
                  cwd: Optional[Union[bytes, str]]=None,
                  flags: int = 0,
-                 raw: bool=False,
                  stdin : Optional[WinPipe]=None,
                  stdout: Optional[WinPipe]=None,
                  stderr: Optional[WinPipe]=None,
@@ -98,17 +112,14 @@ class WinProcess(Tube):
         Create a Windows process and make a pipe.
 
         Args:
-            args   : The arguments to pass
-            env    : The environment variables
-            cwd    : Working directory
-            flags  : dwCreationFlags passed to CreateProcess
-            raw    : Disable pty if this parameter is true
-            stdin  : File descriptor of standard input
-            stdout : File descriptor of standard output
-            stderr : File descriptor of standard error
-
-        Returns:
-            WinProcess: ``WinProcess`` instance
+            args (str or List[str]): The program name and arguments to execute.
+            env (Dict[str,str], optional): Environment variables in dictionary.
+            cwd (str, optional): Current working directory.
+            flags (int, optional): `dwCreationFlags` passed to the `CreateProcess` API.
+            stdin (int, optional): File descriptor for standard input.
+            stdout (int, optional): File descriptor for standard output.
+            stderr (int, optional): File descriptor for standard error.
+            timeout (float, optional): Default timeout in second.
 
         Examples:
             ```
@@ -118,7 +129,7 @@ class WinProcess(Tube):
             p = Process("more C:\\test.txt", env={"X": "123"})
             ```
         """
-        assert _is_windows, "WinProcess cannot work on Unix"
+        assert _is_windows, "WinProcess does not work on Unix"
         assert isinstance(args, (str, bytes, list)), \
             "`args` must be either str, bytes, or list"
         assert env is None or isinstance(env, dict), \
@@ -156,7 +167,7 @@ class WinProcess(Tube):
             0, self._stdout.attributes,
             win32con.OPEN_EXISTING, win32file.FILE_ATTRIBUTE_NORMAL, None
         )
-        
+
         if stderr is None:
             self._stderr = self._stdout
             proc_stderr = proc_stdout
@@ -197,10 +208,14 @@ class WinProcess(Tube):
     #
     @property
     def returncode(self) -> Optional[int]:
+        """Get the exit code of this process.
+        """
         return self._returncode
 
     @property
     def pid(self) -> int:
+        """Get the PID of this process.
+        """
         return self._pid
 
     #
@@ -217,16 +232,19 @@ class WinProcess(Tube):
     def _recv_impl(self, size: int) -> bytes:
         """Receive raw data
 
+        Receive raw data of maximum `size` bytes through the pipe.
+
         Args:
-            size: Size to receive
+            size (int): The maximum number of bytes to receive.
 
         Returns:
-            bytes: Received data
+            bytes: The received data.
         """
         if self._current_timeout == 0:
             # Without timeout
             try:
                 _, data = win32file.ReadFile(self._stdout.handle, size)
+                data = str2bytes(data)
                 return data
             except Exception as err:
                 raise err from None
@@ -267,7 +285,7 @@ class WinProcess(Tube):
         """
         _, n = win32file.WriteFile(self._stdin.handle, data)
         return n
-    
+
     def _close_impl(self):
         win32api.TerminateProcess(self._proc, 0)
         win32api.CloseHandle(self._proc)
@@ -285,12 +303,12 @@ class WinProcess(Tube):
         else:
             self._returncode = status
             return False
-    
+
     def _shutdown_recv_impl(self):
         """Kill receiver connection
         """
         self._stdout.close()
-    
+
     def _shutdown_send_impl(self):
         """Kill sender connection
         """

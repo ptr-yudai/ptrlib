@@ -62,6 +62,8 @@ class Tube(metaclass=abc.ABCMeta):
       - "_shutdown_recv_impl"
       - "_shutdown_send_impl"
     """
+    _POLL_TIMEOUT = 0.1
+
     def __new__(cls, *args, **kwargs):
         cls._settimeout_impl = tube_is_open(cls._settimeout_impl)
         cls._recv_impl = tube_is_recv_open(tube_is_open(cls._recv_impl))
@@ -76,25 +78,19 @@ class Tube(metaclass=abc.ABCMeta):
     # Constructor
     #
     def __init__(self,
-                 timeout: Union[int, float]=0,
-                 debug: bool=False,
-                 hexdump: bool=True):
+                 timeout: Union[int, float]=0):
         """Base constructor
 
         Args:
-            timeout (float): Default timeout
-            debug (bool): Dump received and sent data
-            hexdump (bool): Print dump in hexdump format (Available when `debug` is true)
+            timeout (float): Default timeout in second.
         """
         self._buffer = b''
-        self._debug = debug
-        self._hexdump = hexdump
+        self._debug = False
+        self._hexdump = True
 
         self._is_closed = False
         self._is_send_closed = False
         self._is_recv_closed = False
-
-        self._POLL_TIMEOUT = 0.1
 
         self._default_timeout = timeout
         self.settimeout()
@@ -104,28 +100,38 @@ class Tube(metaclass=abc.ABCMeta):
     #
     @property
     def debug(self):
-        """Debug mode
+        """Debug mode.
 
-        If this parameter is set to True, packet logs are displayed on terminal.
+        Every packet is printed on calling recv and send methods if the debug mode is enabled.
+
+        Values:
+            - `False`: Disable debug mode.
+            - `True`: Enable debug mode.
+            - `"plain"`: Enable debug mode and change print format to plaintext mode.
+            - `"hex"`: Enable debug mode and change print format to hexdump mode.
+
+        Examples:
+            ```
+            sock = Socket("...")
+            sock.debug = True
+            sock.debug = 'plain'
+            sock.debug = 'hex'
+            ```
         """
         return self._debug
 
     @debug.setter
-    def debug(self, is_debug: bool):
-        self._debug = bool(is_debug)
-
-    @property
-    def hexdump(self):
-        """Hexdump mode
-
-        If this parameter is set to True and debug mode is on,
-        packet logs are displayed in hex format.
-        """
-        return self._hexdump
-
-    @hexdump.setter
-    def hexdump(self, is_hexdump: bool):
-        self._hexdump = bool(is_hexdump)
+    def debug(self, is_debug: Union[bool, Literal['plain', 'hex']]):
+        if isinstance(is_debug, bool):
+            self._debug = is_debug
+        elif is_debug == 'plain':
+            self._debug = True
+            self._hexdump = False
+        elif is_debug == 'hex':
+            self._debug = True
+            self._hexdump = True
+        else:
+            raise ValueError('`debug` can be either bool, "plain", or "hex"')
 
     @property
     def is_closed(self):
