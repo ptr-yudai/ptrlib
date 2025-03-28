@@ -372,7 +372,10 @@ class ELF:
     def _plt_ref_list(self, code, shdr):
         xref = {}
         i = 0
-        base_got = self.section('.got') - self._load_address
+
+        got = self.section('.got')
+        assert got is not None, "'.got' section not found"
+        base_got = got - self._load_address
 
         # TODO: Support more architecture
         while i < shdr['sh_size'] - 6:
@@ -420,8 +423,7 @@ class ELF:
         offset = self._offset_got(name)
         if offset is None:
             return None
-        else:
-            return self._pie_add_base + offset
+        return self._pie_add_base + offset
 
     @cache
     def _offset_got(self, name: Union[str, bytes]) -> Optional[int]:
@@ -433,7 +435,8 @@ class ELF:
                 sym_idx = rel['r_info'] >> 8
             else:
                 sym_idx = rel['r_info'] >> 32
-            if sym_idx == 0: continue
+            if sym_idx == 0:
+                continue
 
             symbols = self._parser.section_at(shdr['sh_link'])
             symbol_name = self._parser.symbol_name(symbols, sym_idx)
@@ -541,12 +544,7 @@ class ELF:
             elif self._parser.ehdr['e_machine'] == 'EM_AARCH64':
                 arch = 'aarch64'
             else:
-                raise NotImplementedError(
-                    "The current architecture (e_machine={})".format(
-                        self._parser.ehdr['e_machine']
-                    ) + \
-                    " is not supported by assembler."
-                )
+                raise NotImplementedError(f"The current architecture (e_machine={self._parser.ehdr['e_machine']}) is not supported by assembler.")
 
         if bits is None:
             bits = self._parser.elfclass
@@ -557,7 +555,8 @@ class ELF:
 
     @cache
     def relro(self) -> int:
-        """Check RELRO
+        """Check RELRO.
+
         Check if RELRO is full/partial enabled or disabled.
 
         Returns:
@@ -582,11 +581,12 @@ class ELF:
 
     @cache
     def nx(self) -> bool:
-        """Check NX bit
+        """Check NX bit.
+
         Check if NX bit is enabled.
 
         Returns:
-            bool: True if NX is enabled
+            bool: True if NX is enabled, otherwise False.
         """
         for i in range(self._parser.ehdr['e_phnum']):
             seghdr = self._parser.segment_at(i)
@@ -598,8 +598,10 @@ class ELF:
 
     @cache
     def ssp(self) -> bool:
-        """Check SSP
+        """Check SSP.
+        
         Check if the binary is protected with canary.
+        This function is heuristic and just checks if some symbols such as `__stack_chk_fail` exist.
 
         Returns:
             bool: True if enabled, otherwise False.
@@ -613,7 +615,8 @@ class ELF:
 
     @cache
     def pie(self) -> bool:
-        """Check PIE
+        """Check PIE.
+
         Check if PIE is enabled or disabled.
 
         Returns:

@@ -1,3 +1,5 @@
+"""This package provides Tube class.
+"""
 import abc
 import os
 import re
@@ -5,8 +7,10 @@ import select
 import sys
 import threading
 from logging import getLogger
-from typing import Callable, List, Literal, Optional, Tuple, Union
-from ptrlib.binary.encoding import bytes2str, str2bytes, bytes2hex, bytes2utf8, hexdump, AnsiParser, AnsiInstruction
+from typing import Callable, List, Literal, Optional, Union
+from ptrlib.binary.encoding import \
+    bytes2str, str2bytes, bytes2hex, bytes2utf8, \
+    hexdump, AnsiParser, AnsiInstruction
 from ptrlib.console.color import Color
 
 _is_windows = os.name == 'nt'
@@ -315,15 +319,16 @@ class Tube(metaclass=abc.ABCMeta):
             "`delim` must be either str, bytes, or list"
 
         # Preprocess
+        delim_list: List[bytes] = []
         if isinstance(delim, list):
             for i, d in enumerate(delim):
                 assert isinstance(d, (str, bytes)), \
                     f"`delim[{i}]` must be either str or bytes"
-                delim[i] = str2bytes(delim[i])
+                delim_list.append(str2bytes(delim[i]))
         else:
-            delim = [str2bytes(delim)]
+            delim_list[0] = str2bytes(delim)
 
-        if any(map(lambda d: len(d) == 0, delim)):
+        if any(map(lambda d: len(d) == 0, delim_list)):
             return b'' # Empty delimiter
 
         # Iterate until we find one of the delimiters
@@ -339,7 +344,7 @@ class Tube(metaclass=abc.ABCMeta):
                 err.args = (err.args[0], data)
                 raise err from None
 
-            for d in delim:
+            for d in delim_list:
                 if d in data[max(0, prev_len-len(d)):]:
                     found_delim = d
                     break
@@ -424,7 +429,7 @@ class Tube(metaclass=abc.ABCMeta):
                   timeout: Optional[Union[int, float]]=None) -> re.Match[bytes]:
         """Receive until a pattern comes
 
-        Receive data until a specified regex pattern matches.
+        Receive data until a given regex pattern matches.
 
         Args:
             regex  : Regular expression
@@ -432,9 +437,7 @@ class Tube(metaclass=abc.ABCMeta):
             timeout: Timeout in second
 
         Returns:
-            re.Match: If the given regex has multiple patterns to find,
-                   it returns all matches. Otherwise, it returns the
-                   matched string.
+            re.Match: Returns a :obj:`re.Match` object.
 
         Raises:
             ConnectionAbortedError: Connection is aborted by process
@@ -611,7 +614,13 @@ class Tube(metaclass=abc.ABCMeta):
             tube.sendafter("command: ", 1) # b"1" is sent
             ```
         """
+        assert isinstance(data, (int, float, str, bytes)), \
+            "`data` must be int, float, str, or bytes"
+
         recv_data = self.recvuntil(delim, size, timeout, drop, lookahead)
+
+        if isinstance(data, (int, float)):
+            data = str(data)
         self.send(data)
 
         return recv_data
@@ -709,7 +718,6 @@ class Tube(metaclass=abc.ABCMeta):
                         if 0x7f <= ord(c) < 0x100:
                             pretty_print_hex(c)
                         elif ord(c) in [0x00]:
-                            # TODO: What is printable?
                             pretty_print_hex(c)
                         else:
                             sys.stdout.write(c)
