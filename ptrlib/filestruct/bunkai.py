@@ -6,7 +6,7 @@ import ctypes
 import io
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
-from typing import Any, BinaryIO, Callable, Dict, List, Optional, Union as TypingUnion
+from typing import Any, BinaryIO, Callable, List, Optional, Union as TypingUnion
 
 
 BunkaiStructT = TypingUnion[

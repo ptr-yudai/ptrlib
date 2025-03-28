@@ -1,26 +1,24 @@
 """This package provides Process module for Windows systems
 """
-from logging import getLogger
-from typing import Any, List, Mapping, Optional, Union
 import os
 import subprocess
+from logging import getLogger
+from typing import Any, List, Mapping, Optional, Union
+import pywintypes
+import win32api
+import win32con
+import win32event
+import win32file
+import win32pipe
+import win32process
+import win32security
 from ptrlib.binary.encoding import bytes2str, str2bytes
 from .tube import Tube
 
 logger = getLogger(__name__)
-_is_windows = os.name == 'nt'
-if _is_windows:
-    import pywintypes
-    import win32api
-    import win32con
-    import win32event
-    import win32file
-    import win32pipe
-    import win32process
-    import win32security
 
 
-class WinPipe(object):
+class WinPipe:
     """Pipe for Windows.
     """
     def __init__(self,
@@ -316,3 +314,6 @@ class WinProcess(Tube):
 
     def __str__(self) -> str:
         return f'{self._filepath} (PID={self._pid})'
+
+
+__all__ = ['WinProcess']

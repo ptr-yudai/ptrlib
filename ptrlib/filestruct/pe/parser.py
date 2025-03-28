@@ -1,18 +1,27 @@
+"""This package provides a simple PE parser.
+"""
 import functools
 from logging import getLogger
-from .enums import *
+from typing import Any, Generator, Optional, Tuple
+from ptrlib.annotation import PtrlibBitsT, PtrlibArchT
+from .enums import DIRECTORY_ENTRY
 from .structs import *
 
 logger = getLogger(__name__)
-
-try:
-    cache = functools.cache
-except AttributeError:
-    cache = functools.lru_cache
+cache = functools.cache
 
 
 class PEParser(object):
-    def __init__(self, filepath):
+    """PE file parser.
+    """
+    def __init__(self, filepath: str):
+        """
+        Args:
+            filepath (str): The path to a PE file to parse.
+        """
+        self.bits: PtrlibBitsT
+        self.arch: PtrlibArchT = 'intel'
+
         self.stream = open(filepath, 'rb')
 
         # Parse IMAGE_DOS_HEADER
@@ -32,10 +41,11 @@ class PEParser(object):
         magic = IMAGE_OPTIONAL_HEADER_MAGIC().parse_stream(self.stream)
         if magic == 0x20b: # PE+
             self.bits = 64
-        elif magic == 0x10b or magic == 0x107: # PE32 or ROM
+        elif magic in (0x10b, 0x107): # PE32 or ROM
             self.bits = 32
         else:
             logger.error("Invalid Magic in IMAGE_NT_HEADER.OptionalHeader")
+            self.bits = 64
 
         # Parse IMAGE_NT_HEADER
         self.stream.seek(self.doshdr['e_lfanew'])
@@ -57,7 +67,7 @@ class PEParser(object):
         self._parse_import_directory()
 
     @cache
-    def rva_to_section(self, rva):
+    def rva_to_section(self, rva: int):
         """Find section corresponding to a specific RVA
 
         Args:
@@ -71,11 +81,11 @@ class PEParser(object):
                rva < section['VirtualAddress'] + section['SizeOfRawData']:
                 return section
 
-        logger.warning(f"Invalid RVA: 0x{rva:x}")
+        logger.warning("Invalid RVA: 0x%x", rva)
         return None
 
     @cache
-    def rva_to_offset(self, rva):
+    def rva_to_offset(self, rva: int) -> int:
         """Convert RVA to file offset
 
         Args:
@@ -86,13 +96,19 @@ class PEParser(object):
         """
         section = self.rva_to_section(rva)
         if section is None:
-            return None
+            return -1
 
         return rva - section['VirtualAddress'] + section['PointerToRawData']
 
     @cache
-    def string_at(self, offset):
-        """Get C-string at specific file offset
+    def string_at(self, offset: int) -> Optional[bytes]:
+        """Get C-string at specific file offset.
+
+        Args:
+            offset (int): The offset to a string.
+
+        Returns:
+            bytes: A bytes of string, or None if the offset is invalid.
         """
         self.stream.seek(offset)
         chunks = []
@@ -104,10 +120,11 @@ class PEParser(object):
                 chunks.append(chunk[:ei])
                 found = True
                 break
-            else:
-                chunks.append(chunk)
+
+            chunks.append(chunk)
             if len(chunk) < 0x100:
                 break
+
         return b''.join(chunks) if found else None
 
     def _parse_coff(self):
@@ -123,7 +140,10 @@ class PEParser(object):
 
         # Parse symbol table
         self.stream.seek(offset)
+        image_symbol = None
         naux = 0
+        image_aux_symbols = []
+
         for _ in range(self.nthdr['FileHeader']['NumberOfSymbols']):
             if naux == 0:
                 image_symbol = IMAGE_SYMBOL().parse_stream(self.stream)
@@ -179,7 +199,7 @@ class PEParser(object):
         for table in self._import_table:
             self._resolve_imports(table)
 
-    def _resolve_symbol_name(self, image_symbol):
+    def _resolve_symbol_name(self, image_symbol: Any):
         """Resolve names in a symbol table
         """
         if image_symbol['N']['Name']['Zero'] == 0:
@@ -195,14 +215,14 @@ class PEParser(object):
 
         image_symbol['Name'] = name
 
-    def _resolve_imports(self, import_table):
+    def _resolve_imports(self, import_table: Any):
         """Resolve names in an import table
         """
         # Resolve DLL name
         offset = self.rva_to_offset(import_table['Name'])
         import_table['Name'] = self.string_at(offset)
 
-    def iter_iat(self, import_table):
+    def iter_iat(self, import_table: Any):
         """Iterate over IAT corresponding to an import table
         """
         oft = import_table['_']['OriginalFirstThunk']
@@ -230,20 +250,21 @@ class PEParser(object):
             p_thunk_name += IMAGE_THUNK_DATA(self).size
             p_thunk_func += IMAGE_THUNK_DATA(self).size
 
-    def iter_imports(self):
-        """Iterate over import table
+    def iter_imports(self) -> Generator[Any, None, None]:
+        """Iterate over import tables.
         """
-        for table in self._import_table:
-            yield table
+        yield from self._import_table
 
-    def iter_symbol_table(self):
-        """Iterate over symbol table
+    def iter_symbol_table(self) -> Generator[Tuple[Any, Any], None, None]:
+        """Iterate over symbol tables.
         """
         for image_symbol, image_aux_symbol in self._symbol_table:
             yield (image_symbol, image_aux_symbol)
 
-    def iter_sections(self):
-        """Iterate over sections
+    def iter_sections(self) -> Generator[Any, None, None]:
+        """Iterate over all sections.
         """
-        for section in self.sections:
-            yield section
+        yield from self.sections
+
+
+__all__ = ['PEParser']

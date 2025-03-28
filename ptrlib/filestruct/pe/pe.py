@@ -1,7 +1,7 @@
 import functools
 import os
 from logging import getLogger
-from typing import Optional, Union
+from typing import Dict, Generator, Optional, Union
 from ptrlib.binary.encoding import str2bytes
 from .parser import PEParser
 
@@ -14,6 +14,8 @@ except AttributeError:
 
 
 class PE(object):
+    """PE file analyzer.
+    """
     def __init__(self, filepath):
         """PE Parser
         """
@@ -21,11 +23,27 @@ class PE(object):
         self._parser = PEParser(self.filepath)
         self._base = 0
 
+    @property
+    def bits(self):
+        """The bits of this PE.
+
+        Returns either 32 or 64.
+        """
+        return self._parser.bits
+
+    @property
+    def arch(self):
+        """The architecture of this PE.
+
+        Currently this attribute can hold only `"intel"`.
+        """
+        return self._parser.arch
+
     def symbols(self):
         """Get all symbols
         """
         symbols = {}
-        for image_symbol, image_aux_symbol in self._parser.iter_symbol_table():
+        for image_symbol, _ in self._parser.iter_symbol_table():
             # TODO: Add base address
             symbols[image_symbol['Name']] = image_symbol['Value']
         return symbols
@@ -67,7 +85,7 @@ class PE(object):
 
         return None
 
-    def sections(self):
+    def sections(self) -> Dict[bytes, int]:
         """Get all section names
 
         Returns:
@@ -96,6 +114,20 @@ class PE(object):
             if section['Name'] == name:
                 # TODO: Add base address
                 return section['VirtualAddress']
+
+    def search(self,
+               pattern: Union[str, bytes],
+               writable: Optional[bool]=None,
+               executable: Optional[bool]=None) -> Generator[int, None, None]:
+        """Find binary data from the PE.
+
+        Args:
+            pattern (bytes): Data to find.
+
+        Returns:
+            generator: The address of the found data.
+        """
+        raise NotImplementedError("This method is not supported yet.")
 
     def iat(self,
             dll_or_func: Union[str, bytes],

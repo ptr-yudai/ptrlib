@@ -3,11 +3,12 @@
 import functools
 import os
 from logging import getLogger
-from typing import Dict, Generator, Optional, Tuple, Union
+from typing import Dict, Generator, Optional, Tuple, Union as TypingUnion
 from zlib import crc32
+from ptrlib.annotation import PtrlibArchT, PtrlibBitsT, PtrlibAssemblySyntaxT
 from ptrlib.binary.packing import u32
-from ptrlib.arch.common import assemble
-from ptrlib.binary.encoding import str2bytes, bytes2str
+from ptrlib.binary.encoding import str2bytes
+from ptrlib.pwn.xop import Gadget
 from .parser import ELFParser
 
 logger = getLogger(__name__)
@@ -26,13 +27,35 @@ class ELF:
         self._parser = ELFParser(self.filepath)
         self._base = 0
         self._debug_parser = self._get_debug_parser()
+        self._gadget = Gadget(self)
+
+    @property
+    def bits(self) -> PtrlibBitsT:
+        """The bits of this ELF.
+
+        Returns either 32 or 64.
+        """
+        return self._parser.elfclass
+
+    @property
+    def arch(self) -> PtrlibArchT:
+        """The architecture name of this ELF.
+
+        Return one of the following values:
+            - `"intel"`: Intel and AMD series (`EM_386`, `EM_X86_64`)
+            - `"arm"`: ARM series (`EM_ARM`, `EM_AARCH64`)
+            - `"mips"`: MIPS series (`EM_MIPS`)
+            - `"sparc"`: SPARC series (`EM_SPARC`)
+            - `"risc-v"`: RISC-V series (`EM_RISCV`)
+        """
+        return self._parser.arch
 
     def _get_debug_parser(self):
         # ref: https://sourceware.org/gdb/current/onlinedocs/gdb.html/Separate-Debug-Files.html
         dirname = os.path.dirname(self.filepath)
 
         debug_info_paths = []
-        def add(*args: str, crc=None):
+        def add(*args: str, crc: Optional[int]=None):
             debug_info_paths.append((os.path.realpath(os.path.join(*args)), crc))
 
         if self.build_id is not None:
@@ -47,19 +70,21 @@ class ELF:
                 add(dirname, decoded_name, crc=crc)
                 add(dirname, ".debug", decoded_name, crc=crc)
                 add("/usr/lib/debug", dirname, decoded_name, crc=crc)
-            except:
+            except UnicodeDecodeError:
                 pass
 
-        for p, crc in debug_info_paths:
-            if not os.path.exists(p):
+        for path, crc in debug_info_paths:
+            if not os.access(path, os.R_OK):
                 continue
+
             if crc is not None:
-                with open(p, "rb") as f:
+                with open(path, "rb") as f:
                     content = f.read()
                     if crc32(content) != crc:
                         continue
-            logger.info("Debug file loaded from %s", p)
-            return ELFParser(p)
+            logger.info("Debug file loaded from %s", path)
+            return ELFParser(path)
+
         return None
 
     @property
@@ -92,12 +117,12 @@ class ELF:
         self._parser.stream.seek(shdr['sh_offset'] - self._load_address)
         _debugfile_name = b""
         while True:
-            next = self._parser.stream.read1(1)
-            if next == b'' or next == b'\x00':
+            c = self._parser.stream.read1(1)
+            if c in (b'', b'\x00'):
                 break
-            _debugfile_name += next
-        
-        # seek to align
+            _debugfile_name += c
+
+        # Seek to align
         self._parser.stream.read(-(len(_debugfile_name) + 1) % 4)
         crc = u32(self._parser.stream.read(4))
 
@@ -105,22 +130,31 @@ class ELF:
 
     @property
     def base(self) -> int:
-        """Get the load address
-        This property has
-        - 0 by default, or the base set by user if PIE is enabled
-        - Load address by default, or the base set by user if PIE is disabled
+        """The load address of this ELF.
+
+        This property holds:
+            - 0 by default, or the base address set by user if PIE is enabled
+            - The load address by default, or the base set by user if PIE is disabled
 
         Returns:
-            int: The address where the ELF is loaded
+            int: The address where the ELF is loaded.
         """
         return self._base
 
     @base.setter
     def base(self, base: int):
-        """Set the load address
+        """Set the load address of this ELF.
 
         Args:
-            int: The base address to be used
+            int: The base address.
+
+        Examples:
+            ```
+            elf = ELF("./chall")
+            elf.base = 0x555555554000
+            libc = ELF("./libc.so.6")
+            libc.base = u64(leak) - libc.main_arena() - 0x60
+            ```
         """
         # Support integer-like types such as mpz int
         base = int(base)
@@ -132,11 +166,6 @@ class ELF:
                          " *****************************************")
 
         self._base = base
-
-    def set_base(self, base):
-        logger.error("Deprecated: This feature will be removed in the future. "
-                     "Use `elf.base = ...` instead.")
-        self.base = base
 
     @property
     def _pie_add_base(self) -> int:
@@ -153,14 +182,15 @@ class ELF:
     @property
     @cache
     def _load_address(self) -> int:
+        """Get the virtual address of PT_LOAD segment.
+        """
         for i in range(self._parser.ehdr['e_phnum']):
             seghdr = self._parser.segment_at(i)
             if seghdr['p_type'] == 'PT_LOAD':
                 return seghdr['p_vaddr']
-        else:
-            return 0
+        return 0
 
-    def symbol(self, name: Union[str, bytes]) -> Optional[int]:
+    def symbol(self, name: TypingUnion[str, bytes]) -> Optional[int]:
         """Get the address of a symbol
 
         Find the address corresponding to a given symbol.
@@ -174,20 +204,21 @@ class ELF:
         offset = self._offset_symbol(name)
         if offset is None:
             return None
-        else:
-            return self._pie_add_base + offset
+        return self._pie_add_base + offset
 
     @cache
-    def _offset_symbol(self, name: Union[str, bytes]) -> Optional[int]:
+    def _offset_symbol(self, name: TypingUnion[str, bytes]) -> Optional[int]:
         if isinstance(name, str):
             name = str2bytes(name)
 
         # Find symbol
         for parser in [self._parser, self._debug_parser]:
-            if parser is None: continue
+            if parser is None:
+                continue
+
             for shdr in parser.iter_sections():
                 if shdr['sh_type'] not in ["SHT_SYMTAB", "SHT_DYNSYM", "SHT_SUNW_LDYNSYM"]:
-                   continue
+                    continue
 
                 strtab = parser.section_at(shdr['sh_link'])
                 for symtab in parser.iter_symtab(shdr):
@@ -232,14 +263,17 @@ class ELF:
 
         return symbols
 
-    def search(self, pattern: Union[str, bytes], writable: Optional[bool]=None, executable: Optional[bool]=None) -> Generator[int, None, None]:
-        """Find binary data from the ELF
+    def search(self,
+               pattern: TypingUnion[str, bytes],
+               writable: Optional[bool]=None,
+               executable: Optional[bool]=None) -> Generator[int, None, None]:
+        """Find binary data from the ELF.
 
         Args:
-            pattern (bytes): Data to find
+            pattern (bytes): Data to find.
 
         Returns:
-            generator: Address
+            generator: The address of the found data.
         """
         if isinstance(pattern, str):
             pattern = str2bytes(pattern)
@@ -264,12 +298,14 @@ class ELF:
                 yield self._pie_add_base + addr + offset
                 offset += 1
 
-    def find(self, pattern: Union[str, bytes], writable: Optional[bool]=None, executable: Optional[bool]=None) -> Generator[int, None, None]:
+    def find(self,
+             pattern: TypingUnion[str, bytes],
+             writable: Optional[bool]=None,
+             executable: Optional[bool]=None) -> Generator[int, None, None]:
         """Alias of ```search```
         """
-        for result in self.search(pattern, writable, executable):
-            yield result
-    
+        yield from self.search(pattern, writable, executable)
+
     def addr2offset(self, addr: int) -> Optional[int]:
         """Returns the offset in the ELF corresponding to a given virtual address.
 
@@ -308,7 +344,8 @@ class ELF:
             size (int): Size of bytes
 
         Returns:
-            bytes | None: Bytes in the file. If a non-existent address is specified, None is returned
+            bytes: Bytes in the file. 
+                   If a non-existent address is specified, None is returned
         """
         parser = self._parser
 
@@ -327,10 +364,10 @@ class ELF:
             stream.seek(current_offset)
 
             return ret
-        
+
         return None
 
-    def plt(self, name: Union[str, bytes]) -> Optional[int]:
+    def plt(self, name: TypingUnion[str, bytes]) -> Optional[int]:
         """Get a PLT address
         Lookup the PLT table and find the corresponding address
 
@@ -347,7 +384,7 @@ class ELF:
             return self._pie_add_base + offset
 
     @cache
-    def _offset_plt(self, name: Union[str, bytes]) -> Optional[int]:
+    def _offset_plt(self, name: TypingUnion[str, bytes]) -> Optional[int]:
         if isinstance(name, str):
             name = str2bytes(name)
 
@@ -410,7 +447,7 @@ class ELF:
 
         return xref
 
-    def got(self, name: Union[str, bytes]) -> Optional[int]:
+    def got(self, name: TypingUnion[str, bytes]) -> Optional[int]:
         """Get a GOT address
         Lookup the GOT table and find the corresponding address
 
@@ -426,7 +463,7 @@ class ELF:
         return self._pie_add_base + offset
 
     @cache
-    def _offset_got(self, name: Union[str, bytes]) -> Optional[int]:
+    def _offset_got(self, name: TypingUnion[str, bytes]) -> Optional[int]:
         if isinstance(name, str):
             name = str2bytes(name)
 
@@ -511,7 +548,7 @@ class ELF:
             return self._pie_add_base + offset
 
     @cache
-    def _offset_section(self, name: Union[str, bytes]) -> Optional[int]:
+    def _offset_section(self, name: TypingUnion[str, bytes]) -> Optional[int]:
         if isinstance(name, str):
             name = str2bytes(name)
 
@@ -521,8 +558,9 @@ class ELF:
         else:
             return None
 
-    def gadget(self, code: Union[str, bytes], arch: Optional[str]=None, bits: Optional[int]=None, syntax: str='intel'):
-        """Find ROP/COP gadget
+    def gadget(self, code: TypingUnion[str, bytes], syntax: PtrlibAssemblySyntaxT='intel'):
+        """Find ROP/COP gadgets.
+
         Args:
             code (str/bytes): Assembly or machine code of ROP gadget
             syntax (str): Syntax of code (default to intel)
@@ -530,28 +568,7 @@ class ELF:
         Returns:
             generator: Generator to yield the addresses of the found gadgets
         """
-        if isinstance(code, bytes):
-            code = bytes2str(code)
-
-        # Determine architecture
-        if arch is None:
-            if self._parser.ehdr['e_machine'] == 'EM_386':
-                arch = 'x86'
-            elif self._parser.ehdr['e_machine'] == 'EM_X86_64':
-                arch = 'amd64'
-            elif self._parser.ehdr['e_machine'] == 'EM_ARM':
-                arch = 'arm'
-            elif self._parser.ehdr['e_machine'] == 'EM_AARCH64':
-                arch = 'aarch64'
-            else:
-                raise NotImplementedError(f"The current architecture (e_machine={self._parser.ehdr['e_machine']}) is not supported by assembler.")
-
-        if bits is None:
-            bits = self._parser.elfclass
-
-        # Assemble gadget
-        code = assemble(code, bits=bits, arch=arch, syntax=syntax)
-        return self.search(code, executable=True)
+        return self._gadget.search(code, syntax)
 
     @cache
     def relro(self) -> int:
@@ -630,5 +647,6 @@ class ELF:
                 return True
             return True # What's this?
         return False
+
 
 __all__ = ['ELF']

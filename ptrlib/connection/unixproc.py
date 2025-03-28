@@ -178,14 +178,14 @@ class UnixProcess(Tube):
         else:
             timeout = self._current_timeout
 
-        if timeout is not None:
-            if self._is_output_alive(timeout):
-                raise TimeoutError("Timeout (_recv_impl)", b'') from None
-
-        else:
+        if timeout is None:
             while self.is_alive():
                 if self._is_output_alive(self._POLL_TIMEOUT):
                     break
+
+        else:
+            if not self._is_output_alive(timeout):
+                raise TimeoutError("Timeout (_recv_impl)", b'') from None
 
         try:
             data = self._proc.stdout.read(size)

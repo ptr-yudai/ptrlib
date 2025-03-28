@@ -1,6 +1,11 @@
+"""This package provides a simple ELF parser.
+"""
 import functools
 from logging import getLogger
 from typing import Any, Generator, List, Optional
+from ptrlib.annotation import PtrlibBitsT, PtrlibArchT
+from ptrlib.filestruct.bunkai import \
+    u8, u16, u32, u64, s32, s64, u8be, u16be, u32be, u64be, s32be, s64be
 from .structs import *
 
 logger = getLogger(__name__)
@@ -13,8 +18,11 @@ class ELFParser:
     def __init__(self, filepath: str):
         """
         Args:
-            filepath (str): The path to an ELF file to parser.
+            filepath (str): The path to an ELF file to parse.
         """
+        self.elfclass: PtrlibBitsT
+        self.arch: PtrlibArchT
+
         self.stream = open(filepath, 'rb')
         if not self._identify():
             raise ValueError("Not a valid ELF file")
@@ -44,6 +52,19 @@ class ELFParser:
         # Parse ELF header
         self.stream.seek(0)
         self.ehdr = Elf_Ehdr(self).parse_stream(self.stream)
+
+        if self.ehdr['e_machine'] in ('EM_386', 'EM_X86_64'):
+            self.arch = 'intel'
+        elif self.ehdr['e_machine'] in ('EM_ARM', 'EM_AARCH64'):
+            self.arch = 'arm'
+        elif self.ehdr['e_machine'] == 'EM_SPARC':
+            self.arch = 'sparc'
+        elif self.ehdr['e_machine'] == 'EM_MIPS':
+            self.arch = 'mips'
+        elif self.ehdr['e_machine'] == 'EM_RISCV':
+            self.arch = 'risc-v'
+        else:
+            self.arch = 'unknown'
 
     @cache
     def section_by_name(self, name: str) -> Optional[Any]:

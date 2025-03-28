@@ -1,3 +1,5 @@
+"""This package provides some tests for Process feature.
+"""
 import inspect
 import os
 import random
@@ -10,13 +12,19 @@ _is_windows = os.name == 'nt'
 
 
 class TestProcess(unittest.TestCase):
+    """Tests for Process
+    """
     def setUp(self):
         getLogger("ptrlib").setLevel(FATAL)
         if _is_windows:
             self.skipTest("This test is intended for the Linux platform")
 
     def test_basic(self):
-        module_name = inspect.getmodule(Process).__name__
+        """Basic tests
+        """
+        mod = inspect.getmodule(Process)
+        assert mod is not None
+        module_name = mod.__name__
 
         while True:
             msg = os.urandom(16)
@@ -26,7 +34,8 @@ class TestProcess(unittest.TestCase):
         with self.assertLogs(module_name) as cm:
             p = Process("./tests/test.bin/test_echo.x64")
         self.assertEqual(len(cm.output), 1)
-        self.assertEqual(cm.output[0], f'INFO:{module_name}:Successfully created a new process {str(p)}')
+        self.assertEqual(cm.output[0],
+                         f'INFO:{module_name}:Successfully created a new process {str(p)}')
 
         # sendline / recvline
         p.sendline(b"Message : " + msg)
@@ -53,11 +62,11 @@ class TestProcess(unittest.TestCase):
 
         # send / recvregex
         a, b = random.randrange(1<<32), random.randrange(1<<32)
-        p.sendline("Hello 0x{:08x}, 0x{:08x}".format(a, b))
+        p.sendline(f"Hello 0x{a:08x}, 0x{b:08x}")
         r = p.recvregex("0x([0-9a-f]+), 0x([0-9a-f]+)")
         p.recvline()
-        self.assertEqual(int(r[0], 16), a)
-        self.assertEqual(int(r[1], 16), b)
+        self.assertEqual(int(r[1], 16), a)
+        self.assertEqual(int(r[2], 16), b)
 
         # sendlineafter
         a, b = os.urandom(16).hex(), os.urandom(16).hex()
@@ -68,7 +77,7 @@ class TestProcess(unittest.TestCase):
 
         # shutdown
         p.send(msg[::-1])
-        p.shutdown('write')
+        p.shutdown('send')
         self.assertEqual(p.recvonce(len(msg)), msg[::-1])
 
         # wait
@@ -77,15 +86,21 @@ class TestProcess(unittest.TestCase):
         with self.assertLogs(module_name) as cm:
             p.close()
         self.assertEqual(len(cm.output), 1)
-        self.assertEqual(cm.output[0], fr'INFO:{module_name}:{str(p)} stopped with exit code 0')
+        self.assertEqual(cm.output[0],
+                         f'INFO:{module_name}:{str(p)} stopped with exit code 0')
 
     def test_timeout(self):
-        module_name = inspect.getmodule(Process).__name__
+        """Timeout tests
+        """
+        mod = inspect.getmodule(Process)
+        assert mod is not None
+        module_name = mod.__name__
 
         with self.assertLogs(module_name) as cm:
             p = Process("./tests/test.bin/test_echo.x64")
         self.assertEqual(len(cm.output), 1)
-        self.assertEqual(cm.output[0], fr'INFO:{module_name}:Successfully created a new process {str(p)}')
+        self.assertEqual(cm.output[0],
+                         f'INFO:{module_name}:Successfully created a new process {str(p)}')
         data = os.urandom(16).hex()
 
         # recv

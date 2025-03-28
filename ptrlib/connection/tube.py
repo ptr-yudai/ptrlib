@@ -332,7 +332,7 @@ class Tube(metaclass=abc.ABCMeta):
                     f"`delim[{i}]` must be either str or bytes"
                 delim_list.append(str2bytes(delim[i]))
         else:
-            delim_list[0] = str2bytes(delim)
+            delim_list.append(str2bytes(delim))
 
         if any(map(lambda d: len(d) == 0, delim_list)):
             return b'' # Empty delimiter
