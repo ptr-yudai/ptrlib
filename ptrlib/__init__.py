@@ -1,15 +1,16 @@
 """This package provides every feature of ptrlib
 """
+from logging import getLogger, INFO, StreamHandler
 from .algorithm import *
 from .annotation import *
 from .arch import *
 from .binary import *
 from .connection import *
 from .console import *
+from .cpu import *
 from .crypto import *
 from .filestruct import *
 from .pwn import *
-from logging import getLogger, INFO, StreamHandler
 
 # ptrlib root logger
 _handler = StreamHandler()
