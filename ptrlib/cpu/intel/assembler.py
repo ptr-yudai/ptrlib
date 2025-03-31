@@ -8,7 +8,7 @@ import tempfile
 from logging import getLogger
 from typing import List, Optional, Tuple, TYPE_CHECKING
 from ptrlib.annotation import PtrlibAssemblySyntaxT, PtrlibBitsT
-from ptrlib.cpu.external import gcc, objcopy
+from ptrlib.cpu.external import gcc, objcopy, nasm
 
 try:
     import keystone
@@ -30,7 +30,6 @@ def assemble_keystone(assembly: str,
 
     Args:
         assembly (str): Assembly code.
-        address (int): The address of the first instruction.
         bits (int): The bits (16, 32, or 64) for the assembly. Default to 64.
         syntax (str, optional): 'intel' for Intel syntax, or 'att' for AT&T syntax.
 
@@ -46,14 +45,14 @@ def assemble_keystone(assembly: str,
     ks = keystone.Ks(keystone.KS_ARCH_X86, mode[bits])
 
     if syntax is None:
-        syntax = guess_asm_syntax(assembly)
+        syntax = _guess_asm_syntax(assembly)
 
     if syntax == 'att':
         ks.syntax = keystone.KS_OPT_SYNTAX_ATT
     else:
         ks.syntax = keystone.KS_OPT_SYNTAX_INTEL
 
-    has_label, instructions = normalize_assembly(assembly)
+    has_label, instructions = _normalize_assembly(assembly)
     if has_label:
         try:
             code, _ = ks.asm(assembly, address, True)
@@ -80,7 +79,6 @@ def assemble_keystone(assembly: str,
     return code
 
 def assemble_gcc(assembly: str,
-                address: int=0,
                 bits: PtrlibBitsT=64,
                 syntax: Optional[PtrlibAssemblySyntaxT]=None) -> bytes:
     """Assemble with GCC.
@@ -98,6 +96,7 @@ def assemble_gcc(assembly: str,
     gcc_path = gcc('intel', bits)
     objcopy_path = objcopy('intel', bits)
 
+    assembly = '\n'.join(_normalize_assembly(assembly)[1])
     if syntax == 'att':
         assembly = '.att_syntax\n' + assembly
     else:
@@ -119,8 +118,16 @@ def assemble_gcc(assembly: str,
 
         # Assemble
         cmd = [gcc_path, '-nostdlib', '-c', fname_s, '-o', fname_o]
-        with subprocess.Popen(cmd) as p:
+        with subprocess.Popen(cmd, stderr=subprocess.PIPE) as p:
+            if p.stderr is not None:
+                for line in p.stderr.read().decode().splitlines():
+                    logger.error(line)
+
             if p.wait() != 0:
+                logger.error("Line | Code")
+                logger.error("-" * 32)
+                for i, line in enumerate(assembly.splitlines()):
+                    logger.error("%4d | %s", i + 1, line)
                 raise OSError("Assemble failed")
 
         # Extract
@@ -131,13 +138,60 @@ def assemble_gcc(assembly: str,
 
         with open(fname_bin, 'rb') as f:
             output = f.read()
-
         return output
 
-def assemble_nasm(assembly: str):
-    pass
+    raise OSError("Assemble failed")
 
-def normalize_assembly(assembly: str) -> Tuple[bool, List[str]]:
+def assemble_nasm(assembly: str, address: int, bits: PtrlibBitsT=64) -> bytes:
+    """Assemble with NASM.
+
+    Args:
+        assembly (str): Assembly code.
+        address (int): The address of the first instruction.
+        bits (int): The bits (16, 32, or 64) for the assembly. Default to 64.
+
+    Raises:
+        FileNotFoundError: Compiler not found.
+        OSError: Assemble failed.
+    """
+    nasm_path = nasm()
+
+    assembly = '\n'.join(_normalize_assembly(assembly)[1])
+    assembly = f'bits {bits}\n' + assembly
+    if address > 0:
+        assembly = 'org {address}\n' + assembly
+
+    fname_s = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())+'.S'
+    fname_o = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())+'.o'
+    with open(fname_s, 'w', encoding='utf-8') as f:
+        f.write(assembly)
+
+    with contextlib.suppress(FileNotFoundError), \
+         contextlib.ExitStack() as stack:
+        stack.callback(os.unlink, fname_s)
+        stack.callback(os.unlink, fname_o)
+
+        # Assemble
+        cmd = [nasm_path, '-fbin', fname_s, '-o', fname_o]
+        with subprocess.Popen(cmd, stderr=subprocess.PIPE) as p:
+            if p.stderr is not None:
+                for line in p.stderr.read().decode().splitlines():
+                    logger.error(line)
+
+            if p.wait() != 0:
+                logger.error("Line | Code")
+                logger.error("-" * 32)
+                for i, line in enumerate(assembly.splitlines()):
+                    logger.error("%4d | %s", i + 1, line)
+                raise OSError("Assemble failed")
+
+        with open(fname_o, 'rb') as f:
+            output = f.read()
+        return output
+
+    raise OSError("Assemble failed")
+
+def _normalize_assembly(assembly: str) -> Tuple[bool, List[str]]:
     """Normalize assembly syntax.
 
     Args:
@@ -192,7 +246,7 @@ def normalize_assembly(assembly: str) -> Tuple[bool, List[str]]:
 
     return has_label, tokens
 
-def guess_asm_syntax(assembly: str) -> PtrlibAssemblySyntaxT:
+def _guess_asm_syntax(assembly: str) -> PtrlibAssemblySyntaxT:
     """Guess if the given assembly is written in Intel or AT&T syntax.
 
     Args:

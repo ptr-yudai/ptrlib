@@ -3,7 +3,6 @@
 from logging import getLogger
 import platform
 import shutil
-from typing import Optional
 from ptrlib.annotation import PtrlibArchT, PtrlibBitsT
 
 logger = getLogger(__name__)
@@ -105,5 +104,19 @@ def gcc(arch: PtrlibArchT, bits: PtrlibBitsT) -> str:
     """
     return _cross_arch_tool('gcc', arch, bits)
 
+def nasm() -> str:
+    """Get the full path to NASM.
 
-__all__ = ['gcc', 'objcopy']
+    Returns:
+        str: The full path to NASM assembler.
+
+    Raises:
+        FileNotFoundError: NASM not found.
+    """
+    path = shutil.which('nasm')
+    if path is None:
+        raise FileNotFoundError("Cannot find NASM. Install it with `apt install nasm`.")
+
+    return path
+
+__all__ = ['gcc', 'objcopy', 'nasm']

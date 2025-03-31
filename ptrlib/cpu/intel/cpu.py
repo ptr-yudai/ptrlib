@@ -6,7 +6,7 @@ from typing import List, NamedTuple, Optional
 from ptrlib.annotation import \
     PtrlibBitsT, PtrlibAssemblerT, PtrlibDisassemblerT, PtrlibAssemblySyntaxT
 from ptrlib.cpu.external import gcc, objcopy
-from .assembler import assemble_keystone, assemble_gcc
+from ptrlib.cpu.intel.assembler import assemble_keystone, assemble_gcc, assemble_nasm
 
 logger = getLogger(__name__)
 
@@ -95,11 +95,15 @@ class IntelCPU:
         """
         if self._assembler == 'gcc':
             logger.info("Trying to assemble using gcc...")
-            return assemble_gcc(assembly, address, self._bits, syntax)
+            return assemble_gcc(assembly, self._bits, syntax)
 
         if self._assembler == 'keystone':
             logger.info("Trying to assemble using keystone...")
             return assemble_keystone(assembly, address, self._bits, syntax)
+
+        if self._assembler == 'nasm':
+            logger.info("Trying to assemble using nasm...")
+            return assemble_nasm(assembly, address, self._bits)
 
         raise NotImplementedError(f"Unsupported assembler: '{self._assembler}'")
 
@@ -112,7 +116,7 @@ class IntelCPU:
         Returns:
             list: A list of :obj:`IntelInstruction` objects.
         """
-        pass
+        raise NotImplementedError(f"Unsupported assembler: {self._disassembler}")
 
 
 __all__ = ['IntelCPU']
