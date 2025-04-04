@@ -2,25 +2,42 @@
 """
 import importlib.util
 from logging import getLogger
-from typing import List, Optional
+from typing import List
 from ptrlib.annotation import \
     PtrlibBitsT, PtrlibAssemblerT, PtrlibDisassemblerT, PtrlibAssemblySyntaxT
 from ptrlib.cpu.external import gcc, objcopy
 from ptrlib.cpu.intel.assembler import assemble_gcc, assemble_keystone, assemble_nasm
-from ptrlib.cpu.intel.disassembler import disassemble_capstone, disassemble_objdump, IntelInstruction
+from ptrlib.cpu.intel.disassembler import disassemble_capstone, disassemble_objdump, IntelDisassembly
+from ptrlib.cpu.intel.instructions import Instructions
+from ptrlib.cpu.intel.syscall import SyscallTable
 
 logger = getLogger(__name__)
 
 
 class IntelCPU:
     """CPU and assembly features for Intel CPU
+
+    Examples:
+        ```
+        key = b"ThisIsATestKey!!"
+        cpu = IntelCPU()
+        a = cpu.instruction.aesenc(b"AAAABBBBCCCCDDDD", key)
+        print(cpu.instruction.aesenc_inv(a, key))
+
+        cpu = IntelCPU(32)
+        cpu.assemble(f"mov eax, {cpu.syscall.execve}")
+        ```
     """
     def __init__(self, bits: PtrlibBitsT=64):
-        self._bits: PtrlibBitsT
+        self._bits: PtrlibBitsT = bits
         self._assembler: PtrlibAssemblerT
         self._disassembler: PtrlibDisassemblerT
 
-        self._bits = bits
+        # TODO: Do not create an instance here
+        self.syscall = SyscallTable(bits)
+        # SyscallTable: System call table.
+        self.instruction = Instructions()
+        # Instructions: Emulated Intel instructions.
 
         # Determine assembler
         try:
@@ -100,7 +117,7 @@ class IntelCPU:
     def disassemble(self,
                     bytecode: bytes,
                     address: int=0,
-                    syntax: PtrlibAssemblySyntaxT='intel') -> List[IntelInstruction]:
+                    syntax: PtrlibAssemblySyntaxT='intel') -> List[IntelDisassembly]:
         """Disassemble machine code into assembly.
 
         Args:
@@ -109,7 +126,7 @@ class IntelCPU:
             syntax (str, optional): 'intel' for Intel syntax, or 'att' for AT&T syntax.
 
         Returns:
-            list: A list of :obj:`IntelInstruction` objects.
+            list: A list of :obj:`IntelDisassembly` objects.
         """
         if self._disassembler == 'objdump':
             return disassemble_objdump(bytecode, address, self._bits, syntax)

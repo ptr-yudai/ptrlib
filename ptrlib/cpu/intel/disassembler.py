@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 logger = getLogger(__name__)
 
 
-class IntelInstruction(NamedTuple):
+class IntelDisassembly(NamedTuple):
     """A single Intel instruction.
 
     Attributes:
@@ -42,7 +42,7 @@ class IntelInstruction(NamedTuple):
 def disassemble_capstone(bytecode: bytes,
                          address: int=0,
                          bits: PtrlibBitsT=64,
-                         syntax: PtrlibAssemblySyntaxT='intel') -> List[IntelInstruction]:
+                         syntax: PtrlibAssemblySyntaxT='intel') -> List[IntelDisassembly]:
     """Disassemble with capstone engine.
 
     Args:
@@ -52,7 +52,7 @@ def disassemble_capstone(bytecode: bytes,
         syntax (str, optional): 'intel' for Intel syntax, or 'att' for AT&T syntax.
 
     Returns:
-        list: A list of :obj:`IntelInstruction` objects.
+        list: A list of :obj:`IntelDisassembly` objects.
     """
     if not CAPSTONE_AVAILABLE:
         raise ModuleNotFoundError("Capstone is not available. "
@@ -66,9 +66,9 @@ def disassemble_capstone(bytecode: bytes,
     else:
         cs.syntax = capstone.CS_OPT_SYNTAX_INTEL
 
-    instructions: List[IntelInstruction] = []
+    instructions: List[IntelDisassembly] = []
     for i in cs.disasm(bytecode, address):
-        instructions.append(IntelInstruction(
+        instructions.append(IntelDisassembly(
             address=i.address,
             bytes=bytes(i.bytes),
             mnemonic=i.mnemonic,
@@ -81,7 +81,7 @@ def disassemble_capstone(bytecode: bytes,
 def disassemble_objdump(bytecode: bytes, 
                         address: int=0,
                         bits: PtrlibBitsT=64,
-                        syntax: PtrlibAssemblySyntaxT='intel') -> List[IntelInstruction]:
+                        syntax: PtrlibAssemblySyntaxT='intel') -> List[IntelDisassembly]:
     """Disassemble with objdump.
 
     Args:
@@ -91,7 +91,7 @@ def disassemble_objdump(bytecode: bytes,
         syntax (str, optional): 'intel' for Intel syntax, or 'att' for AT&T syntax.
 
     Returns:
-        list: A list of :obj:`IntelInstruction` objects.
+        list: A list of :obj:`IntelDisassembly` objects.
     """
     objdump_path = objdump('intel', bits)
     arch = {16: 'i8086', 32: 'i386', 64: 'x86-64'}[bits]
@@ -117,7 +117,7 @@ def disassemble_objdump(bytecode: bytes,
             raise OSError("Disassemble failed")
 
         # Parse the output of objdump
-        instructions: List[IntelInstruction] = []
+        instructions: List[IntelDisassembly] = []
         for line in res.stdout.decode().splitlines():
             m = re.match(r'''^\s*(?P<address>[0-9a-f]+):\s+
                             (?P<bytecode>(?:[0-9a-f]{2}\s)+)
@@ -136,7 +136,7 @@ def disassemble_objdump(bytecode: bytes,
                 else:
                     operands = m['operands'].strip().split(',')
 
-                instructions.append(IntelInstruction(
+                instructions.append(IntelDisassembly(
                     address=int(m['address'], 16),
                     bytes=bytes.fromhex(m['bytecode'].replace(' ', '')),
                     mnemonic=m['mnemonic'],

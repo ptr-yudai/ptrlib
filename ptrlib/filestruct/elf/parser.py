@@ -67,14 +67,17 @@ class ELFParser:
             self.arch = 'unknown'
 
     @cache
-    def section_by_name(self, name: str) -> Optional[Any]:
+    def section_by_name(self, name: str) -> Any:
         """Look up a section by name
 
         Args:
             name (str): Section name.
 
         Returns:
-            dict: A section if found, otherwise None.
+            dict: A section.
+
+        Raises:
+            KeyError: Section is not found.
         """
         head = self.section_at(self.ehdr['e_shstrndx'])['sh_offset']
 
@@ -85,7 +88,7 @@ class ELFParser:
             if section_name == name:
                 return shdr
 
-        return None
+        raise KeyError(f"Section {name} is not found.")
 
     @cache
     def section_at(self, n: int) -> Any:

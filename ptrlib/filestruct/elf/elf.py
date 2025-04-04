@@ -190,24 +190,24 @@ class ELF:
                 return seghdr['p_vaddr']
         return 0
 
-    def symbol(self, name: TypingUnion[str, bytes]) -> Optional[int]:
-        """Get the address of a symbol
+    def symbol(self, name: TypingUnion[str, bytes]) -> int:
+        """Get the address of a symbol.
 
         Find the address corresponding to a given symbol.
 
         Args:
-            name (str): The symbol name to find
+            name (str): The symbol name to find.
 
         Returns:
-            int: The address of the symbol
+            int: The address of the symbol.
+
+        Raises:
+            KeyError: The symbol is not found.
         """
-        offset = self._offset_symbol(name)
-        if offset is None:
-            return None
-        return self._pie_add_base + offset
+        return self._pie_add_base + self._offset_symbol(name)
 
     @cache
-    def _offset_symbol(self, name: TypingUnion[str, bytes]) -> Optional[int]:
+    def _offset_symbol(self, name: TypingUnion[str, bytes]) -> int:
         if isinstance(name, str):
             name = str2bytes(name)
 
@@ -232,10 +232,10 @@ class ELF:
                         # TODO: Support searching for multiple identical symbols
                         return symtab['st_value']
 
-        return None
+        raise KeyError(f"Symbol {name} not found")
 
     def symbols(self) -> Dict[bytes, int]:
-        """Get all symbols
+        """Get all symbols.
 
         Find all symbols and their addresses.
 
@@ -302,18 +302,27 @@ class ELF:
              pattern: TypingUnion[str, bytes],
              writable: Optional[bool]=None,
              executable: Optional[bool]=None) -> Generator[int, None, None]:
-        """Alias of ```search```
+        """Find binary data from the ELF. (Alias of ```search```)
+
+        Args:
+            pattern (bytes): Data to find.
+
+        Returns:
+            generator: The address of the found data.
         """
         yield from self.search(pattern, writable, executable)
 
-    def addr2offset(self, addr: int) -> Optional[int]:
+    def address_to_offset(self, addr: int) -> int:
         """Returns the offset in the ELF corresponding to a given virtual address.
 
         Args:
             addr (int): Virtual address.
         
         Returns:
-            int | None: Offset. If a non-existent address is specified, None is returned
+            int: The offset corresponding to the address.
+
+        Raises:
+            KeyError: The address is invalid.
         """
         parser = self._parser
 
@@ -330,9 +339,9 @@ class ELF:
 
                     return offset
 
-        return None
+        raise KeyError(f"0x{addr:x} is not a static address.")
 
-    def read(self, addr: int, size: int) -> Optional[bytes]:
+    def read(self, addr: int, size: int) -> bytes:
         """Returns the bytes of a size from a virtual address.
 
         If a non-existent address is specified, None is returned.
@@ -344,30 +353,28 @@ class ELF:
             size (int): Size of bytes
 
         Returns:
-            bytes: Bytes in the file. 
-                   If a non-existent address is specified, None is returned
+            bytes: Bytes in the file.
+
+        Raises:
+            KeyError: The address is invalid.
         """
         parser = self._parser
 
-        offset = self.addr2offset(addr)
+        offset = self.address_to_offset(addr)
+        stream = parser.stream
+        # save position
+        current_offset = stream.tell()
 
-        if offset is not None:
-            stream = parser.stream
-            # save position
-            current_offset = stream.tell()
+        # get bytes
+        stream.seek(offset)
+        ret = stream.read(size)
 
-            # get bytes
-            stream.seek(offset)
-            ret = stream.read(size)
+        # recover position
+        stream.seek(current_offset)
 
-            # recover position
-            stream.seek(current_offset)
+        return ret
 
-            return ret
-
-        return None
-
-    def plt(self, name: TypingUnion[str, bytes]) -> Optional[int]:
+    def plt(self, name: TypingUnion[str, bytes]) -> int:
         """Get a PLT address
         Lookup the PLT table and find the corresponding address
 
@@ -376,21 +383,20 @@ class ELF:
 
         Returns:
             int: The address of the PLT section
+
+        Raises:
+            KeyError: PLT is not found.
         """
-        offset = self._offset_plt(name)
-        if offset is None:
-            return None
-        else:
-            return self._pie_add_base + offset
+        return self._pie_add_base + self._offset_plt(name)
 
     @cache
-    def _offset_plt(self, name: TypingUnion[str, bytes]) -> Optional[int]:
+    def _offset_plt(self, name: TypingUnion[str, bytes]) -> int:
         if isinstance(name, str):
             name = str2bytes(name)
 
         target_got = self._offset_got(name)
         if target_got is None:
-            return None
+            raise KeyError(f"GOT entry for {name}@plt is not found")
 
         for section_name in (b".plt", b".plt.got", b".plt.sec"):
             shdr = self._parser.section_by_name(section_name)
@@ -404,9 +410,9 @@ class ELF:
             if target_got in xref:
                 return xref[target_got]
 
-        return None
+        raise KeyError(f"{name}@plt is not found")
 
-    def _plt_ref_list(self, code, shdr):
+    def _plt_ref_list(self, code, shdr) -> Dict[int, int]:
         xref = {}
         i = 0
 
@@ -447,7 +453,7 @@ class ELF:
 
         return xref
 
-    def got(self, name: TypingUnion[str, bytes]) -> Optional[int]:
+    def got(self, name: TypingUnion[str, bytes]) -> int:
         """Get a GOT address
         Lookup the GOT table and find the corresponding address
 
@@ -455,15 +461,15 @@ class ELF:
             name (str): The function name to find
 
         Returns:
-            int: The address of the GOT
+            int: The address of the GOT entry.
+
+        Raises:
+            KeyError: PLT is not found.
         """
-        offset = self._offset_got(name)
-        if offset is None:
-            return None
-        return self._pie_add_base + offset
+        return self._pie_add_base + self._offset_got(name)
 
     @cache
-    def _offset_got(self, name: TypingUnion[str, bytes]) -> Optional[int]:
+    def _offset_got(self, name: TypingUnion[str, bytes]) -> int:
         if isinstance(name, str):
             name = str2bytes(name)
 
@@ -480,26 +486,24 @@ class ELF:
             if symbol_name == name:
                 return rel['r_offset']
 
-        return None
+        raise KeyError(f"{name}@got is not found")
 
-    def main_arena(self, use_symbol: bool=True) -> Optional[int]:
-        """Find main_arena offset
+    def main_arena(self, use_symbol: bool=True) -> int:
+        """Find `main_arena` offset
 
         Args:
             use_symbol (bool) Try to search for symbol first
 
         Returns:
-            int: Offset to main_arena (returns None if it's not libc)
+            int: Offset to `main_arena`.
+
+        Raises:
+            KeyError: `main_arena` is not found.
         """
-        offset = self._offset_main_arena(use_symbol)
-        if offset is None:
-            logger.warning('`main_arena` only works for libc binary.')
-            return None
-        else:
-            return self._pie_add_base + offset
+        return self._pie_add_base + self._offset_main_arena(use_symbol)
 
     @cache
-    def _offset_main_arena(self, use_symbol: bool=True) -> Optional[int]:
+    def _offset_main_arena(self, use_symbol: bool=True) -> int:
         if use_symbol:
             ofs_arena = self._offset_symbol('main_arena')
             if ofs_arena is not None:
@@ -512,51 +516,48 @@ class ELF:
         if ofs_realloc_hook is None \
            or ofs_malloc_hook is None \
            or ofs_stdin is None:
-            return None
+            logger.warning('`main_arena` only works for libc binary.')
+            raise KeyError("`main_arena` is not found")
 
         if 0 < ofs_malloc_hook - ofs_stdin < 0x1000:
             # libc-2.33 or older
             if self._parser.elfclass == 32:
                 return ofs_malloc_hook + 0x18
-            else:
-                return ofs_malloc_hook + (ofs_malloc_hook - ofs_realloc_hook)*2
+            return ofs_malloc_hook + (ofs_malloc_hook - ofs_realloc_hook)*2
 
-        else:
-            # libc-2.34 removed hooks
-            ofs_tzname = self._offset_symbol('tzname')
-            if ofs_tzname is None: return None
-            if self._parser.elfclass == 32:
-                return ofs_tzname - 0x460
-            else:
-                return ofs_tzname - 0x8a0
+        # libc-2.34 removed hooks
+        ofs_tzname = self._offset_symbol('tzname')
+        if ofs_tzname is None:
+            logger.warning('`main_arena` only works for libc binary.')
+            raise KeyError("`main_arena` is not found")
 
-    def section(self, name: str) -> Optional[int]:
-        """Get a section by name
+        if self._parser.elfclass == 32:
+            return ofs_tzname - 0x460
+        return ofs_tzname - 0x8a0
+
+    def section(self, name: str) -> int:
+        """Get a section by name.
 
         Lookup and find a section by name and return the address.
 
         Args:
-            name (str): The section name to find
+            name (str): The section name to find.
 
         Returns:
-            int: The address of the section
+            int: The address of the section.
+
+        Raises:
+            KeyError: Section is not found.
         """
-        offset = self._offset_section(name)
-        if offset is None:
-            return None
-        else:
-            return self._pie_add_base + offset
+        return self._pie_add_base + self._offset_section(name)
 
     @cache
-    def _offset_section(self, name: TypingUnion[str, bytes]) -> Optional[int]:
+    def _offset_section(self, name: TypingUnion[str, bytes]) -> int:
         if isinstance(name, str):
             name = str2bytes(name)
 
         shdr = self._parser.section_by_name(name)
-        if shdr:
-            return shdr['sh_addr']
-        else:
-            return None
+        return shdr['sh_addr']
 
     def gadget(self, code: TypingUnion[str, bytes], syntax: PtrlibAssemblySyntaxT='intel'):
         """Find ROP/COP gadgets.
