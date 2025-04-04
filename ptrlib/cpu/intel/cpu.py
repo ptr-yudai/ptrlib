@@ -2,28 +2,15 @@
 """
 import importlib.util
 from logging import getLogger
-from typing import List, NamedTuple, Optional
+from typing import List, Optional
 from ptrlib.annotation import \
     PtrlibBitsT, PtrlibAssemblerT, PtrlibDisassemblerT, PtrlibAssemblySyntaxT
 from ptrlib.cpu.external import gcc, objcopy
-from ptrlib.cpu.intel.assembler import assemble_keystone, assemble_gcc, assemble_nasm
+from ptrlib.cpu.intel.assembler import assemble_gcc, assemble_keystone, assemble_nasm
+from ptrlib.cpu.intel.disassembler import disassemble_capstone, disassemble_objdump, IntelInstruction
 
 logger = getLogger(__name__)
 
-
-class IntelInstruction(NamedTuple):
-    """A single Intel instruction.
-
-    Attributes:
-        address (int): The address of this instruction.
-        bytecode (bytes): The machine code bytes corresponding to this instruction.
-        opcode (str): Opcode.
-        operand (List[str]): Operand list.
-    """
-    address: int
-    bytecode: bytes
-    opcode: str
-    operand: List[str]
 
 class IntelCPU:
     """CPU and assembly features for Intel CPU
@@ -76,13 +63,19 @@ class IntelCPU:
         This property can be either of the following values:
             - `"capstone"`: Use capstone (external library) for :obj:`disassemble`.
             - `"objdump"`: Use objdump (external tool) for :obj:`disassemble`.
+            - `"none"`: Disassembler is not available.
         """
         return self._disassembler
+
+    @disassembler.setter
+    def disassembler(self, disassembler: PtrlibDisassemblerT):
+        assert disassembler in ('capstone', 'objdump'), "Invalid disassembler name"
+        self._disassembler = disassembler
 
     def assemble(self,
                  assembly: str,
                  address: int=0,
-                 syntax: Optional[PtrlibAssemblySyntaxT]=None) -> bytes:
+                 syntax: PtrlibAssemblySyntaxT='intel') -> bytes:
         """Convert assembly into machine code.
 
         Args:
@@ -94,28 +87,36 @@ class IntelCPU:
             bytes: The generated machine code.
         """
         if self._assembler == 'gcc':
-            logger.info("Trying to assemble using gcc...")
             return assemble_gcc(assembly, self._bits, syntax)
 
         if self._assembler == 'keystone':
-            logger.info("Trying to assemble using keystone...")
             return assemble_keystone(assembly, address, self._bits, syntax)
 
         if self._assembler == 'nasm':
-            logger.info("Trying to assemble using nasm...")
             return assemble_nasm(assembly, address, self._bits)
 
         raise NotImplementedError(f"Unsupported assembler: '{self._assembler}'")
 
-    def disassemble(self, bytecode: bytes) -> List[IntelInstruction]:
+    def disassemble(self,
+                    bytecode: bytes,
+                    address: int=0,
+                    syntax: PtrlibAssemblySyntaxT='intel') -> List[IntelInstruction]:
         """Disassemble machine code into assembly.
 
         Args:
             bytecode (bytes): The machine code.
+            address (int): The address of the first instruction. Default to 0.
+            syntax (str, optional): 'intel' for Intel syntax, or 'att' for AT&T syntax.
 
         Returns:
             list: A list of :obj:`IntelInstruction` objects.
         """
+        if self._disassembler == 'objdump':
+            return disassemble_objdump(bytecode, address, self._bits, syntax)
+
+        if self._disassembler == 'capstone':
+            return disassemble_capstone(bytecode, address, self._bits, syntax)
+
         raise NotImplementedError(f"Unsupported assembler: {self._disassembler}")
 
 

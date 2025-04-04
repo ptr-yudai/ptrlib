@@ -89,6 +89,21 @@ def objcopy(arch: PtrlibArchT, bits: PtrlibBitsT) -> str:
     """
     return _cross_arch_tool('objcopy', arch, bits)
 
+def objdump(arch: PtrlibArchT, bits: PtrlibBitsT) -> str:
+    """Get the full path to objdump for a specific architecture.
+
+    Args:
+        arch (str): The name of the target architecture.
+        bits (int): The bits of the target architecture.
+
+    Returns:
+        str: The full path to objdump.
+
+    Raises:
+        FileNotFoundError: `objdump` not found.
+    """
+    return _cross_arch_tool('objdump', arch, bits)
+
 def gcc(arch: PtrlibArchT, bits: PtrlibBitsT) -> str:
     """Get the full path to GCC for a specific architecture.
 

@@ -739,8 +739,6 @@ class Tube(metaclass=abc.ABCMeta):
             leftover = b''
             while self.is_alive():
                 try:
-                    sys.stdout.write(prompt)
-                    sys.stdout.flush()
                     data = self.recv()
                     leftover = pretty_print(data, leftover)
 
@@ -760,6 +758,8 @@ class Tube(metaclass=abc.ABCMeta):
             """Read user input and send it to tube
             """
             while self.is_alive():
+                sys.stdout.write(prompt)
+                sys.stdout.flush()
                 try:
                     if not _is_windows:
                         # NOTE: Wait for data since sys.stdin.read blocks
@@ -785,7 +785,7 @@ class Tube(metaclass=abc.ABCMeta):
             th_send.join()
         except KeyboardInterrupt:
             logger.warning("Intterupted by user")
-            sys.stdin.close()
+            #sys.stdin.close()
 
     def close(self):
         """Close this connection

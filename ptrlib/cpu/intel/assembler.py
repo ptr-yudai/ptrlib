@@ -118,17 +118,17 @@ def assemble_gcc(assembly: str,
 
         # Assemble
         cmd = [gcc_path, '-nostdlib', '-c', fname_s, '-o', fname_o]
-        with subprocess.Popen(cmd, stderr=subprocess.PIPE) as p:
-            if p.stderr is not None:
-                for line in p.stderr.read().decode().splitlines():
-                    logger.error(line)
+        res = subprocess.run(cmd, stderr=subprocess.PIPE, check=False)
 
-            if p.wait() != 0:
-                logger.error("Line | Code")
-                logger.error("-" * 32)
-                for i, line in enumerate(assembly.splitlines()):
-                    logger.error("%4d | %s", i + 1, line)
-                raise OSError("Assemble failed")
+        for line in res.stderr.decode().splitlines():
+            logger.error(line)
+
+        if res.returncode != 0:
+            logger.error("Line | Code")
+            logger.error("-" * 32)
+            for i, line in enumerate(assembly.splitlines()):
+                logger.error("%4d | %s", i + 1, line)
+            raise OSError("Assemble failed")
 
         # Extract
         cmd = [objcopy_path, '-O', 'binary', '-j', '.text', fname_o, fname_bin]

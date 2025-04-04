@@ -102,6 +102,7 @@ class UnixProcess(Tube):
                 stdin=stdin,
                 stdout=stdout,
                 stderr=stderr,
+                start_new_session=True
             )
         except FileNotFoundError as err:
             logger.error("Could not execute %s", args[0])
