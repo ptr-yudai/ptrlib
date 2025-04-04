@@ -3,7 +3,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Union
 from ptrlib.annotation import PtrlibAssemblySyntaxT
-from ptrlib.arch.common import assemble
 from ptrlib.binary.encoding import bytes2str
 
 if TYPE_CHECKING:
@@ -20,11 +19,11 @@ class Gadget:
         """
         self._bin = binary
 
-    def search(self, code: Union[str, bytes], syntax: PtrlibAssemblySyntaxT='intel'):
+    def search(self, code: str, syntax: PtrlibAssemblySyntaxT='intel'):
         """Find ROP/COP gadgets.
 
         Args:
-            code (Union[str,bytes]): Assembly or machine code of ROP gadget
+            code (str): Assembly or machine code of ROP gadget
             syntax (str): Syntax of code (default to intel)
 
         Returns:
@@ -34,8 +33,8 @@ class Gadget:
             code = bytes2str(code)
 
         # Assemble gadget
-        code = assemble(code, bits=self._bin.bits, arch=self._bin.arch, syntax=syntax)
-        return self._bin.search(code, executable=True)
+        bytecode = self._bin.cpu.assemble(code, syntax=syntax)
+        return self._bin.search(bytecode, executable=True)
 
 
 __all__ = ['Gadget']

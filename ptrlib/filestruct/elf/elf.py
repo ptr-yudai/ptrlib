@@ -1,5 +1,6 @@
 """This package provides a simple ELF file analyzer.
 """
+import contextlib
 import functools
 import os
 from logging import getLogger
@@ -8,6 +9,7 @@ from zlib import crc32
 from ptrlib.annotation import PtrlibArchT, PtrlibBitsT, PtrlibAssemblySyntaxT
 from ptrlib.binary.packing import u32
 from ptrlib.binary.encoding import str2bytes
+from ptrlib.cpu import CPU
 from ptrlib.pwn.xop import Gadget
 from .parser import ELFParser
 
@@ -28,6 +30,7 @@ class ELF:
         self._base = 0
         self._debug_parser = self._get_debug_parser()
         self._gadget = Gadget(self)
+        self.cpu = CPU(self.arch, self.bits)
 
     @property
     def bits(self) -> PtrlibBitsT:
@@ -110,8 +113,9 @@ class ELF:
     @property
     @cache
     def _debuglink_info(self) -> Optional[Tuple[bytes, int]]:
-        shdr = self._parser.section_by_name(b'.gnu_debuglink')
-        if shdr is None:
+        try:
+            shdr = self._parser.section_by_name(b'.gnu_debuglink')
+        except KeyError:
             return None
 
         self._parser.stream.seek(shdr['sh_offset'] - self._load_address)
@@ -395,12 +399,10 @@ class ELF:
             name = str2bytes(name)
 
         target_got = self._offset_got(name)
-        if target_got is None:
-            raise KeyError(f"GOT entry for {name}@plt is not found")
-
         for section_name in (b".plt", b".plt.got", b".plt.sec"):
-            shdr = self._parser.section_by_name(section_name)
-            if shdr is None:
+            try:
+                shdr = self._parser.section_by_name(section_name)
+            except KeyError:
                 continue
 
             self._parser.stream.seek(shdr['sh_addr'] - self._load_address)
@@ -510,14 +512,13 @@ class ELF:
                 return ofs_arena
 
         # NOTE: This is a heuristic function
-        ofs_stdin = self._offset_symbol('_IO_2_1_stdin_')
-        ofs_realloc_hook = self._offset_symbol('__realloc_hook')
-        ofs_malloc_hook = self._offset_symbol('__malloc_hook')
-        if ofs_realloc_hook is None \
-           or ofs_malloc_hook is None \
-           or ofs_stdin is None:
+        try:
+            ofs_stdin = self._offset_symbol('_IO_2_1_stdin_')
+            ofs_realloc_hook = self._offset_symbol('__realloc_hook')
+            ofs_malloc_hook = self._offset_symbol('__malloc_hook')
+        except KeyError as e:
             logger.warning('`main_arena` only works for libc binary.')
-            raise KeyError("`main_arena` is not found")
+            raise KeyError("`main_arena` is not found") from e
 
         if 0 < ofs_malloc_hook - ofs_stdin < 0x1000:
             # libc-2.33 or older
@@ -526,10 +527,11 @@ class ELF:
             return ofs_malloc_hook + (ofs_malloc_hook - ofs_realloc_hook)*2
 
         # libc-2.34 removed hooks
-        ofs_tzname = self._offset_symbol('tzname')
-        if ofs_tzname is None:
+        try:
+            ofs_tzname = self._offset_symbol('tzname')
+        except KeyError as e:
             logger.warning('`main_arena` only works for libc binary.')
-            raise KeyError("`main_arena` is not found")
+            raise KeyError("`main_arena` is not found") from e
 
         if self._parser.elfclass == 32:
             return ofs_tzname - 0x460
@@ -559,7 +561,7 @@ class ELF:
         shdr = self._parser.section_by_name(name)
         return shdr['sh_addr']
 
-    def gadget(self, code: TypingUnion[str, bytes], syntax: PtrlibAssemblySyntaxT='intel'):
+    def gadget(self, code: str, syntax: PtrlibAssemblySyntaxT='intel'):
         """Find ROP/COP gadgets.
 
         Args:
@@ -624,11 +626,19 @@ class ELF:
         Returns:
             bool: True if enabled, otherwise False.
         """
-        if self.got('__stack_chk_fail') is not None \
-           or self.got('__stack_smash_handler') is not None \
-           or self.symbol('__stack_chk_fail') is not None \
-           or self.symbol('__stack_smash_handler') is not None:
-            return True
+        for name in ('__stack_chk_fail', '__stack_smash_handler'):
+            try:
+                self.got(name)
+                return True
+            except KeyError:
+                pass
+
+            try:
+                self.symbol(name)
+                return True
+            except KeyError:
+                pass
+
         return False
 
     @cache

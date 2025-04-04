@@ -3,6 +3,8 @@ import os
 from logging import getLogger
 from typing import Dict, Generator, Optional, Union
 from ptrlib.binary.encoding import str2bytes
+from ptrlib.cpu import CPU
+from ptrlib.pwn.xop import Gadget
 from .parser import PEParser
 
 logger = getLogger(__name__)
@@ -22,6 +24,8 @@ class PE(object):
         self.filepath = os.path.realpath(filepath)
         self._parser = PEParser(self.filepath)
         self._base = 0
+        self._gadget = Gadget(self) # TODO: Implement gadget
+        self.cpu = CPU(self.arch, self.bits)
 
     @property
     def bits(self):
