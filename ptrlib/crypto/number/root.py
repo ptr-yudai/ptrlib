@@ -1,28 +1,32 @@
+"""This package provides the root functions.
+"""
 from logging import getLogger
-from typing import Optional, Tuple, Union
+from typing import Tuple
 
 logger = getLogger(__name__)
 
 
-def rootrem(y: int, n: int) -> Union[Tuple[int, int], Tuple[None, None]]:
-    """ Calculate reminder n-th root
-    x=trunc(y^(1/n)), r=y-x^n
+def rootrem(y: int, n: int) -> Tuple[int, int]:
+    """ Calculate reminder n-th root.
+
+    $x=trunc(y^(1/n)), r=y-x^n$
 
     Args:
         y (int): y of `rootrem[n]{y}`
         n (int): n of `rootrem[n]{y}`
 
     Returns:
-        tuple: (x, r) where x is n-th root of y and r is the remainder
+        tuple: (x, r) where x is the n-th root of y and r is the remainder.
+
+    Raises:
+        ValueError: Cannot calculate the root.
     """
     if n == 0:
-        logger.warning("Zeroth root")
-        return None, None
+        raise ValueError("Zeroth root provided to rootrem")
 
     # TODO: Support negative argument with odd root
     if y < 0 or n < 0:
-        logger.warning("Negative argument")
-        return None, None
+        raise ValueError("Negative argument provided to rootrem.")
 
     if abs(y) <= 1:
         # If y is 1, 0, or -1
@@ -53,11 +57,20 @@ def rootrem(y: int, n: int) -> Union[Tuple[int, int], Tuple[None, None]]:
 
     return u, y - u**n
 
-def root(y: int, n: int) -> Optional[int]:
-    """ Get n-th integer root of y
+def root(y: int, n: int) -> int:
+    """ Get n-th integer root of y.
 
     Args:
         y (int): y of `root[n]{y}`
         n (int): n of `root[n]{y}`
+
+    Returns:
+        int: The n-th integer root of y.
+
+    Raises:
+        ValueError: Cannot calculate the root.
     """
     return rootrem(y, n)[0]
+
+
+__all__ = ['root', 'rootrem']

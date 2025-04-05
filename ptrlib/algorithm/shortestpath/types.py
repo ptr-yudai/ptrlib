@@ -1,15 +1,7 @@
-from typing import Generic, Union, TypeVar, Tuple, Callable, Iterator
-
-try:
-    from typing import Protocol
-except:
-    from typing_extensions import Protocol
-try:
-    from typing import Literal
-except:
-    from typing_extensions import Literal
+from typing import Generic, Union, TypeVar, Tuple, Callable, Iterator, Protocol, Literal
 
 from .utils.lazylist import LazyList
+
 
 _KT_contra = TypeVar("_KT_contra", contravariant=True)
 _VT_co = TypeVar("_VT_co", covariant=True)

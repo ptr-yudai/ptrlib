@@ -1,11 +1,9 @@
+"""This package defines the LSB leak attack.
+"""
 from fractions import Fraction
 from logging import getLogger
 from math import ceil
-from typing import Callable
-try:
-    from typing import Literal
-except:
-    from typing_extensions import Literal
+from typing import Callable, Literal
 
 logger = getLogger(__name__)
 
@@ -19,15 +17,22 @@ def lsb_leak_attack(lsb_oracle: Callable[[int], Literal[0, 1]], n: int, e: int, 
     - We can try to decrypt ciphertexts without limit
     we can break the ciphertext with LSB Leak Attack(We should make name more cool)
 
-    Usage:
+    Args:
+        lsb_oracle (function): An oracle that accepts a ciphertext and returns the LSB of the plaintext.
+        n (int): Modulus.
+        e (int): Exponent.
+        c (int): Ciphertext.
+
+    Returns:
+        int: Decrypted plaintext.
+
+    Examples:
+        ```
         plain = padding_oracle(lsb_oracle, N, e, C)
-
-    The function lsb_oracle must return LSB (1 or 0).
+        ```
     """
-    logger = getLogger(__name__)
-
-    L = n.bit_length()
-    t = L // 100
+    l = n.bit_length()
+    t = l // 100
     left, right = 0, n
     c2 = c
     i = 0
@@ -46,8 +51,8 @@ def lsb_leak_attack(lsb_oracle: Callable[[int], Literal[0, 1]], n: int, e: int, 
 
         i += 1
         if i % t == 0:
-            logger.info("LSB Leak Attack {}/{}".format(i, L))
+            logger.info("LSB leak attack {i}/{l}")
 
-        assert(i <= L)
+        assert i <= l, "Invalid oracle"
 
     return int(ceil(left))
