@@ -10,7 +10,7 @@ from ptrlib.annotation import PtrlibArchT, PtrlibBitsT, PtrlibAssemblySyntaxT
 from ptrlib.binary.packing import u32
 from ptrlib.binary.encoding import str2bytes
 from ptrlib.cpu import CPU
-from ptrlib.pwn.xop import Gadget
+from ptrlib.pwn.xop import Gadget, GadgetFinder
 from .parser import ELFParser
 
 logger = getLogger(__name__)
@@ -29,7 +29,7 @@ class ELF:
         self._parser = ELFParser(self.filepath)
         self._base = 0
         self._debug_parser = self._get_debug_parser()
-        self._gadget = Gadget(self)
+        self._gadget = GadgetFinder(self)
         self.cpu = CPU(self.arch, self.bits)
 
     @property
