@@ -3,11 +3,12 @@
 import importlib.util
 from logging import getLogger
 from typing import List
-from ptrlib.annotation import \
-    PtrlibBitsT, PtrlibAssemblerT, PtrlibDisassemblerT, PtrlibAssemblySyntaxT
+from ptrlib.types \
+    import PtrlibBitsT, PtrlibAssemblerT, PtrlibDisassemblerT, PtrlibAssemblySyntaxT
 from ptrlib.cpu.external import gcc, objcopy
 from ptrlib.cpu.intel.assembler import assemble_gcc, assemble_keystone, assemble_nasm
-from ptrlib.cpu.intel.disassembler import disassemble_capstone, disassemble_objdump, IntelDisassembly
+from ptrlib.cpu.intel.disassembler \
+    import disassemble_capstone, disassemble_objdump, IntelDisassembly
 from ptrlib.cpu.intel.instructions import Instructions
 from ptrlib.cpu.intel.syscall import SyscallTable
 

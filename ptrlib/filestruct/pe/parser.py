@@ -3,7 +3,7 @@
 import functools
 from logging import getLogger
 from typing import Any, Generator, Optional, Tuple
-from ptrlib.annotation import PtrlibBitsT, PtrlibArchT
+from ptrlib.types import PtrlibBitsT, PtrlibArchT
 from .enums import DIRECTORY_ENTRY
 from .structs import *
 

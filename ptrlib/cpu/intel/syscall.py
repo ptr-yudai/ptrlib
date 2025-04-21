@@ -1,5 +1,5 @@
 import functools
-from ptrlib.annotation import PtrlibBitsT
+from ptrlib.types import PtrlibBitsT
 
 cache = functools.lru_cache
 

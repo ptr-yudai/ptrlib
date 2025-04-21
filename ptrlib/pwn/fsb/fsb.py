@@ -2,7 +2,7 @@
 """
 from logging import getLogger
 from typing import List, Literal, NamedTuple, Optional, Union
-from ptrlib.annotation import PtrlibBitsT, PtrlibEndiannessT
+from ptrlib.types import PtrlibBitsT, PtrlibEndiannessT
 from ptrlib.binary.encoding import str2bytes
 from ptrlib.binary.packing import u32, p32, p64, flat
 

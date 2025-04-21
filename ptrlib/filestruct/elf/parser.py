@@ -3,7 +3,7 @@
 import functools
 from logging import getLogger
 from typing import Any, Generator, List, Optional
-from ptrlib.annotation import PtrlibBitsT, PtrlibArchT
+from ptrlib.types import PtrlibBitsT, PtrlibArchT
 from ptrlib.filestruct.bunkai import \
     u8, u16, u32, u64, s32, s64, u8be, u16be, u32be, u64be, s32be, s64be
 from .structs import *

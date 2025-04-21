@@ -1,7 +1,7 @@
 """This package provides `flat` function.
 """
 from typing import Callable, List
-from ptrlib.annotation import PtrlibIntLikeT
+from ptrlib.types import PtrlibIntLikeT
 
 
 def flat(chunks: List[PtrlibIntLikeT],

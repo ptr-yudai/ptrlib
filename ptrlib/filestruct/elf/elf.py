@@ -6,11 +6,11 @@ import os
 from logging import getLogger
 from typing import Dict, Generator, Optional, Tuple, Union as TypingUnion
 from zlib import crc32
-from ptrlib.annotation import PtrlibArchT, PtrlibBitsT, PtrlibAssemblySyntaxT
+from ptrlib.types import PtrlibArchT, PtrlibBitsT, PtrlibAssemblySyntaxT, GeneratorOrInt
 from ptrlib.binary.packing import u32
 from ptrlib.binary.encoding import str2bytes
 from ptrlib.cpu import CPU
-from ptrlib.pwn.xop import Gadget, GadgetFinder
+from ptrlib.pwn.xop import GadgetFinder
 from .parser import ELFParser
 
 logger = getLogger(__name__)
@@ -270,7 +270,7 @@ class ELF:
     def search(self,
                pattern: TypingUnion[str, bytes],
                writable: Optional[bool]=None,
-               executable: Optional[bool]=None) -> Generator[int, None, None]:
+               executable: Optional[bool]=None) -> GeneratorOrInt:
         """Find binary data from the ELF.
 
         Args:
@@ -283,29 +283,32 @@ class ELF:
             pattern = str2bytes(pattern)
 
         segments = self._parser.segments(writable, executable)
-        for seghdr in segments:
-            addr   = seghdr['p_vaddr']
-            memsz  = seghdr['p_memsz']
-            zeroed = memsz - seghdr['p_filesz']
-            offset = seghdr['p_offset']
+        def _search_internal(segments, pattern):
+            for seghdr in segments:
+                addr   = seghdr['p_vaddr']
+                memsz  = seghdr['p_memsz']
+                zeroed = memsz - seghdr['p_filesz']
+                offset = seghdr['p_offset']
 
-            self._parser.stream.seek(offset)
-            data = self._parser.stream.read(memsz)
-            data += b'\x00' * zeroed
+                self._parser.stream.seek(offset)
+                data = self._parser.stream.read(memsz)
+                data += b'\x00' * zeroed
 
-            offset = 0
-            while True:
-                offset = data.find(pattern, offset)
-                if offset == -1:
-                    break
+                offset = 0
+                while True:
+                    offset = data.find(pattern, offset)
+                    if offset == -1:
+                        break
 
-                yield self._pie_add_base + addr + offset
-                offset += 1
+                    yield self._pie_add_base + addr + offset
+                    offset += 1
+
+        return GeneratorOrInt(_search_internal(segments, pattern), pattern)
 
     def find(self,
              pattern: TypingUnion[str, bytes],
              writable: Optional[bool]=None,
-             executable: Optional[bool]=None) -> Generator[int, None, None]:
+             executable: Optional[bool]=None) -> GeneratorOrInt:
         """Find binary data from the ELF. (Alias of ```search```)
 
         Args:
@@ -314,7 +317,7 @@ class ELF:
         Returns:
             generator: The address of the found data.
         """
-        yield from self.search(pattern, writable, executable)
+        return self.search(pattern, writable, executable)
 
     def address_to_offset(self, addr: int) -> int:
         """Returns the offset in the ELF corresponding to a given virtual address.
@@ -561,7 +564,7 @@ class ELF:
         shdr = self._parser.section_by_name(name)
         return shdr['sh_addr']
 
-    def gadget(self, code: str, syntax: PtrlibAssemblySyntaxT='intel'):
+    def gadget(self, code: str, syntax: PtrlibAssemblySyntaxT='intel') -> GeneratorOrInt:
         """Find ROP/COP gadgets.
 
         Args:

@@ -3,7 +3,7 @@
 from logging import getLogger
 import platform
 import shutil
-from ptrlib.annotation import PtrlibArchT, PtrlibBitsT
+from ptrlib.types import PtrlibArchT, PtrlibBitsT
 
 logger = getLogger(__name__)
 

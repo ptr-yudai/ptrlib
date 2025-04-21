@@ -1,7 +1,7 @@
 """This package provides some utilities for sigreturn oriented programming.
 """
 from typing import Optional
-from ptrlib.annotation import PtrlibArchT
+from ptrlib.types import PtrlibArchT
 from ptrlib.binary.packing.pack import p64
 from ptrlib.binary.packing.flat import flat
 

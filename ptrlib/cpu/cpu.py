@@ -1,6 +1,6 @@
 """This package provides a generic interface for architecture-dependent features.
 """
-from ptrlib.annotation import PtrlibArchT, PtrlibBitsT
+from ptrlib.types import PtrlibArchT, PtrlibBitsT
 from .intel.cpu import IntelCPU
 
 

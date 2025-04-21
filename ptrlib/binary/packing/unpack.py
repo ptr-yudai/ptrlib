@@ -3,7 +3,7 @@
 import struct
 from logging import getLogger
 from typing import Union
-from ptrlib.annotation import PtrlibEndiannessT
+from ptrlib.types import PtrlibEndiannessT
 from ptrlib.binary.encoding.byteconv import str2bytes
 
 logger = getLogger(__name__)

@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 from logging import getLogger
 from typing import List, Optional, Tuple, TYPE_CHECKING
-from ptrlib.annotation import PtrlibAssemblySyntaxT, PtrlibBitsT
+from ptrlib.types import PtrlibAssemblySyntaxT, PtrlibBitsT
 from ptrlib.cpu.external import gcc, objcopy, nasm
 
 try:

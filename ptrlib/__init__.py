@@ -2,7 +2,7 @@
 """
 from logging import getLogger, INFO, StreamHandler
 from .algorithm import *
-from .annotation import *
+from .types import *
 from .arch import *
 from .binary import *
 from .connection import *

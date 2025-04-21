@@ -7,7 +7,7 @@ import re
 import subprocess
 import tempfile
 from typing import List, NamedTuple, TYPE_CHECKING
-from ptrlib.annotation import PtrlibAssemblySyntaxT, PtrlibBitsT
+from ptrlib.types import PtrlibAssemblySyntaxT, PtrlibBitsT
 from ptrlib.cpu.external import objdump
 
 try:

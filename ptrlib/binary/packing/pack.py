@@ -3,7 +3,7 @@
 import struct
 from logging import getLogger
 from typing import Union
-from ptrlib.annotation import PtrlibEndiannessT, PtrlibIntLikeT
+from ptrlib.types import PtrlibEndiannessT, PtrlibIntLikeT
 
 logger = getLogger(__name__)
 

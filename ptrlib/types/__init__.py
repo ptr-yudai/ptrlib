@@ -1,6 +1,7 @@
 """This package provides types defined in ptrlib
 """
-from typing import Literal, Union
+from typing import Literal, TypeAlias, Union
+from .genint import *
 
 PtrlibArchT = Literal['unknown', 'intel', 'arm', 'risc-v', 'sparc', 'mips']
 PtrlibBitsT = Literal[16, 32, 64]
@@ -9,7 +10,7 @@ PtrlibAssemblySyntaxT = Literal['intel', 'att']
 PtrlibAssemblerT = Literal['keystone', 'gcc', 'nasm', 'none']
 PtrlibDisassemblerT = Literal['capstone', 'objdump', 'none']
 
-PtrlibIntLikeT = Union[int, 'Gadget']
+PtrlibIntLikeT: TypeAlias = Union[int, 'GeneratorOrInt']
 
 __all__ = ['PtrlibArchT', 'PtrlibBitsT', 'PtrlibEndiannessT',
            'PtrlibAssemblySyntaxT', 'PtrlibAssemblerT', 'PtrlibDisassemblerT',
