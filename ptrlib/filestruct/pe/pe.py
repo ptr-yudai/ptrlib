@@ -2,7 +2,7 @@ import functools
 import os
 from logging import getLogger
 from typing import Optional, Union
-from ptrlib.binary.encoding import str2bytes
+from ptrlib.binary.encoding import str2bytes, bytes2str
 from .parser import PEParser
 
 logger = getLogger(__name__)
