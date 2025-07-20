@@ -1,11 +1,10 @@
 """This package provides `flat` function.
 """
-from typing import Callable, List
-from ptrlib.types import PtrlibIntLikeT
+from typing import Any, Callable, List
 
 
-def flat(chunks: List[PtrlibIntLikeT],
-         map: Callable[[PtrlibIntLikeT], bytes]) -> bytes:
+def flat(chunks: List[Any],
+         map: Callable[[Any], bytes]) -> bytes:
     """Concatnate chunks into bytes.
 
     Args:
@@ -30,6 +29,7 @@ def flat(chunks: List[PtrlibIntLikeT],
     result = map(chunks[0])
     for i in range(1, len(chunks)):
         result += map(chunks[i])
+
     return result
 
 
