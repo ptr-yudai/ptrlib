@@ -15,7 +15,7 @@ def bytes2str(data: Union[str, bytes]) -> str:
     Returns:
         str: The converted data.
     """
-    if isinstance(data, bytes):
+    if isinstance(data, (bytes, bytearray)):
         return ''.join(list(map(chr, data)))
 
     if isinstance(data, str):
@@ -38,8 +38,8 @@ def str2bytes(data: Union[str, bytes]) -> bytes:
         except ValueError:
             return data.encode('utf-8')
 
-    if isinstance(data, bytes):
-        return data
+    if isinstance(data, (bytes, bytearray)):
+        return bytes(data)
 
     raise TypeError(f"{type(data)} given ('str' expected)")
 

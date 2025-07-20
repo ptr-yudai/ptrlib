@@ -3,8 +3,7 @@
 from typing import Any, Callable, List
 
 
-def flat(chunks: List[Any],
-         map: Callable[[Any], bytes]) -> bytes:
+def flat(chunks: List[Any], map: Callable[[Any], bytes]) -> bytes:
     """Concatnate chunks into bytes.
 
     Args:

@@ -26,8 +26,8 @@ def xor(data: Union[str, bytes, List[int]], key: Union[int, str, bytes, List[int
         xor([1,2,3,4,5], [0xaa,0x55])
         ```
     """
-    assert isinstance(data, (str, bytes, list))
-    assert isinstance(key, (str, bytes, int, list))
+    assert isinstance(data, (str, bytes, bytearray, list))
+    assert isinstance(key, (str, bytes, bytearray, int, list))
 
     if isinstance(data, str):
         data = str2bytes(data)
@@ -40,7 +40,7 @@ def xor(data: Union[str, bytes, List[int]], key: Union[int, str, bytes, List[int
         key = bytes(key)
     elif isinstance(key, int):
         if key < 0 or key > 0xff:
-            logger.warning("key (int) should be in [0, 0x100) (%x given)", key)
+            logger.warning("key (int) should be in [0x00, 0xff] (0x%x given)", key)
         key = bytes([key & 0xff])
 
     result = b''
