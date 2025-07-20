@@ -34,7 +34,7 @@ class GadgetFinder:
 
         # Assemble gadget
         bytecode = self._bin.cpu.assemble(code, syntax=syntax)
-        return GeneratorOrInt(self._bin.search(bytecode, executable=True).generator, code.encode())
+        return self._bin.search(bytecode, executable=True)
 
 
 __all__ = ['GadgetFinder']

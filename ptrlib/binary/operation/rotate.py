@@ -26,7 +26,7 @@ def rol(data: _T, n: int, bits: int=32) -> _T:
             data &= ((1 << bits) - 1)
         return ((data << n) | (data >> (bits - n))) & ((1 << bits) - 1)
 
-    if isinstance(data, (str, bytes, list)):
+    if isinstance(data, (str, bytes, bytearray, list)):
         return data[n:] + data[:n]
 
     raise ValueError(f"{type(data)} given ('int'/'str'/'bytes'/'list' expected)")
@@ -49,7 +49,7 @@ def ror(data: _T, n: int, bits: int=32) -> _T:
             data &= ((1 << bits) - 1)
         return ((data >> n) | ((data & ((1 << n) - 1)) << (bits - n))) & ((1 << bits) - 1)
 
-    if isinstance(data, (str, bytes, list)):
+    if isinstance(data, (str, bytes, bytearray, list)):
         return data[-n:] + data[:-n]
 
     raise ValueError(f"{type(data)} given ('int'/'str'/'bytes'/'list' expected)")

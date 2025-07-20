@@ -1,6 +1,7 @@
 """This package provides a type representing a generator or an integer.
 """
 from typing import Generator
+from ptrlib.types import PtrlibIntLikeT
 
 
 class GeneratorOrInt:
@@ -20,34 +21,51 @@ class GeneratorOrInt:
     def __init__(self, generator: Generator[int, None, None], symbol: bytes=b''):
         self._generator = generator
         self._symbol = symbol
-        self._first = None
+        self._cache = []
+        self._cursor = 0
 
-    @property
-    def generator(self) -> Generator[int, None, None]:
-        """Get generator
+    def __getitem__(self, index: PtrlibIntLikeT):
+        """Get n-th value of the generator
         """
-        return self._generator
+        index = int(index)
+
+        if index >= len(self._cache):
+            for _ in range(index + 1- len(self._cache)):
+                self._cache.append(next(self._generator))
+
+        return self._cache[index]
 
     def __int__(self) -> int:
-        if self._first is None:
-            v = next(self._generator)
-            self._first = v
-            return v
-        return self._first
+        """Get the first value of the generator
+        """
+        return self[0]
+
+    def __index__(self) -> int:
+        """Get the first value of the generator
+        """
+        return int(self)
 
     def __iter__(self) -> 'GeneratorOrInt':
         return self
 
     def __next__(self) -> int:
-        v = next(self._generator)
-        if self._first is None:
-            self._first = v
-        return v
+        """Get next value
+        """
+        self._cursor += 1
+
+        if self._cursor - 1 < len(self._cache):
+            return self._cache[self._cursor - 1]
+
+        self._cache.append(next(self._generator))
+        return self._cache[-1]
 
     def __str__(self) -> str:
-        if self._first is None:
+        if len(self._cache) == 0:
             return f'GeneratorOrInt({repr(self._symbol)})'
-        return f'GeneratorOrInt({repr(self._symbol)} @ {hex(self._first)})'
+        if len(self._cache) == 1:
+            return f'GeneratorOrInt({repr(self._symbol)} @ {hex(self._cache[0])})'
+        return f'GeneratorOrInt({repr(self._symbol)} @ {hex(self._cache[0])} ' \
+                f'and {len(self._cache) - 1} more known values)'
 
 
 __all__ = ['GeneratorOrInt']
