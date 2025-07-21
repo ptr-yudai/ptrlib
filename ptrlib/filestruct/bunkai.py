@@ -392,11 +392,12 @@ s16be = BunkaiPrimitive(ctypes.c_int16, True)
 s32be = BunkaiPrimitive(ctypes.c_int32, True)
 s64be = BunkaiPrimitive(ctypes.c_int64, True)
 
+# NOTE: We don't expose 'Union' as it conflict with typing.Union
 __all__ = [
     'u8', 'u16', 'u32', 'u64', 's8', 's16', 's32', 's64',
     'u8be', 'u16be', 'u32be', 'u64be', 's8be', 's16be', 's32be', 's64be',
     'BunkaiPrimitive', 'BunkaiMember',
-    'Enum', 'Union', 'Array', 'VariableArray', 'Struct', 'BitStruct', 'BitInt'
+    'Enum', 'Array', 'VariableArray', 'Struct', 'BitStruct', 'BitInt'
 ]
 
 
