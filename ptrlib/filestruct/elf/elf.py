@@ -4,7 +4,7 @@ import contextlib
 import functools
 import os
 from logging import getLogger
-from typing import Dict, Generator, Optional, Tuple, Union as TypingUnion
+from typing import Dict, Optional, Tuple, Union as TypingUnion
 from zlib import crc32
 from ptrlib.types import PtrlibArchT, PtrlibBitsT, PtrlibAssemblySyntaxT, GeneratorOrInt
 from ptrlib.binary.packing import u32
