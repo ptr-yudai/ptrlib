@@ -1,5 +1,6 @@
 """This package provides Socket class
 """
+import contextlib
 import select
 import socket
 import ssl as _ssl
@@ -69,6 +70,7 @@ class Socket(Tube):
 
         # Create a new socket
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._oob_flag = False
 
         if ssl:
             self.context = _ssl.SSLContext(_ssl.PROTOCOL_TLS_CLIENT)
@@ -170,8 +172,12 @@ class Socket(Tube):
             TimeoutError: Timeout exceeded
             OSError: System error
         """
+        flags = 0
+        if self._oob_flag:
+            flags |= socket.MSG_OOB
+
         try:
-            return self._sock.send(data)
+            return self._sock.send(data, flags)
 
         except BrokenPipeError as e:
             logger.error("Broken pipe")
@@ -258,6 +264,24 @@ class Socket(Tube):
             self._sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, keep_interval)
         if keep_count is not None:
             self._sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, keep_count)
+
+    @contextlib.contextmanager
+    def out_of_band(self):
+        """Send OOB packet in this context.
+
+        Examples:
+            ```
+            with sock.out_of_band():
+                sock.send(b"XXY")
+            ```
+        """
+        assert not self._oob_flag, "Already in OOB context"
+
+        self._oob_flag = True
+        try:
+            yield
+        finally:
+            self._oob_flag = False
 
 
 __all__ = ['Socket']

@@ -1,6 +1,5 @@
 """This package provides a simple ELF file analyzer.
 """
-import contextlib
 import functools
 import os
 from logging import getLogger

@@ -2,10 +2,10 @@ import functools
 import os
 from logging import getLogger
 from typing import Dict, Optional, Union
-from ptrlib.binary.encoding import str2bytes
 from ptrlib.cpu import CPU
 from ptrlib.pwn.xop import GadgetFinder
 from ptrlib.types import GeneratorOrInt
+from ptrlib.binary.encoding import str2bytes, bytes2str
 from .parser import PEParser
 
 logger = getLogger(__name__)
