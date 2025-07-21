@@ -3,9 +3,9 @@
 import functools
 import os
 from logging import getLogger
-from typing import Dict, Optional, Tuple, Union as TypingUnion
+from typing import Dict, Generator, Optional, Tuple, Union as TypingUnion
 from zlib import crc32
-from ptrlib.types import PtrlibArchT, PtrlibBitsT, PtrlibAssemblySyntaxT, GeneratorOrInt
+from ptrlib.types import PtrlibIntLikeT, PtrlibArchT, PtrlibBitsT, PtrlibAssemblySyntaxT, GeneratorOrInt
 from ptrlib.binary.packing import u32
 from ptrlib.binary.encoding import str2bytes
 from ptrlib.cpu import CPU
@@ -145,7 +145,7 @@ class ELF:
         return self._base
 
     @base.setter
-    def base(self, base: int):
+    def base(self, base: PtrlibIntLikeT):
         """Set the load address of this ELF.
 
         Args:
@@ -193,7 +193,7 @@ class ELF:
                 return seghdr['p_vaddr']
         return 0
 
-    def symbol(self, name: TypingUnion[str, bytes]) -> int:
+    def symbol(self, name: TypingUnion[str, bytes]) -> GeneratorOrInt:
         """Get the address of a symbol.
 
         Find the address corresponding to a given symbol.
@@ -202,18 +202,24 @@ class ELF:
             name (str): The symbol name to find.
 
         Returns:
-            int: The address of the symbol.
-
-        Raises:
-            KeyError: The symbol is not found.
+            GeneratorOrInt: The address of the symbol.
         """
-        return self._pie_add_base + self._offset_symbol(name)
-
-    @cache
-    def _offset_symbol(self, name: TypingUnion[str, bytes]) -> int:
         if isinstance(name, str):
             name = str2bytes(name)
 
+        def _symbol_internal():
+            for offset in self._offset_symbol(name):
+                yield self._pie_add_base + offset
+
+        g = GeneratorOrInt(_symbol_internal(), name)
+        # Make sure at least one symbol is found
+        try:
+            g[0]
+        except StopIteration as e:
+            raise KeyError(f"Symbol {name} not found") from e
+        return g
+
+    def _offset_symbol(self, name: bytes) -> Generator:
         # Find symbol
         for parser in [self._parser, self._debug_parser]:
             if parser is None:
@@ -232,10 +238,7 @@ class ELF:
                         continue
 
                     if sym_name == name:
-                        # TODO: Support searching for multiple identical symbols
-                        return symtab['st_value']
-
-        raise KeyError(f"Symbol {name} not found")
+                        yield symtab['st_value']
 
     def symbols(self) -> Dict[bytes, int]:
         """Get all symbols.
@@ -509,17 +512,18 @@ class ELF:
     @cache
     def _offset_main_arena(self, use_symbol: bool=True) -> int:
         if use_symbol:
-            ofs_arena = self._offset_symbol('main_arena')
-            if ofs_arena is not None:
-                return ofs_arena
+            try:
+                return next(self._offset_symbol(b'main_arena'))
+            except KeyError:
+                pass
 
         # NOTE: This is a heuristic function
         try:
-            ofs_stdin = self._offset_symbol('_IO_2_1_stdin_')
-            ofs_realloc_hook = self._offset_symbol('__realloc_hook')
-            ofs_malloc_hook = self._offset_symbol('__malloc_hook')
+            ofs_stdin = next(self._offset_symbol(b'_IO_2_1_stdin_'))
+            ofs_realloc_hook = next(self._offset_symbol(b'__realloc_hook'))
+            ofs_malloc_hook = next(self._offset_symbol(b'__malloc_hook'))
         except KeyError as e:
-            logger.warning('`main_arena` only works for libc binary.')
+            logger.error('`main_arena` only works for libc binary.')
             raise KeyError("`main_arena` is not found") from e
 
         if 0 < ofs_malloc_hook - ofs_stdin < 0x1000:
@@ -530,9 +534,9 @@ class ELF:
 
         # libc-2.34 removed hooks
         try:
-            ofs_tzname = self._offset_symbol('tzname')
+            ofs_tzname = next(self._offset_symbol(b'tzname'))
         except KeyError as e:
-            logger.warning('`main_arena` only works for libc binary.')
+            logger.error('`main_arena` only works for libc binary.')
             raise KeyError("`main_arena` is not found") from e
 
         if self._parser.elfclass == 32:
@@ -628,7 +632,7 @@ class ELF:
         Returns:
             bool: True if enabled, otherwise False.
         """
-        for name in ('__stack_chk_fail', '__stack_smash_handler'):
+        for name in (b'__stack_chk_fail', b'__stack_smash_handler'):
             try:
                 self.got(name)
                 return True

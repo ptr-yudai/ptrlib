@@ -24,7 +24,7 @@ class GeneratorOrInt:
         self._cache = []
         self._cursor = 0
 
-    def __getitem__(self, index: PtrlibIntLikeT):
+    def __getitem__(self, index: PtrlibIntLikeT) -> int:
         """Get n-th value of the generator
         """
         index = int(index)
@@ -59,11 +59,26 @@ class GeneratorOrInt:
         self._cache.append(next(self._generator))
         return self._cache[-1]
 
+    def __eq__(self, other) -> bool:
+        if isinstance(other, GeneratorOrInt):
+            return self._generator == other._generator
+
+        if isinstance(other, int):
+            return self[0] == other
+
+        raise NotImplementedError(f"'==' not supported between instances of "
+                                  f"'{type(self)}' and '{type(other)}'")
+
+    def __lt__(self, other) -> bool:
+        if isinstance(other, int):
+            return self[0] < other
+
+        raise NotImplementedError(f"'<' not supported between instances of "
+                                  f"'{type(self)}' and '{type(other)}'")
+
     def __str__(self) -> str:
-        if len(self._cache) == 0:
-            return f'GeneratorOrInt({repr(self._symbol)})'
-        if len(self._cache) == 1:
-            return f'GeneratorOrInt({repr(self._symbol)} @ {hex(self._cache[0])})'
+        if len(self._cache) <= 1:
+            return f'GeneratorOrInt({repr(self._symbol)} @ {hex(self[0])})'
         return f'GeneratorOrInt({repr(self._symbol)} @ {hex(self._cache[0])} ' \
                 f'and {len(self._cache) - 1} more known values)'
 
