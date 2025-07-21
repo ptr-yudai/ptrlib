@@ -207,7 +207,7 @@ def _normalize_assembly(assembly: str) -> Tuple[bool, List[str]]:
     token = ''
     while i < len(assembly):
         if assembly[i:i+2] == '//':
-            while i < len(assembly) and assembly[i] != '\n':
+            while i+1 < len(assembly) and assembly[i+1] != '\n':
                 i += 1
 
         elif assembly[i:i+2] == '/*':
