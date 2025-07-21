@@ -127,7 +127,6 @@ class WinProcess(Tube):
             p = Process("more C:\\test.txt", env={"X": "123"})
             ```
         """
-        assert _is_windows, "WinProcess does not work on Unix"
         assert isinstance(args, (str, bytes, list)), \
             "`args` must be either str, bytes, or list"
         assert env is None or isinstance(env, dict), \
