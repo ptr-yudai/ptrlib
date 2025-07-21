@@ -5,7 +5,7 @@ import subprocess
 import unittest
 from logging import FATAL, getLogger
 
-from ptrlib import Process, is_scanf_safe
+from ptrlib import Process, is_token
 
 _is_windows = os.name == 'nt'
 
@@ -21,7 +21,7 @@ class TestWinProcess(unittest.TestCase):
 
         while True:
             msg = os.urandom(16)
-            if is_scanf_safe(msg) and b'\x1a' not in msg:
+            if is_token(msg, False) and b'\x1a' not in msg:
                 break
 
         with self.assertLogs(module_name) as cm:

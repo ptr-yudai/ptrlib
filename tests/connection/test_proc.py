@@ -6,7 +6,7 @@ import random
 import unittest
 from logging import FATAL, getLogger
 
-from ptrlib import Process, is_scanf_safe
+from ptrlib import Process, is_token
 
 _is_windows = os.name == 'nt'
 
@@ -28,7 +28,7 @@ class TestProcess(unittest.TestCase):
 
         while True:
             msg = os.urandom(16)
-            if is_scanf_safe(msg):
+            if is_token(msg, False):
                 break
 
         with self.assertLogs(module_name) as cm:
