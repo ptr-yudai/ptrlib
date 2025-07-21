@@ -8,7 +8,7 @@ from .enums import DIRECTORY_ENTRY
 from .structs import *
 
 logger = getLogger(__name__)
-cache = functools.cache
+cache = functools.lru_cache
 
 
 class PEParser(object):

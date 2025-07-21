@@ -7,7 +7,7 @@ import select
 import sys
 import threading
 from logging import getLogger
-from typing import Callable, List, Literal, Optional, Union
+from typing import Callable, List, Literal, Match, Optional, Union, Pattern
 from ptrlib.binary.encoding import \
     bytes2str, str2bytes, bytes2hex, bytes2utf8, \
     hexdump, AnsiParser, AnsiInstruction
@@ -430,9 +430,9 @@ class Tube(metaclass=abc.ABCMeta):
             raise TimeoutError("Timeout (recvlineafter)", err.args[1]) from err
 
     def recvregex(self,
-                  regex: Union[str, bytes, re.Pattern[bytes]],
+                  regex: Union[str, bytes, Pattern[bytes]],
                   size: int=4096,
-                  timeout: Optional[Union[int, float]]=None) -> re.Match[bytes]:
+                  timeout: Optional[Union[int, float]]=None) -> Match[bytes]:
         """Receive until a pattern comes
 
         Receive data until a given regex pattern matches.
@@ -451,7 +451,7 @@ class Tube(metaclass=abc.ABCMeta):
             TimeoutError: Timeout exceeded
             OSError: System error
         """
-        assert isinstance(regex, (str, bytes, re.Pattern)), \
+        assert isinstance(regex, (str, bytes, bytearray, re.Pattern)), \
             "`regex` must be either str, bytes, or re.Pattern"
 
         if isinstance(regex, str):
