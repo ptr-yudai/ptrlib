@@ -1,4 +1,3 @@
-from typing_extensions import TypeAlias
 from typing import Literal, Union, SupportsInt, SupportsIndex
 
 PtrlibArchT = Literal['unknown', 'intel', 'arm', 'risc-v', 'sparc', 'mips']
@@ -8,7 +7,7 @@ PtrlibAssemblySyntaxT = Literal['intel', 'att']
 PtrlibAssemblerT = Literal['keystone', 'gcc', 'nasm', 'none']
 PtrlibDisassemblerT = Literal['capstone', 'objdump', 'none']
 
-PtrlibIntLikeT: TypeAlias = Union[SupportsInt, SupportsIndex]
+PtrlibIntLikeT = Union[SupportsInt, SupportsIndex]
 
 __all__ = ['PtrlibArchT', 'PtrlibBitsT', 'PtrlibEndiannessT',
            'PtrlibAssemblySyntaxT', 'PtrlibAssemblerT', 'PtrlibDisassemblerT',
