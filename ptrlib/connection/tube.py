@@ -7,7 +7,7 @@ import select
 import sys
 import threading
 from logging import getLogger
-from typing import Callable, List, Literal, Match, Optional, Union, Pattern
+from typing import Callable, List, Literal, Match, Optional, Union, Pattern, TypeVar
 from ptrlib.binary.encoding import \
     bytes2str, str2bytes, bytes2hex, bytes2utf8, \
     hexdump, AnsiParser, AnsiInstruction
@@ -48,6 +48,9 @@ def tube_is_recv_open(method):
         return method(self, *args, **kwargs)
     return decorator
 
+
+
+TubeType = TypeVar('TubeType', bound='Tube')
 
 class Tube(metaclass=abc.ABCMeta):
     """Abstract class for streaming data
@@ -503,6 +506,42 @@ class Tube(metaclass=abc.ABCMeta):
         scr = ansi.draw_screen(returns, stop)
         self.unget(ansi.buffer)
         return scr
+
+    def before(self: TubeType, data: Union[str, bytes]) -> TubeType:
+
+        return self
+
+    def after(self: TubeType,
+              delim: Union[str, bytes],
+              size: int = 4096,
+              timeout: Optional[Union[int, float]] = None,
+              lookahead: bool = False) -> TubeType:
+        """Wait until data arrives.
+
+        Args:
+            delim    : The delimiter bytes
+            size     : The data size to receive at once
+            timeout  : Timeout in second
+            drop     : Discard delimiter or not
+            lookahead: Unget delimiter to buffer or not
+
+        Returns:
+            Tube: Self.
+
+        Raises:
+            ConnectionAbortedError: Connection is aborted by process
+            ConnectionResetError: Connection is closed by peer
+            TimeoutError: Timeout exceeded
+            OSError: System error
+
+        Examples:
+            ```
+            msg = tube.after("Message: ").recvline()
+            tube.after("[42] ").recvregex(r"ID: (\\d+)")
+            ```
+        """
+        self.recvuntil(delim, size, timeout, True, lookahead)
+        return self
 
     def send(self, data: Union[str, bytes]) -> int:
         """Send raw data

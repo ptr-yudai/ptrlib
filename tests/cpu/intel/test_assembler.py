@@ -102,6 +102,7 @@ class TestIntelAssembler(unittest.TestCase):
         cpu.assembler = 'gcc'
 
         # Test assembler
+        self.assertEqual(cpu.assemble(''), b'')
         self.assertEqual(cpu.assemble('nop'), b'\x90')
         self.assertEqual(cpu.assemble('nop; nop'), b'\x90\x90')
         self.assertEqual(cpu.assemble('a:nop\nb:int3;nop'), b'\x90\xcc\x90')
@@ -133,6 +134,7 @@ class TestIntelAssembler(unittest.TestCase):
         cpu.assembler = 'gcc'
 
         # Test assembler
+        self.assertEqual(cpu.assemble(''), b'')
         self.assertEqual(cpu.assemble('nop'), b'\x90')
         self.assertEqual(cpu.assemble('nop; nop'), b'\x90\x90')
         self.assertEqual(cpu.assemble('a:nop\nb:int3;nop'), b'\x90\xcc\x90')
@@ -164,6 +166,7 @@ class TestIntelAssembler(unittest.TestCase):
         cpu.assembler = 'keystone'
 
         # Test assembler
+        self.assertEqual(cpu.assemble(''), b'')
         self.assertEqual(cpu.assemble('nop'), b'\x90')
         self.assertEqual(cpu.assemble('nop; nop'), b'\x90\x90')
         self.assertEqual(cpu.assemble('a:nop\nb:int3;nop'), b'\x90\xcc\x90')
@@ -194,6 +197,7 @@ class TestIntelAssembler(unittest.TestCase):
         cpu.assembler = 'keystone'
 
         # Test assembler
+        self.assertEqual(cpu.assemble(''), b'')
         self.assertEqual(cpu.assemble('nop'), b'\x90')
         self.assertEqual(cpu.assemble('nop; nop'), b'\x90\x90')
         self.assertEqual(cpu.assemble('a:nop\nb:int3;nop'), b'\x90\xcc\x90')
@@ -222,6 +226,7 @@ class TestIntelAssembler(unittest.TestCase):
         cpu.assembler = 'nasm'
 
         # Test assembler
+        self.assertEqual(cpu.assemble(''), b'')
         self.assertEqual(cpu.assemble('nop'), b'\x90')
         self.assertEqual(cpu.assemble('nop; nop'), b'\x90\x90')
         self.assertEqual(cpu.assemble('a:nop\nb:int3;nop'), b'\x90\xcc\x90')
@@ -251,6 +256,7 @@ class TestIntelAssembler(unittest.TestCase):
         cpu.assembler = 'nasm'
 
         # Test assembler
+        self.assertEqual(cpu.assemble(''), b'')
         self.assertEqual(cpu.assemble('nop'), b'\x90')
         self.assertEqual(cpu.assemble('nop; nop'), b'\x90\x90')
         self.assertEqual(cpu.assemble('a:nop\nb:int3;nop'), b'\x90\xcc\x90')

@@ -21,6 +21,18 @@ if TYPE_CHECKING:
 
 logger = getLogger(__name__)
 
+OBJDUMP_RE = re.compile(r'''
+    ^\s*
+    (?P<address>[0-9a-f]+):\s+                  # Address
+    (?P<bytecode>[0-9a-f]{2}(?:\s[0-9a-f]{2})*) # Byte sequence
+    (?:\s+(?P<asm>[^#\n]+))?                    # Instruction
+    ''', re.IGNORECASE | re.VERBOSE)
+
+PREFIXES = {
+    'lock', 'rep', 'repe', 'repz', 'repne', 'repnz',
+    'data16', 'data32', 'addr16', 'addr32',
+    'cs', 'ds', 'es', 'ss', 'fs', 'gs', 'bnd',
+}
 
 class IntelDisassembly(NamedTuple):
     """A single Intel instruction.
@@ -28,11 +40,13 @@ class IntelDisassembly(NamedTuple):
     Attributes:
         address (int): The address of this instruction.
         bytes (bytes): The machine code bytes corresponding to this instruction.
+        prefix (List[str]): Instruction prefix.
         mnemonic (str): Mnemonic.
         operands (List[str]): Operand list.
     """
     address: int
     bytes: bytes
+    prefix: List[str]
     mnemonic: str
     operands: List[str]
 
@@ -71,6 +85,7 @@ def disassemble_capstone(bytecode: bytes,
         instructions.append(IntelDisassembly(
             address=i.address,
             bytes=bytes(i.bytes),
+            prefix=[], # Capstone does not provide prefix information...
             mnemonic=i.mnemonic,
             operands=list(map(str.strip, i.op_str.split(','))) if len(i.op_str) else []
         ))
@@ -96,6 +111,9 @@ def disassemble_objdump(bytecode: bytes,
     objdump_path = objdump('intel', bits)
     arch = {16: 'i8086', 32: 'i386', 64: 'x86-64'}[bits]
 
+    if len(bytecode) == 0:
+        return []
+
     fname_bin = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())+'.bin'
     with open(fname_bin, 'wb') as f:
         f.write(bytecode)
@@ -119,27 +137,31 @@ def disassemble_objdump(bytecode: bytes,
         # Parse the output of objdump
         instructions: List[IntelDisassembly] = []
         for line in res.stdout.decode().splitlines():
-            m = re.match(r'''^\s*(?P<address>[0-9a-f]+):\s+
-                            (?P<bytecode>(?:[0-9a-f]{2}\s)+)
-                            (?:\s*(?P<mnemonic>[^0-9\s]\S+)
-                            (?P<operands>\s+[^#]*)?)?''', line, re.VERBOSE)
+            m = OBJDUMP_RE.match(line)
             if m is None:
                 continue
 
-            if m['mnemonic'] is None:
+            if m['asm'] is None:
+                # Byte sequence from previous instruction
                 bytecode = instructions[-1].bytes + bytes.fromhex(m['bytecode'].replace(' ', ''))
                 instructions[-1] = instructions[-1]._replace(bytes=bytecode)
 
             else:
-                if len((m['operands'] or '').strip()) == 0:
-                    operands = []
-                else:
-                    operands = m['operands'].strip().split(',')
+                # Parse instruction
+                tokens = m['asm'].split()
+                prefixes = []
+                while tokens and tokens[0].lower() in PREFIXES:
+                    prefixes.append(tokens.pop(0).lower())
+
+                mnemonic = tokens.pop(0)              # ここが命令本体
+                operand_text = ' '.join(tokens)
+                operands = [op.strip() for op in operand_text.split(',')] if operand_text else []
 
                 instructions.append(IntelDisassembly(
                     address=int(m['address'], 16),
                     bytes=bytes.fromhex(m['bytecode'].replace(' ', '')),
-                    mnemonic=m['mnemonic'],
+                    prefix=prefixes,
+                    mnemonic=mnemonic,
                     operands=operands,
                 ))
 
@@ -148,4 +170,4 @@ def disassemble_objdump(bytecode: bytes,
     raise OSError("Disassemble failed")
 
 
-__all__ = ['disassemble_capstone', 'disassemble_objdump']
+__all__ = ['IntelDisassembly', 'disassemble_capstone', 'disassemble_objdump']
