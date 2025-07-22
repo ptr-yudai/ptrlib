@@ -8,7 +8,7 @@ import subprocess
 import tty
 from logging import getLogger
 from typing import List, Mapping, Optional, Union, cast
-from ptrlib.arch.linux.memory import LinuxProcessMemory
+from ptrlib.debugger.unix import UnixProcessManager
 from ptrlib.arch.linux.sig import signal_name
 from ptrlib.binary.encoding import bytes2str
 from .tube import Tube, tube_is_open
@@ -109,7 +109,6 @@ class UnixProcess(Tube):
             raise err from None
 
         self._filepath = args[0]
-
         self._returncode = None
 
         # Duplicate master
@@ -123,8 +122,8 @@ class UnixProcess(Tube):
             fl = fcntl.fcntl(fd, fcntl.F_GETFL)
             fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
-        # Memory interface
-        self._memory = LinuxProcessMemory(self.pid)
+        # Debugger interface
+        self._process = UnixProcessManager(self.pid)
 
         logger.info("Successfully created a new process %s", str(self))
         self._init_done = True
@@ -144,10 +143,10 @@ class UnixProcess(Tube):
 
     @property
     @tube_is_open
-    def memory(self) -> LinuxProcessMemory:
-        """Get a `LinuxProcessMemory` instance for this process.
+    def process(self) -> UnixProcessManager:
+        """Get a `UnixProcessManager` instance for this process.
         """
-        return self._memory
+        return self._process
 
     #
     # Implementation of Tube methods

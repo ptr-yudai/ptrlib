@@ -12,6 +12,7 @@ from ptrlib.binary.encoding import \
     bytes2str, str2bytes, bytes2hex, bytes2utf8, \
     hexdump, AnsiParser, AnsiInstruction
 from ptrlib.console.color import Color
+from ptrlib.types import PtrlibIntLikeT
 
 _is_windows = os.name == 'nt'
 
@@ -51,6 +52,8 @@ def tube_is_recv_open(method):
 
 
 TubeType = TypeVar('TubeType', bound='Tube')
+AtomicSendT = Union[PtrlibIntLikeT, float, str, bytes]
+AtomicRecvT = Union[str, bytes]
 
 class Tube(metaclass=abc.ABCMeta):
     """Abstract class for streaming data
@@ -169,7 +172,7 @@ class Tube(metaclass=abc.ABCMeta):
     #
     # Methods
     #
-    def settimeout(self, timeout: Optional[Union[int, float]]=None):
+    def settimeout(self, timeout: Optional[Union[float, PtrlibIntLikeT]]=None):
         """Set timeout
         
         Args:
@@ -187,17 +190,16 @@ class Tube(metaclass=abc.ABCMeta):
             p.settimeout()  # Timeout is set to 3
             ```
         """
-        assert timeout is None or (isinstance(timeout, (int, float)) and timeout >= 0), \
-            "`timeout` must be positive and either int or float"
-
         if timeout is None:
             self._settimeout_impl(self._default_timeout)
+        elif not isinstance(timeout, float):
+            self._settimeout_impl(int(timeout))
         else:
             self._settimeout_impl(timeout)
 
     def recv(self,
-             size: int=4096,
-             timeout: Optional[Union[int, float]]=None) -> bytes:
+             size: PtrlibIntLikeT=4096,
+             timeout: Optional[Union[PtrlibIntLikeT, float]]=None) -> bytes:
         """Receive data with buffering
 
         Receive raw data of at most `size` bytes.
@@ -224,8 +226,9 @@ class Tube(metaclass=abc.ABCMeta):
                 pass
             ```
         """
-        assert size is None or (isinstance(size, int) and size >= 0), \
-            "`size` must be a positive integer"
+        if size is not None:
+            size = int(size)
+            assert size >= 0, "`size` must be a positive integer"
 
         # NOTE: We always return buffer if it's not empty
         # This is because we do not know how many bytes we can read.
@@ -300,7 +303,7 @@ class Tube(metaclass=abc.ABCMeta):
         return data[:size]
 
     def recvuntil(self,
-                  delim: Union[str, bytes, List[Union[str, bytes]]],
+                  delim: Union[AtomicRecvT, List[AtomicRecvT]],
                   size: int=4096,
                   timeout: Optional[Union[int, float]]=None,
                   drop: bool=False,
@@ -336,14 +339,14 @@ class Tube(metaclass=abc.ABCMeta):
             echo.recvonce(6)                      # 123def
             ```
         """
-        assert isinstance(delim, (str, bytes, list)), \
+        assert isinstance(delim, (str, bytes, bytearray, list)), \
             "`delim` must be either str, bytes, or list"
 
         # Preprocess
         delim_list: List[bytes] = []
         if isinstance(delim, list):
             for i, d in enumerate(delim):
-                assert isinstance(d, (str, bytes)), \
+                assert isinstance(d, (str, bytes, bytearray)), \
                     f"`delim[{i}]` must be either str or bytes"
                 delim_list.append(str2bytes(delim[i]))
         else:
@@ -410,7 +413,7 @@ class Tube(metaclass=abc.ABCMeta):
         return line.rstrip() if drop else line
 
     def recvlineafter(self,
-                      delim: Union[str, bytes],
+                      delim: Union[AtomicRecvT, List[AtomicRecvT]],
                       size: int=4096,
                       timeout: Optional[Union[int, float]]=None,
                       drop: bool=True,
@@ -519,21 +522,50 @@ class Tube(metaclass=abc.ABCMeta):
         self.unget(ansi.buffer)
         return scr
 
-    def before(self: TubeType, data: Union[str, bytes]) -> TubeType:
-        raise NotImplementedError("Method not implemented yet")
-
-    def after(self: TubeType,
-              delim: Union[str, bytes],
+    def before(self: TubeType,
+              delim: Union[AtomicRecvT, List[AtomicRecvT]],
               size: int = 4096,
-              timeout: Optional[Union[int, float]] = None,
-              lookahead: bool = False) -> TubeType:
-        """Wait until data arrives.
+              timeout: Optional[Union[int, float]] = None) -> TubeType:
+        """Wait until data arrives. 
+
+        This method works in the same as `recvuntil` except that this method returns `self`
+        and received data is buffered.
 
         Args:
             delim    : The delimiter bytes
             size     : The data size to receive at once
             timeout  : Timeout in second
-            drop     : Discard delimiter or not
+
+        Returns:
+            Tube: Self.
+
+        Raises:
+            ConnectionAbortedError: Connection is aborted by process
+            ConnectionResetError: Connection is closed by peer
+            TimeoutError: Timeout exceeded
+            OSError: System error
+
+        Examples:
+            ```
+            msg = tube.after("Message: ").recvline()
+            tube.after("[42] ").recvregex(r"ID: (\\d+)")
+            ```
+        """
+        raise NotImplementedError("Not implemented yet")
+
+    def after(self: TubeType,
+              delim: Union[AtomicRecvT, List[AtomicRecvT]],
+              size: int = 4096,
+              timeout: Optional[Union[int, float]] = None,
+              lookahead: bool = False) -> TubeType:
+        """Wait until data arrives.
+
+        This method works in the same as `recvuntil` except that this method returns `self`.
+
+        Args:
+            delim    : The delimiter bytes
+            size     : The data size to receive at once
+            timeout  : Timeout in second
             lookahead: Unget delimiter to buffer or not
 
         Returns:
@@ -575,7 +607,7 @@ class Tube(metaclass=abc.ABCMeta):
             tube.send(b"\xde\xad\xbe\xef")
             ```
         """
-        assert isinstance(data, (str, bytes)), "`data` must be either str or bytes"
+        assert isinstance(data, (str, bytes, bytearray)), "`data` must be either str or bytes"
         data = str2bytes(data)
 
         size = self._send_impl(data)
@@ -619,7 +651,7 @@ class Tube(metaclass=abc.ABCMeta):
             to_send -= sent
 
     def sendline(self,
-                 data: Union[int, float, str, bytes, List[Union[int, float, str, bytes]]]):
+                 data: Union[AtomicSendT, List[AtomicSendT]]):
         """Send a line
 
         Send a line of data.
@@ -627,24 +659,26 @@ class Tube(metaclass=abc.ABCMeta):
         Args:
             data (bytes) : Data to send
         """
-        assert isinstance(data, (int, float, str, bytes, list)), \
-            "`data` must be int, float, str, bytes, or list"
-
         if isinstance(data, list):
             for d in data:
                 self.sendline(d)
             return
-
-        if isinstance(data, (int, float)):
-            data = str(data).encode()
-        else:
+        
+        if isinstance(data, (str, bytes, bytearray)):
             data = str2bytes(data)
+
+        elif isinstance(data, float):
+            data = str(data).encode()
+
+        else:
+            # Explicitly call "__int__"
+            data = str(int(data)).encode()
 
         self.send(data + self._newline)
 
     def sendafter(self,
-                  delim: Union[str, bytes, List[Union[str, bytes]]],
-                  data: Union[int, float, str, bytes],
+                  delim: Union[AtomicRecvT, List[AtomicRecvT]],
+                  data: AtomicSendT,
                   size: int=4096,
                   timeout: Optional[Union[int, float]]=None,
                   drop: bool=False,
@@ -670,20 +704,24 @@ class Tube(metaclass=abc.ABCMeta):
             tube.sendafter("command: ", 1) # b"1" is sent
             ```
         """
-        assert isinstance(data, (int, float, str, bytes)), \
-            "`data` must be int, float, str, or bytes"
-
         recv_data = self.recvuntil(delim, size, timeout, drop, lookahead)
 
-        if isinstance(data, (int, float)):
-            data = str(data)
-        self.send(data)
+        if isinstance(data, (str, bytes, bytearray)):
+            data = str2bytes(data)
 
+        elif isinstance(data, float):
+            data = str(data).encode()
+
+        else:
+            # Explicitly call "__int__"
+            data = str(int(data)).encode()
+
+        self.send(data)
         return recv_data
 
     def sendlineafter(self,
-                      delim: Union[str, bytes],
-                      data: Union[str, bytes, int],
+                      delim: Union[AtomicRecvT, List[AtomicRecvT]],
+                      data: AtomicSendT,
                       size: int=4096,
                       timeout: Optional[Union[int, float]]=None,
                       drop: bool=False,
@@ -786,8 +824,6 @@ class Tube(metaclass=abc.ABCMeta):
         def thread_recv():
             """Receive data from tube and print to stdout
             """
-            import signal
-            signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
             nonlocal stop_event
             leftover = b''
             while self.is_alive() and not stop_event.is_set():
@@ -810,6 +846,7 @@ class Tube(metaclass=abc.ABCMeta):
         def thread_send():
             """Read user input and send it to tube
             """
+            import time
             nonlocal stop_event
             while self.is_alive() and not stop_event.is_set():
                 sys.stdout.write(prompt)
