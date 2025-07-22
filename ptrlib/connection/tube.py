@@ -95,6 +95,7 @@ class Tube(metaclass=abc.ABCMeta):
         self._is_send_closed = False
         self._is_recv_closed = False
 
+        self._newline = b'\n'
         self._default_timeout = timeout
         self.settimeout()
 
@@ -153,6 +154,17 @@ class Tube(metaclass=abc.ABCMeta):
         """Get if the tube for receiving data is explicitly closed.
         """
         return self._is_recv_closed
+    
+    @property
+    def newline(self) -> bytes:
+        """Get the current definition of a newline.
+        """
+        return self._newline
+    
+    @newline.setter
+    def newline(self, line: bytes):
+        assert isinstance(line, (bytes, bytearray)), f"Newline must be bytes, not {type(line)}"
+        self._newline = line
 
     #
     # Methods
@@ -391,7 +403,7 @@ class Tube(metaclass=abc.ABCMeta):
             bytes: Received data
         """
         try:
-            line = self.recvuntil(b'\n', size, timeout, lookahead=lookahead)
+            line = self.recvuntil(self._newline, size, timeout, lookahead=lookahead)
         except TimeoutError as err:
             raise TimeoutError("Timeout (recvline)", err.args[1]) from err
 
@@ -508,8 +520,7 @@ class Tube(metaclass=abc.ABCMeta):
         return scr
 
     def before(self: TubeType, data: Union[str, bytes]) -> TubeType:
-
-        return self
+        raise NotImplementedError("Method not implemented yet")
 
     def after(self: TubeType,
               delim: Union[str, bytes],
@@ -629,7 +640,7 @@ class Tube(metaclass=abc.ABCMeta):
         else:
             data = str2bytes(data)
 
-        self.send(data + b'\n')
+        self.send(data + self._newline)
 
     def sendafter(self,
                   delim: Union[str, bytes, List[Union[str, bytes]]],
@@ -775,10 +786,13 @@ class Tube(metaclass=abc.ABCMeta):
         def thread_recv():
             """Receive data from tube and print to stdout
             """
+            import signal
+            signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
+            nonlocal stop_event
             leftover = b''
-            while self.is_alive():
+            while self.is_alive() and not stop_event.is_set():
                 try:
-                    data = self.recv()
+                    data = self.recv(timeout=self._POLL_TIMEOUT)
                     leftover = pretty_print(data, leftover)
 
                     if not self.is_alive():
@@ -789,32 +803,34 @@ class Tube(metaclass=abc.ABCMeta):
                 except BrokenPipeError as e:
                     logger.warning(e)
                     break
-                except (EOFError, ConnectionAbortedError, ConnectionResetError):
+                except (EOFError, ConnectionAbortedError, ConnectionResetError) as e:
                     logger.warning("Connection closed by %s", str(self))
                     break
 
         def thread_send():
             """Read user input and send it to tube
             """
-            while self.is_alive():
+            nonlocal stop_event
+            while self.is_alive() and not stop_event.is_set():
                 sys.stdout.write(prompt)
                 sys.stdout.flush()
                 try:
                     if not _is_windows:
                         # NOTE: Wait for data since sys.stdin.read blocks
                         #       even if stdin is closed by keyboard interrupt
-                        while self.is_alive():
+                        while self.is_alive() and not stop_event.is_set():
                             r, [], [] = select.select(
                                 [sys.stdin], [], [], self._POLL_TIMEOUT
                             )
                             if r:
                                 break
 
-                    if self.is_alive():
+                    if self.is_alive() and not stop_event.is_set():
                         self.send(sys.stdin.readline())
                 except (ConnectionResetError, ConnectionAbortedError, OSError, ValueError):
                     break
 
+        stop_event = threading.Event()
         th_recv = threading.Thread(target=thread_recv)
         th_send = threading.Thread(target=thread_send)
         th_recv.start()
@@ -824,7 +840,9 @@ class Tube(metaclass=abc.ABCMeta):
             th_send.join()
         except KeyboardInterrupt:
             logger.warning("Intterupted by user")
-            #sys.stdin.close()
+            stop_event.set()
+            th_recv.join()
+            th_send.join()
 
     def close(self):
         """Close this connection
