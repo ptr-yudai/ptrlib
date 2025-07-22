@@ -152,18 +152,25 @@ class UnixProcessManager:
         return maps
     
     def attach(self, pid: Optional[Union[int, Callable[['UnixProcessManager'], int]]]=None) -> UnixProcessDebugger:
-        """
+        """Attach to a process with given pid.
+
+        Args:
+            pid (int): Process ID or a function or lambda that returns a pid.
+
         Examples:
             ```
             sock = Process("/bin/cat")
             conn = sock.process.attach()
-            conn.execute(["break write", "continue"])
+            #conn.debug = True
 
-            sock.sendline(b"Hello!")
-            a = conn.execute("p/x $rsi")
+            conn.execute("break write", resume=True)
+            sock.sendline(b"Hello, World!")
+
+            a, b = conn.execute(["p/x $rsi", "x/1s $rsi"])
+            print(a)  # $1 = 0x7d0f5d1de000
+            print(b)  # 0x7d0f5d1de000: "Hello, World!\\n"
+
             conn.detach()
-
-
             ```
         """
         if pid is None:
