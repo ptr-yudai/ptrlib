@@ -61,7 +61,7 @@ class UnixProcessDebugger:
         """
         assert self._gdb is not None
         return self._gdb
-    
+
     @property
     def is_attached(self) -> bool:
         return self._gdb is not None

@@ -157,13 +157,13 @@ class Tube(metaclass=abc.ABCMeta):
         """Get if the tube for receiving data is explicitly closed.
         """
         return self._is_recv_closed
-    
+
     @property
     def newline(self) -> bytes:
         """Get the current definition of a newline.
         """
         return self._newline
-    
+
     @newline.setter
     def newline(self, line: bytes):
         assert isinstance(line, (bytes, bytearray)), f"Newline must be bytes, not {type(line)}"
