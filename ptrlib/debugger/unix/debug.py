@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 logger = getLogger(__name__)
 
-CUSTOM_SUDO_PROMPT = b"[sudo] password: "
+CUSTOM_SUDO_PROMPT = "[sudo] password: "
 GDB_PTRACE_ERROR = b"ptrace: Operation not permitted.\n"
 ANSI_RE = re.compile(rb'\x1B\[[0-?]*[ -/]*[@-~]')
 CTRL_RE = re.compile(rb'[\x00-\x08\x0B-\x1F]')
@@ -48,13 +48,13 @@ class UnixProcessDebugger:
         """Debugger session
         """
         return self._gdb
-        
+
     @property
     def debug(self) -> bool:
         """Debug mode
         """
         return self._gdb.debug
-    
+
     @debug.setter
     def debug(self, mode: bool):
         self._gdb.debug = mode
@@ -77,10 +77,10 @@ class UnixProcessDebugger:
             "gdb", "-q", "-p", str(self._pid)
         ])
 
-        init_msg = self._gdb.recvuntil([b'[sudo] password: '] + self._gdb_prompt, lookahead=True)
-        if CUSTOM_SUDO_PROMPT in init_msg:
-            # Password is required
-            self._gdb.sendlineafter(CUSTOM_SUDO_PROMPT, getpass.getpass())
+        init_msg = self._gdb.recvuntil([CUSTOM_SUDO_PROMPT] + self._gdb_prompt, lookahead=True)
+        if CUSTOM_SUDO_PROMPT.encode() in init_msg:
+            # Password is required (The user does not set NOPASSWD in sudoers)
+            self._gdb.sendlineafter(CUSTOM_SUDO_PROMPT, getpass.getpass(CUSTOM_SUDO_PROMPT))
             init_msg = self._gdb.recvuntil(self._gdb_prompt, lookahead=True)
 
         if GDB_PTRACE_ERROR in init_msg:
@@ -160,9 +160,21 @@ class UnixProcessDebugger:
     def interactive(self):
         """Interact with GDB terminal
         """
-        self._gdb.interactive(prompt='')
-        # Return a prompt for further use
-        self._gdb.unget(b'(gdb) ')
+        def _continue_process():
+            try:
+                self._gdb.sendline(b"continue")
+                self._gdb.recvuntil(b"Continuing.\n", timeout=0.5)
+                self._gdb.unget(b'(gdb) ')
+            except (ConnectionResetError, ConnectionAbortedError,
+                    OSError, ValueError, TimeoutError):
+                # The user probably sent "quit" command
+                logger.warning("The gdb session is closed.")
+                self._gdb.close()
+                del self._gdb
+
+        self._gdb.interactive(prompt='', onexit=_continue_process)
 
     def sh(self):
+        """Interact with GDB terminal
+        """
         self.interactive()

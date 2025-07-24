@@ -781,7 +781,8 @@ class Tube(metaclass=abc.ABCMeta):
 
     def interactive(self,
                     prompt: str="[ptrlib]$ ",
-                    raw: bool=False):
+                    raw: bool=False,
+                    onexit: Optional[Callable[[], None]]=None):
         """Interactive mode
 
         Args:
@@ -839,14 +840,13 @@ class Tube(metaclass=abc.ABCMeta):
                 except BrokenPipeError as e:
                     logger.warning(e)
                     break
-                except (EOFError, ConnectionAbortedError, ConnectionResetError) as e:
+                except (EOFError, ConnectionAbortedError, ConnectionResetError):
                     logger.warning("Connection closed by %s", str(self))
                     break
 
         def thread_send():
             """Read user input and send it to tube
             """
-            import time
             nonlocal stop_event
             while self.is_alive() and not stop_event.is_set():
                 sys.stdout.write(prompt)
@@ -880,6 +880,9 @@ class Tube(metaclass=abc.ABCMeta):
             stop_event.set()
             th_recv.join()
             th_send.join()
+
+        if onexit is not None:
+            onexit()
 
     def close(self):
         """Close this connection
