@@ -872,7 +872,6 @@ class Tube(metaclass=abc.ABCMeta):
                                 line = readline()
                             except KeyboardInterrupt:
                                 # When interrupt is raised from custom readline
-                                print("ponta!")
                                 stop_event.set()
                                 break
                         self.send(line)
