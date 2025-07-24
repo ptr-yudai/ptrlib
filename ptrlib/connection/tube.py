@@ -663,7 +663,7 @@ class Tube(metaclass=abc.ABCMeta):
             for d in data:
                 self.sendline(d)
             return
-        
+
         if isinstance(data, (str, bytes, bytearray)):
             data = str2bytes(data)
 
@@ -782,6 +782,8 @@ class Tube(metaclass=abc.ABCMeta):
     def interactive(self,
                     prompt: str="[ptrlib]$ ",
                     raw: bool=False,
+                    readline: Optional[Callable[[], str]]=None,
+                    oninterrupt: Optional[Callable[[], bool]]=None,
                     onexit: Optional[Callable[[], None]]=None):
         """Interactive mode
 
@@ -863,7 +865,17 @@ class Tube(metaclass=abc.ABCMeta):
                                 break
 
                     if self.is_alive() and not stop_event.is_set():
-                        self.send(sys.stdin.readline())
+                        if readline is None:
+                            line = sys.stdin.readline()
+                        else:
+                            try:
+                                line = readline()
+                            except KeyboardInterrupt:
+                                # When interrupt is raised from custom readline
+                                print("ponta!")
+                                stop_event.set()
+                                break
+                        self.send(line)
                 except (ConnectionResetError, ConnectionAbortedError, OSError, ValueError):
                     break
 
@@ -872,14 +884,19 @@ class Tube(metaclass=abc.ABCMeta):
         th_send = threading.Thread(target=thread_send)
         th_recv.start()
         th_send.start()
-        try:
-            th_recv.join()
-            th_send.join()
-        except KeyboardInterrupt:
-            logger.warning("Intterupted by user")
-            stop_event.set()
-            th_recv.join()
-            th_send.join()
+
+        while True:
+            try:
+                th_recv.join()
+                th_send.join()
+            except KeyboardInterrupt:
+                if oninterrupt is not None and oninterrupt():
+                    continue
+                logger.warning("Intterupted by user")
+                stop_event.set()
+                th_recv.join()
+                th_send.join()
+            break
 
         if onexit is not None:
             onexit()

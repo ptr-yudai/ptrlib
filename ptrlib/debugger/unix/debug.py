@@ -1,7 +1,10 @@
 from __future__ import annotations
 import functools
 import getpass
+import os
 import re
+import signal
+import sys
 from logging import getLogger
 from typing import TYPE_CHECKING, List, Union, overload
 if TYPE_CHECKING:
@@ -16,29 +19,38 @@ ANSI_RE = re.compile(rb'\x1B\[[0-?]*[ -/]*[@-~]')
 CTRL_RE = re.compile(rb'[\x00-\x08\x0B-\x1F]')
 
 def unix_process():
+    """Returns a UnixProcess class
+    """
     from ptrlib.connection.unixproc import UnixProcess
     return UnixProcess
 
 def attached(func):
+    """Assert the debugger is already attached
+    """
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
-        if not hasattr(self, '_gdb'):
+        if not self.is_attached:
             raise RuntimeError("Call `attach` first.")
         return func(self, *args, **kwargs)
     return wrapper
 
 def detached(func):
+    """Assert the debugger is not attached
+    """
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
-        if hasattr(self, '_gdb'):
+        if self.is_attached:
             raise RuntimeError(f"Already attached (pid={self.pid})")
         return func(self, *args, **kwargs)
     return wrapper
 
 
 class UnixProcessDebugger:
+    """Debugger for Unix processes
+    """
     def __init__(self, pid: int):
         self._pid = pid
+        self._gdb = None
         self._gdb_prompt: List[Union[str, bytes]] \
             = [b'(gdb) ', b'gef> ', b'pwndbg> ', b'gdb-peda$ ']
 
@@ -47,17 +59,22 @@ class UnixProcessDebugger:
     def gdb(self) -> UnixProcess:
         """Debugger session
         """
+        assert self._gdb is not None
         return self._gdb
+    
+    @property
+    def is_attached(self) -> bool:
+        return self._gdb is not None
 
     @property
     def debug(self) -> bool:
         """Debug mode
         """
-        return self._gdb.debug
+        return self.gdb.debug
 
     @debug.setter
     def debug(self, mode: bool):
-        self._gdb.debug = mode
+        self.gdb.debug = mode
 
     @property
     def pid(self) -> int:
@@ -77,11 +94,14 @@ class UnixProcessDebugger:
             "gdb", "-q", "-p", str(self._pid)
         ])
 
-        init_msg = self._gdb.recvuntil([CUSTOM_SUDO_PROMPT] + self._gdb_prompt, lookahead=True)
-        if CUSTOM_SUDO_PROMPT.encode() in init_msg:
-            # Password is required (The user does not set NOPASSWD in sudoers)
-            self._gdb.sendlineafter(CUSTOM_SUDO_PROMPT, getpass.getpass(CUSTOM_SUDO_PROMPT))
-            init_msg = self._gdb.recvuntil(self._gdb_prompt, lookahead=True)
+        init_msg = b''
+        for _ in range(3):
+            init_msg = self._gdb.recvuntil([CUSTOM_SUDO_PROMPT] + self._gdb_prompt, lookahead=True)
+            if CUSTOM_SUDO_PROMPT.encode() in init_msg:
+                # Password is required (The user does not set NOPASSWD in sudoers)
+                self._gdb.sendlineafter(CUSTOM_SUDO_PROMPT, getpass.getpass(CUSTOM_SUDO_PROMPT))
+            else:
+                break
 
         if GDB_PTRACE_ERROR in init_msg:
             raise PermissionError(f"Cannot attach pid={self._pid}")
@@ -99,6 +119,7 @@ class UnixProcessDebugger:
             self._attach_direct()
             return self
         except PermissionError:
+            # Fallback to sudo if failed to attach
             pass
 
         self._attach_with_sudo()
@@ -108,7 +129,7 @@ class UnixProcessDebugger:
     def detach(self):
         """Detach from a process.
         """
-        self._gdb.close()
+        self.gdb.close()
         del self._gdb
 
     @overload
@@ -147,34 +168,45 @@ class UnixProcessDebugger:
                 self.execute('continue')
             return result
 
-        self._gdb.after(self._gdb_prompt).sendline(command)
+        self.gdb.after(self._gdb_prompt).sendline(command)
         # TODO: self._gdb.before(self._gdb_prompt).lastline() to keep color sequence
-        result = self._gdb.recvuntil(self._gdb_prompt, drop=True, lookahead=True)
+        result = self.gdb.recvuntil(self._gdb_prompt, drop=True, lookahead=True)
         # Remove ANSI escape sequences aggressively
         result = CTRL_RE.sub(b'', ANSI_RE.sub(b'', result)).decode().strip()
         if resume:
-            self._gdb.after(self._gdb_prompt).sendline("continue")
-        return result            
+            self.gdb.after(self._gdb_prompt).sendline("continue")
+        return result
 
     @attached
     def interactive(self):
         """Interact with GDB terminal
         """
         def _continue_process():
-            try:
-                self._gdb.sendline(b"continue")
-                self._gdb.recvuntil(b"Continuing.\n", timeout=0.5)
-                self._gdb.unget(b'(gdb) ')
-            except (ConnectionResetError, ConnectionAbortedError,
-                    OSError, ValueError, TimeoutError):
-                # The user probably sent "quit" command
-                logger.warning("The gdb session is closed.")
-                self._gdb.close()
-                del self._gdb
+            self.gdb.unget(b'(gdb) ')
 
-        self._gdb.interactive(prompt='', onexit=_continue_process)
+        def _send_signal() -> bool:
+            os.kill(self.gdb.pid, signal.SIGINT)
+            return True
+
+        def _handle_special_command() -> str:
+            cmd = sys.stdin.readline()
+            if cmd == '':
+                # Ctrl+D
+                raise KeyboardInterrupt("Continuing.")
+
+            if cmd.strip() in ['q', 'quit', 'exit']:
+                raise KeyboardInterrupt("Continuing.")
+
+            return cmd
+
+        self.gdb.interactive(prompt='',
+                             readline=_handle_special_command,
+                             oninterrupt=_send_signal,
+                             onexit=_continue_process)
 
     def sh(self):
         """Interact with GDB terminal
         """
         self.interactive()
+
+__all__ = ['UnixProcessDebugger']
