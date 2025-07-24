@@ -94,6 +94,7 @@ def p64(data: Union[List[PtrlibIntLikeT], List[float], PtrlibIntLikeT, float],
     Returns:
         bytes: A qword of bytes.
     """
+    # TODO: Allow generator
     if isinstance(data, list):
         return flat(data, lambda v: p64(v, byteorder))
 
