@@ -6,6 +6,7 @@ import re
 from logging import getLogger
 from typing import Callable, Dict, Generator, NamedTuple, List, Optional, Union
 from ptrlib.binary.encoding import str2bytes
+from ptrlib.types import GeneratorOrInt
 from .debug import UnixProcessDebugger
 
 logger = getLogger(__name__)
@@ -26,6 +27,8 @@ _libc.process_vm_writev.argtypes = _libc.process_vm_readv.argtypes
 _libc.process_vm_writev.restype = ctypes.c_ssize_t
 
 def require_procfs(func):
+    """Decorator that captures FileNotFoundError and shows error message
+    """
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
         try:
@@ -37,11 +40,13 @@ def require_procfs(func):
 
 
 class UnixMemoryRegion(NamedTuple):
+    """A class that represents a range of memory
+    """
     start: int
     end: int
     perm: str
     offset: int
-    path: Optional[str]
+    path: str
 
     def __repr__(self):
         return f"UnixMemoryRegion('{str(self)}')"
@@ -71,7 +76,7 @@ class UnixProcessManager:
         """
         with open(f"/proc/{self._pid}/cmdline", "rb") as f:
             return f.read().rstrip(b'\x00').split(b'\x00')
-        
+
     @property
     @require_procfs
     def environ(self) -> List[bytes]:
@@ -96,7 +101,7 @@ class UnixProcessManager:
             except OSError:
                 fds[int(fd)] = None
         return fds
-    
+
     @property
     @require_procfs
     def threads(self) -> List[int]:
@@ -130,11 +135,13 @@ class UnixProcessManager:
             ppid = int(rest[4])
             if ppid == self.pid:
                 children.append(UnixProcessManager(int(pid)))
-            
+
         return children
 
     @property
     def vmmap(self) -> List[UnixMemoryRegion]:
+        """Get a list of memory map of this process.
+        """
         maps = []
         with open(f'/proc/{self._pid}/maps', 'r') as f:
             for line in f:
@@ -150,7 +157,7 @@ class UnixProcessManager:
                 maps.append(UnixMemoryRegion(start, end, perm, offset, path))
 
         return maps
-    
+
     def attach(self, pid: Optional[Union[int, Callable[['UnixProcessManager'], int]]]=None) -> UnixProcessDebugger:
         """Attach to a process with given pid.
 
@@ -207,7 +214,7 @@ class UnixProcessManager:
         # 3. TODO: ptrace
         raise e1 or e2
 
-    def write(self, addr: int, data: bytes) -> int:
+    def write(self, addr: int, data: Union[str, bytes]) -> int:
         """Attempt to write memory
 
         Args:
@@ -234,11 +241,11 @@ class UnixProcessManager:
         # 3. TODO: ptrace
         raise e1 or e2
 
-    def search(self,
-               data: Union[str, bytes],
-               start: Optional[int]=None,
-               end: Optional[int]=None,
-               length: Optional[int]=None) -> Generator[int, None, None]:
+    def _search_internal(self,
+                         data: Union[str, bytes],
+                         start: Optional[int]=None,
+                         end: Optional[int]=None,
+                         length: Optional[int]=None) -> Generator[int, None, None]:
         """Search for memory
 
         Args:
@@ -250,18 +257,17 @@ class UnixProcessManager:
         Returns:
             generator: A generator to yield matching addresses
         """
-        # TODO: Return GeneratorOrInt
         if isinstance(data, str):
             data = str2bytes(data)
 
         if length is not None:
-            if start is None or end is None:
-                raise ValueError("`len` is specified but neither `start` nor `end` is set")
-            elif start is None:
+            if start is None and end is not None:
                 start = end - length
-            else:
+            elif start is not None and end is None:
                 end = start + length
-        
+            else:
+                raise ValueError("`len` is specified but neither `start` nor `end` is set")
+
         if start is None:
             start = 0
         if end is None:
@@ -274,10 +280,10 @@ class UnixProcessManager:
         for mem in self.vmmap:
             if mem.end <= start or mem.start > end:
                 continue
-            elif mem.start >= 0x8000_0000_0000: # Skip non-canonical and kernel memory
+            if mem.start >= 0x8000_0000_0000: # Skip non-canonical and kernel memory
                 # TODO: Support 32-bit
                 continue
-            elif mem.path == '[vvar]': # NOTE: Heuristic skip
+            if mem.path == '[vvar]': # NOTE: Heuristic skip
                 continue
 
             if mem.start != prev_end:
@@ -303,6 +309,27 @@ class UnixProcessManager:
 
             if offset <= len(haystack) - len(data):
                 offset = len(haystack) - len(data) + 1
+
+    def search(self,
+               data: Union[str, bytes],
+               start: Optional[int]=None,
+               end: Optional[int]=None,
+               length: Optional[int]=None) -> GeneratorOrInt:
+        """Search for memory
+
+        Args:
+            data (bytes): Data to search
+            start (int): Lower bound for search
+            end (int): Upper bound for search
+            len (int): Length of region to search (Requires either `start` or `end`)
+
+        Returns:
+            generator: A generator to yield matching addresses
+        """
+        return GeneratorOrInt(
+            self._search_internal(data, start, end, length),
+            str2bytes(data)
+        )
 
     def proc_mem_read(self, addr: int, size: int):
         """Read memory with using /proc/pid/mem
@@ -359,7 +386,7 @@ class UnixProcessManager:
 
         return buf.raw
 
-    def process_vm_write(self, addr: int, data: bytes) -> int:
+    def process_vm_write(self, addr: int, data: Union[str, bytes]) -> int:
         """Write memory with using process_vm_writev
 
         Args:
@@ -369,6 +396,9 @@ class UnixProcessManager:
         Returns:
             int: Number of bytes written to the memory
         """
+        if isinstance(data, str):
+            data = str2bytes(data)
+
         buf = ctypes.create_string_buffer(data)
         local_iov  = (ctypes.c_void_p * 2)(ctypes.addressof(buf), len(data))
         remote_iov = (ctypes.c_void_p * 2)(addr, len(data))
