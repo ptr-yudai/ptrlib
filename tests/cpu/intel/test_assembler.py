@@ -1,20 +1,23 @@
+import os
 import unittest
-from ptrlib.cpu import CPU
 from logging import getLogger, FATAL
+from ptrlib.cpu import CPU
+
+_is_windows = os.name == 'nt'
 
 # TODO: Test AT&T syntax
 
-const_gcc = '.byte 0; .word 1; .long 2; .quad 3; .asciz "/bin/sh"; .ascii "/bin/sh"'
-const_gcc_bytes = \
+CONST_GCC = '.byte 0; .word 1; .long 2; .quad 3; .asciz "/bin/sh"; .ascii "/bin/sh"'
+CONST_GCC_BYTES = \
     b'\x00\x01\x00\x02\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00' \
     b'/bin/sh\0/bin/sh'
 
-const_nasm = 'db 0; dw 1; dd 2; dq 3; db "/bin/sh", 0; db "/bin/sh"'
-const_nasm_bytes = \
+CONST_NASM = 'db 0; dw 1; dd 2; dq 3; db "/bin/sh", 0; db "/bin/sh"'
+CONST_NASM_BYTES = \
     b'\x00\x01\x00\x02\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00' \
     b'/bin/sh\0/bin/sh'
 
-shellcode_32 = """
+SHELLCODE_32 = """
     push 0x30
     pop eax
     xor al, 0x30 // omit eax, ecx
@@ -27,9 +30,9 @@ shellcode_32 = """
     popad
     dec edx   /* edx = 0xffffffff */
 """
-shellcode_32_bytes = b'j0X40PPPPQPaJ'
+SHELLCODE_32_BYTES = b'j0X40PPPPQPaJ'
 
-shellcode_64 = """
+SHELLCODE_64 = """
     movabs rax, qword ptr gs:[0x188]    // Prcb.CurrentThread
     mov rax, qword ptr [rax + 0xb8]     // ApcState.Process
     mov rcx, rax
@@ -63,7 +66,7 @@ FindSystemProcess:
     swapgs
     sysretq
 """
-shellcode_64_bytes = \
+SHELLCODE_64_BYTES = \
     b"\x65\x48\xa1\x88\x01\x00\x00\x00\x00\x00\x00" \
     b"\x48\x8b\x80\xb8\x00\x00\x00" \
     b"\x48\x89\xc1" \
@@ -92,12 +95,17 @@ shellcode_64_bytes = \
     b"\x48\x0f\x07"
 
 class TestIntelAssembler(unittest.TestCase):
+    """Test Intel assembler
+    """
     def setUp(self):
         getLogger("ptrlib").setLevel(FATAL)
 
     def test_32bit_gcc(self):
         """Test assembler for Intel 32-bit GCC
         """
+        if _is_windows:
+            return # Skip windows
+
         cpu = CPU('intel', 32)
         cpu.assembler = 'gcc'
 
@@ -116,10 +124,10 @@ class TestIntelAssembler(unittest.TestCase):
         self.assertEqual(cpu.assemble('call far [esp]'), b'\xff\x94$\x06\xff\x00\x00')
 
         # Test long code
-        self.assertEqual(cpu.assemble(shellcode_32), shellcode_32_bytes)
+        self.assertEqual(cpu.assemble(SHELLCODE_32), SHELLCODE_32_BYTES)
 
         # Test constant
-        self.assertEqual(cpu.assemble(const_gcc), const_gcc_bytes)
+        self.assertEqual(cpu.assemble(CONST_GCC), CONST_GCC_BYTES)
 
         # Test exception
         with self.assertRaises(OSError):
@@ -130,6 +138,9 @@ class TestIntelAssembler(unittest.TestCase):
     def test_64bit_gcc(self):
         """Test assembler for Intel 64-bit GCC
         """
+        if _is_windows:
+            return # Skip windows
+
         cpu = CPU('intel', 64)
         cpu.assembler = 'gcc'
 
@@ -148,10 +159,10 @@ class TestIntelAssembler(unittest.TestCase):
         self.assertEqual(cpu.assemble('call far [rsp]'), b'\xff\x94$\x06\xff\x00\x00')
 
         # Test long code
-        self.assertEqual(cpu.assemble(shellcode_64), shellcode_64_bytes)
+        self.assertEqual(cpu.assemble(SHELLCODE_64), SHELLCODE_64_BYTES)
 
         # Test constant
-        self.assertEqual(cpu.assemble(const_gcc), const_gcc_bytes)
+        self.assertEqual(cpu.assemble(CONST_GCC), CONST_GCC_BYTES)
 
         # Test exception
         with self.assertRaises(OSError):
@@ -179,10 +190,10 @@ class TestIntelAssembler(unittest.TestCase):
         self.assertEqual(cpu.assemble('A: /* infinite call */ call A'), b'\xe8\xfb\xff\xff\xff')
 
         # Test long code
-        self.assertEqual(cpu.assemble(shellcode_32), shellcode_32_bytes)
+        self.assertEqual(cpu.assemble(SHELLCODE_32), SHELLCODE_32_BYTES)
 
         # Test constant
-        self.assertEqual(cpu.assemble(const_gcc), const_gcc_bytes)
+        self.assertEqual(cpu.assemble(CONST_GCC), CONST_GCC_BYTES)
 
         # Test exception
         with self.assertRaises(OSError):
@@ -211,7 +222,7 @@ class TestIntelAssembler(unittest.TestCase):
         self.assertEqual(cpu.assemble('A: /* infinite call */ call A'), b'\xe8\xfb\xff\xff\xff')
 
         # Test constant
-        self.assertEqual(cpu.assemble(const_gcc), const_gcc_bytes)
+        self.assertEqual(cpu.assemble(CONST_GCC), CONST_GCC_BYTES)
 
         # Test exception
         with self.assertRaises(OSError):
@@ -222,6 +233,9 @@ class TestIntelAssembler(unittest.TestCase):
     def test_32bit_nasm(self):
         """Test assembler for Intel 32-bit nasm
         """
+        if _is_windows:
+            return # Skip windows
+
         cpu = CPU('intel', 32)
         cpu.assembler = 'nasm'
 
@@ -238,10 +252,10 @@ class TestIntelAssembler(unittest.TestCase):
         self.assertEqual(cpu.assemble('A: /* infinite call */ call A'), b'\xe8\xfb\xff\xff\xff')
 
         # Test long code
-        self.assertEqual(cpu.assemble(shellcode_32), shellcode_32_bytes)
+        self.assertEqual(cpu.assemble(SHELLCODE_32), SHELLCODE_32_BYTES)
 
         # Test constant
-        self.assertEqual(cpu.assemble(const_nasm), const_nasm_bytes)
+        self.assertEqual(cpu.assemble(CONST_NASM), CONST_NASM_BYTES)
 
         # Test exception
         with self.assertRaises(OSError):
@@ -252,6 +266,9 @@ class TestIntelAssembler(unittest.TestCase):
     def test_64bit_nasm(self):
         """Test assembler for Intel 64-bit nasm
         """
+        if _is_windows:
+            return # Skip windows
+
         cpu = CPU('intel', 64)
         cpu.assembler = 'nasm'
 
@@ -269,7 +286,7 @@ class TestIntelAssembler(unittest.TestCase):
         self.assertEqual(cpu.assemble('A: /* infinite call */ call A'), b'\xe8\xfb\xff\xff\xff')
 
         # Test constant
-        self.assertEqual(cpu.assemble(const_nasm), const_nasm_bytes)
+        self.assertEqual(cpu.assemble(CONST_NASM), CONST_NASM_BYTES)
 
         # Test exception
         with self.assertRaises(OSError):

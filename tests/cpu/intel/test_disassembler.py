@@ -1,10 +1,13 @@
+import os
 import unittest
 import random
+from logging import getLogger, FATAL
 from ptrlib.cpu import CPU
 from ptrlib.cpu.intel.disassembler import IntelDisassembly
-from logging import getLogger, FATAL
 
-shellcode_32 = (
+_is_windows = os.name == 'nt'
+
+SHELLCODE_32 = (
     (0, b'j0', [], 'push', ['0x30']),
     (2, b'X', [], 'pop', ['eax']),
     (3, b'40', [], 'xor', ['al', '0x30']),
@@ -17,7 +20,7 @@ shellcode_32 = (
     (11, b'a', [], 'popa', []),
     (12, b'J', [], 'dec', ['edx']),
 )
-shellcode_32_capstone = (
+SHELLCODE_32_CAPSTONE = (
     (0, b'j0', [], 'push', ['0x30']),
     (2, b'X', [], 'pop', ['eax']),
     (3, b'40', [], 'xor', ['al', '0x30']),
@@ -30,9 +33,9 @@ shellcode_32_capstone = (
     (11, b'a', [], 'popal', []),
     (12, b'J', [], 'dec', ['edx']),
 )
-shellcode_32_bytes = b'j0X40PPPPQPaJ'
+SHELLCODE_32_BYTES = b'j0X40PPPPQPaJ'
 
-shellcode_64 = (
+SHELLCODE_64 = (
     (0, b"\x65\x48\xa1\x88\x01\x00\x00\x00\x00\x00\x00", [], 'movabs', ['rax', 'gs:0x188']),
     (11, b"\x48\x8b\x80\xb8\x00\x00\x00", [], 'mov', ['rax', 'QWORD PTR [rax+0xb8]']),
     (18, b"\x48\x89\xc1", [], 'mov', ['rcx', 'rax']),
@@ -60,7 +63,7 @@ shellcode_64 = (
     (143, b"\x0f\x01\xf8", [], 'swapgs', []),
     (146, b"\x48\x0f\x07", [], 'sysretq', [])
 )
-shellcode_64_capstone = (
+SHELLCODE_64_CAPSTONE = (
     (0, b"\x65\x48\xa1\x88\x01\x00\x00\x00\x00\x00\x00", [], 'movabs', ['rax', 'qword ptr gs:[0x188]']),
     (11, b"\x48\x8b\x80\xb8\x00\x00\x00", [], 'mov', ['rax', 'qword ptr [rax + 0xb8]']),
     (18, b"\x48\x89\xc1", [], 'mov', ['rcx', 'rax']),
@@ -88,7 +91,7 @@ shellcode_64_capstone = (
     (143, b"\x0f\x01\xf8", [], 'swapgs', []),
     (146, b"\x48\x0f\x07", [], 'sysretq', [])
 )
-shellcode_64_bytes = \
+SHELLCODE_64_BYTES = \
     b"\x65\x48\xa1\x88\x01\x00\x00\x00\x00\x00\x00" \
     b"\x48\x8b\x80\xb8\x00\x00\x00" \
     b"\x48\x89\xc1" \
@@ -117,16 +120,23 @@ shellcode_64_bytes = \
     b"\x48\x0f\x07"
 
 class TestIntelDisassembler(unittest.TestCase):
+    """Tests for Intel disassembler
+    """
     def setUp(self):
         getLogger("ptrlib").setLevel(FATAL)
 
     @staticmethod
     def insn_to_tuple(insn: IntelDisassembly):
+        """Convert IntelDisassembly to tuple
+        """
         return (insn.address, insn.bytes, insn.prefix, insn.mnemonic, insn.operands)
 
     def test_32bit_objdump(self):
         """Test assembler for Intel 32-bit objdump
         """
+        if _is_windows:
+            return # Skip windows
+
         cpu = CPU('intel', 32)
         cpu.disassembler = 'objdump'
 
@@ -146,7 +156,7 @@ class TestIntelDisassembler(unittest.TestCase):
                          (0, b'\xf3\x0f\x1e\xfa', [], 'endbr64', []))
         self.assertEqual(self.insn_to_tuple(cpu.disassemble(b'\x0f\xae\xf0')[0]),
                          (0, b'\x0f\xae\xf0', [], 'mfence', []))
-        
+
         # Test prefix
         self.assertEqual(self.insn_to_tuple(cpu.disassemble(b'\xf0\x55')[0]),
                          (0, b'\xf0\x55', ['lock'], 'push', ['ebp']))
@@ -156,9 +166,9 @@ class TestIntelDisassembler(unittest.TestCase):
 
         # Test long code and base address
         base = random.randint(0, 0xffff0000)
-        dis = cpu.disassemble(shellcode_32_bytes, base)
-        self.assertEqual(len(dis), len(shellcode_32))
-        for i, insn in enumerate(shellcode_32):
+        dis = cpu.disassemble(SHELLCODE_32_BYTES, base)
+        self.assertEqual(len(dis), len(SHELLCODE_32))
+        for i, insn in enumerate(SHELLCODE_32):
             insn = (base + insn[0], insn[1], insn[2], insn[3], insn[4])
             self.assertEqual(self.insn_to_tuple(dis[i]), insn)
 
@@ -169,6 +179,9 @@ class TestIntelDisassembler(unittest.TestCase):
     def test_64bit_objdump(self):
         """Test assembler for Intel 64-bit objdump
         """
+        if _is_windows:
+            return # Skip windows
+
         cpu = CPU('intel', 64)
         cpu.disassembler = 'objdump'
 
@@ -189,7 +202,7 @@ class TestIntelDisassembler(unittest.TestCase):
                          (base, b'\xf3\x0f\x1e\xfa', [], 'endbr64', []))
         self.assertEqual(self.insn_to_tuple(cpu.disassemble(b'\x0f\xae\xf0', base)[0]),
                          (base, b'\x0f\xae\xf0', [], 'mfence', []))
-        
+
         # Test prefix
         self.assertEqual(self.insn_to_tuple(cpu.disassemble(b'\xf0\x55')[0]),
                          (0, b'\xf0\x55', ['lock'], 'push', ['rbp']))
@@ -198,9 +211,9 @@ class TestIntelDisassembler(unittest.TestCase):
                          (0, code, ['cs', 'ds', 'es', 'ss', 'fs', 'gs'], 'nop', []))
 
         # Test long code and base address
-        dis = cpu.disassemble(shellcode_64_bytes)
-        self.assertEqual(len(dis), len(shellcode_64))
-        for i, insn in enumerate(shellcode_64):
+        dis = cpu.disassemble(SHELLCODE_64_BYTES)
+        self.assertEqual(len(dis), len(SHELLCODE_64))
+        for i, insn in enumerate(SHELLCODE_64):
             self.assertEqual(self.insn_to_tuple(dis[i]), insn)
 
         # Test invalid machine code
@@ -229,7 +242,7 @@ class TestIntelDisassembler(unittest.TestCase):
                          (0, b'\xf3\x0f\x1e\xfa', [], 'endbr64', []))
         self.assertEqual(self.insn_to_tuple(cpu.disassemble(b'\x0f\xae\xf0')[0]),
                          (0, b'\x0f\xae\xf0', [], 'mfence', []))
-        
+
         # Test prefix (Capstone does not support prefixes...)
         code = b'\x2e\x3e\x26\x36\x64\x65\x90'
         self.assertEqual(self.insn_to_tuple(cpu.disassemble(code)[0]),
@@ -237,9 +250,9 @@ class TestIntelDisassembler(unittest.TestCase):
 
         # Test long code and base address
         base = random.randint(0, 0xffff0000)
-        dis = cpu.disassemble(shellcode_32_bytes, base)
-        self.assertEqual(len(dis), len(shellcode_32_capstone))
-        for i, insn in enumerate(shellcode_32_capstone):
+        dis = cpu.disassemble(SHELLCODE_32_BYTES, base)
+        self.assertEqual(len(dis), len(SHELLCODE_32_CAPSTONE))
+        for i, insn in enumerate(SHELLCODE_32_CAPSTONE):
             insn = (base + insn[0], insn[1], insn[2], insn[3], insn[4])
             self.assertEqual(self.insn_to_tuple(dis[i]), insn)
 
@@ -266,14 +279,14 @@ class TestIntelDisassembler(unittest.TestCase):
                          (base, b'\xf3\x0f\x1e\xfa', [], 'endbr64', []))
         self.assertEqual(self.insn_to_tuple(cpu.disassemble(b'\x0f\xae\xf0', base)[0]),
                          (base, b'\x0f\xae\xf0', [], 'mfence', []))
-        
+
         # Test prefix (Capstone does not support prefixes...)
         code = b'\x2e\x3e\x26\x36\x64\x65\x90'
         self.assertEqual(self.insn_to_tuple(cpu.disassemble(code)[0]),
                          (0, code, [], 'nop', []))
 
         # Test long code and base address
-        dis = cpu.disassemble(shellcode_64_bytes)
-        self.assertEqual(len(dis), len(shellcode_64_capstone))
-        for i, insn in enumerate(shellcode_64_capstone):
+        dis = cpu.disassemble(SHELLCODE_64_BYTES)
+        self.assertEqual(len(dis), len(SHELLCODE_64_CAPSTONE))
+        for i, insn in enumerate(SHELLCODE_64_CAPSTONE):
             self.assertEqual(self.insn_to_tuple(dis[i]), insn)
