@@ -768,16 +768,14 @@ class Tube(metaclass=abc.ABCMeta):
         else:
             raise ValueError(f"Invalid control key name: {name}")
 
-    def sh(self,
-           prompt: str="[ptrlib]$ ",
-           raw: bool=False):
+    def sh(self, *args, **kwargs):
         """Alias for interactive
 
         Args:
             prompt: Prompt string to show on input
             raw   : Escape non-printable characters or not
         """
-        self.interactive(prompt, raw)
+        self.interactive(*args, **kwargs)
 
     def interactive(self,
                     prompt: str="[ptrlib]$ ",

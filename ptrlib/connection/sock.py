@@ -218,6 +218,10 @@ class Socket(Tube):
         except (ConnectionResetError, socket.timeout):
             ret = False
 
+        except ValueError:
+            # SSLSocket (non-zero flags not allowed in calls to recv)
+            ret = True
+
         finally:
             self._sock.setblocking(True)
             self._settimeout_impl(timeout)
