@@ -8,60 +8,58 @@ from .proc import Process
 
 
 def SSH(host: str,
-        port: int,
         username: str,
-        password: Optional[str]=None,
-        identity: Optional[str]=None,
-        ssh_path: Optional[str]=None,
-        expect_path: Optional[str]=None,
-        option: str='',
+        *,
+        port: int = 22,
+        password: str | None=None,
+        identity: str | None=None,
+        ssh_path: str | None=None,
+        options: list[str] | None = None,
         command: str=''):
     """Create an SSH shell
 
     Create a new process to connect to SSH server
 
     Args:
-        host (str)    : SSH hostname
-        port (int)    : SSH port
-        username (str): SSH username
-        password (str): SSH password
-        identity (str): Path of identity file
-        option (str)  : Parameters to pass to SSH
-        command (str) : Initial command to execute on remote
+        host       : SSH hostname
+        port       : SSH port
+        username   : SSH username
+        password   : SSH password
+        identity   : Path of identity file
+        options    : Parameters to pass to SSH
+        command    : Initial command to execute on remote
 
     Returns:
         Process: ``Process`` instance.
+
+    Raises:
+        FileNotFoundError: If SSH executable is not found.
     """
     assert isinstance(port, int)
-
+    if identity is None and password is None:
+        raise ValueError("You must provide either password or identity")
     if ssh_path is None:
         ssh_path = which('ssh')
-    if expect_path is None:
-        expect_path = which('expect')
-
     if ssh_path is None or not os.path.isfile(ssh_path):
         raise FileNotFoundError(f"{ssh_path}: SSH not found")
-    if expect_path is None or not os.path.isfile(expect_path):
-        raise FileNotFoundError(f"{expect_path}: 'expect' not found")
+    if options is None:
+        options = []
 
     if identity is not None:
-        option += f' -i {shlex.quote(identity)}'
+        options += ['-i', os.path.realpath(os.path.expanduser(identity))]
 
-    script = f'eval spawn {ssh_path} ' \
-        f'-oStrictHostKeyChecking=no -oCheckHostIP=no ' \
-        f'{shlex.quote(username)}@{shlex.quote(host)} '\
-        f'-p{port} {option} {command}; '\
-        f'interact; lassign [wait] pid spawnid err value; exit "$value"'
-
-    proc = Process(
-        [expect_path, '-c', script],
-    )
-    if identity is None:
-        if password is None:
-            raise ValueError("You must give either password or identity")
-        proc.sendlineafter("password: ", password)
-
-    return proc
+    sess = Process([
+        ssh_path,
+        '-oStrictHostKeyChecking=no', '-oCheckHostIP=no',
+        f'{shlex.quote(username)}@{shlex.quote(host)}',
+        '-p', str(port),
+        *options,
+        command
+    ])
+    sess.prompt = ""
+    if password is not None:
+        sess.sendlineafter("password: ", password)
+    return sess
 
 
 __all__ = ['SSH']

@@ -1,201 +1,148 @@
-"""This package provides Process module for UNIX systems
+"""Process communication abstraction using PTY or pipes.
+
+This module provides the `Process` class, which enables non-blocking communication
+with a spawned Unix process, preferring the use of a pseudo-terminal (PTY) when possible.
+It supports sending and receiving data, process lifecycle management, and flexible
+configuration of environment, working directory, and I/O behavior.
+
+Classes:
+    Process: Inherits from `Tube`. Manages a subprocess with PTY or pipe-based I/O,
+        supporting non-blocking reads/writes, timeouts, and process control.
 """
+import contextlib
+import errno
 import fcntl
 import os
-import pty
-import select
-import subprocess
+import signal
 import tty
+import select
+import shlex
+import termios
+import subprocess
 from logging import getLogger
-from typing import List, Mapping, Optional, Union, cast
+from .tube import Tube
 from ptrlib.debugger.unix import UnixProcessManager
-from ptrlib.arch.linux.sig import signal_name
-from ptrlib.binary.encoding import bytes2str
-from .tube import Tube, tube_is_open
+from ptrlib.binary.packing import p16
 
-logger = getLogger(__name__)
 
+TcAttrT = list[int | list[int | bytes]]
 
 class UnixProcess(Tube):
-    """Unix process.
+    """Communication with a Unix process (PTY preferred, non-blocking I/O).
+
+    Example:
+        ```
+        Process("/bin/cat").sh()
+        files = Process(["ls", "-lha"], cwd="/").recvall()
+        sol = Process(f"python solve.py", env={"CHALL": chall})
+            .recvregex(r"Solution: (.+)")[1]
+        ```
     """
     def __init__(self,
-                 args: Union[bytes, str, List[Union[bytes, str]]],
-                 env: Optional[Union[Mapping[bytes, Union[bytes, str]],
-                                     Mapping[str, Union[bytes, str]]]]=None,
-                 cwd: Optional[Union[bytes, str]]=None,
-                 shell: Optional[bool]=None,
-                 raw: bool=False,
-                 stdin : Optional[int]=None,
-                 stdout: Optional[int]=None,
-                 stderr: Optional[int]=None,
+                 args: str | list[str],
+                 env: dict[str, str] |None = None,
+                 cwd: str | None = None,
+                 shell: bool = False,
+                 merge_stderr: bool = True,
+                 use_tty: bool = False,
+                 is_raw: bool = True,
                  **kwargs):
-        """Create a UNIX process.
+        self._fd_r: int = -1
+        self._fd_w: int = -1
+        self._args: list[str]
+        self._pty_slave: int = -1
+        self._pty_master: int = -1
+        self._saved_termios: TcAttrT | None = None
+        self._timeout: float | None = None
+        self._proc: subprocess.Popen | None = None
 
-        Create a UNIX process and make a pipe.
-
-        Args:
-            args (str or List[str]): The program name and arguments to execute.
-            env (Dict[str,str], optional): Environment variables in dictionary.
-            cwd (str, optional): Current working directory.
-            shell (bool, optional): Treat `args` as a shell command string if true.
-            raw (bool, optional): Disable pty if true.
-            stdin (int, optional): File descriptor for standard input.
-            stdout (int, optional): File descriptor for standard output.
-            stderr (int, optional): File descriptor for standard error.
-            timeout (float, optional): Default timeout in second.
-
-        Examples:
-            ```
-            p = Process("/bin/ls", cwd="/tmp")
-            p = Process(["wget", "www.example.com"],
-                        stderr=subprocess.DEVNULL)
-            p = Process("cat /proc/self/maps", env={"LD_PRELOAD": "a.so"})
-            ```
-        """
-        # NOTE: We need to initialize _current_timeout before super constructor
-        #       because the super may call _settimeout_impl
-        self._current_timeout = 0
         super().__init__(**kwargs)
+        self._logger = getLogger(__name__)
 
-        # Guess shell mode based on args
-        if shell is None:
-            if isinstance(args, (str, bytes)):
-                progname = bytes2str(args)
-                args = [progname]
-                if ' ' in progname:
-                    shell = True
-                    logger.info("Detected whitespace in arguments: " \
-                                "`shell=True` enabled")
-                else:
-                    shell = False
-            else:
-                shell = False
+        self._workdir = os.path.realpath(cwd) if cwd else os.getcwd()
+        self._args = args if isinstance(args, list) else shlex.split(args)
+        self._env = os.environ.copy() if env is None else env
+        self._shell = shell
+        self._filepath = self._args[0]
 
-        else:
-            if isinstance(args, (str, bytes)):
-                args = [bytes2str(args)]
-            elif isinstance(args, list):
-                args = list(map(bytes2str, args))
+        self._spawn_process(merge_stderr, use_tty, is_raw)
+        self._set_nonblocking(self._fd_r)
+        self._set_nonblocking(self._fd_w)
 
-        # Prepare stdio
-        master = self._slave = None
-        if not raw:
-            master, self._slave = pty.openpty()
-            tty.setraw(master)
-            tty.setraw(self._slave)
-            stdout = self._slave
-
-        if stdin is None:
-            stdin = subprocess.PIPE
-        if stdout is None:
-            stdout = subprocess.PIPE
-        if stderr is None:
-            stderr = subprocess.STDOUT
-
-        # Open process
-        assert isinstance(shell, bool), "`shell` must be boolean"
-        try:
-            self._proc = subprocess.Popen(
-                args, cwd=cwd, env=env,
-                shell=shell,
-                stdin=stdin,
-                stdout=stdout,
-                stderr=stderr,
-                start_new_session=True
-            )
-        except FileNotFoundError as err:
-            logger.error("Could not execute %s", args[0])
-            raise err from None
-
-        self._filepath = args[0]
-        self._returncode = None
-
-        # Duplicate master
-        if master is not None:
-            self._proc.stdout = os.fdopen(os.dup(master), 'r+b', 0)
-            os.close(master)
-
-        # Set in non-blocking mode
-        if self._proc.stdout is not None:
-            fd = self._proc.stdout.fileno()
-            fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-            fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
-
-        # Debugger interface
         self._process = UnixProcessManager(self.pid)
 
-        logger.info("Successfully created a new process %s", str(self))
-        self._init_done = True
+        self._log_info(f"Successfully created a new process {str(self)}")
+
+    def __del__(self):
+        try:
+            self._close_impl()
+        finally:
+            super().__del__()
+
+    def __str__(self) -> str:
+        try:
+            return f"'{self._filepath}' (PID={self.pid})"
+        except ChildProcessError:
+            return f"'{self._filepath}' (terminated)"
+
+    # --- Properties -------------------------------------------------------
 
     @property
-    def returncode(self) -> Optional[int]:
-        """Get the exit code of this process.
-        None is returned if the process is still running.
+    def returncode(self) -> int:
+        """Get the return code of the spawned process.
+
+        Raises:
+            ChildProcessError: If the process is still running.
         """
-        return self._returncode
+        return self.wait()
 
     @property
     def pid(self) -> int:
-        """Get the process ID.
+        """Get the process ID (PID) of the spawned process.
+
+        Raises:
+            ChildProcessError: If the process has terminated.
         """
+        if self._proc is None:
+            raise ChildProcessError("Process has terminated")
         return self._proc.pid
 
     @property
-    @tube_is_open
     def process(self) -> UnixProcessManager:
         """Get a `UnixProcessManager` instance for this process.
         """
+        if self._proc is None:
+            raise ChildProcessError("Process has terminated")
         return self._process
 
-    #
-    # Implementation of Tube methods
-    #
-    def _settimeout_impl(self, timeout: Union[int, float]):
-        """Set timeout.
+    # --- Abstracts --------------------------------------------------------
 
-        Args:
-            timeout (float): Timeout seconds.
+    def _recv_impl(self, blocksize: int):
+        """Read up to ``blocksize`` bytes from the process.
+
+        Raises:
+            EOFError: The process has closed its output stream.
+            TimeoutError: The operation timed out.
+            OSError: System error.
         """
-        self._current_timeout = timeout
+        assert blocksize > 0, "BUG: blocksize must be positive"
 
-    def _recv_impl(self, size: int) -> bytes:
-        """Receive raw data.
+        if self._fd_r == -1:
+            raise EOFError("Connection has been closed")
 
-        Receive raw data of maximum `size` bytes through the pipe.
-
-        Args:
-            size (int): The maximum number of bytes to receive.
-
-        Returns:
-            bytes: The received data.
-        """
-        if self._proc.stdout is None:
-            return b''
-
-        if self._current_timeout == 0:
-            timeout = None
-        else:
-            timeout = self._current_timeout
-
-        if timeout is None:
-            while self.is_alive():
-                if self._is_output_alive(self._POLL_TIMEOUT):
-                    break
-
-        else:
-            if not self._is_output_alive(timeout):
-                raise TimeoutError("Timeout (_recv_impl)", b'') from None
-
-        try:
-            data = self._proc.stdout.read(size)
-        except subprocess.TimeoutExpired:
-            raise TimeoutError("Timeout (_recv_impl)", b'') from None
-
-        if data is None:
-            raise ConnectionAbortedError("Connection closed (_recv_impl)", b'') from None
-
-        return data
+        while True:
+            r, _, _ = select.select([self._fd_r], [], [], self._timeout)
+            if not r:
+                raise TimeoutError(f"Read operation timed out ({self._timeout}s)")
+            try:
+                data = os.read(self._fd_r, blocksize)
+                return data
+            except OSError as e:
+                if e.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
+                    continue
+                if e.errno in (errno.EIO, errno.EBADF):
+                    raise EOFError("Connection has been closed") from e
+                raise
 
     def _send_impl(self, data: bytes) -> int:
         """Send raw data.
@@ -207,116 +154,302 @@ class UnixProcess(Tube):
             int: The number of bytes sent. -1 if stdin is closed.
 
         Raises:
-            ConnectionAbortedError: Connection is aborted by process
-            ConnectionResetError: Connection is closed by peer
-            TimeoutError: Timeout exceeded
-            OSError: System error
+            BrokenPipeError: The process has closed its input stream.
+            TimeoutError: The operation timed out.
+            OSError: System error.
         """
-        if self._proc.stdin is None:
-            return -1
+        if self._fd_w == -1:
+            raise BrokenPipeError("Connection has been closed")
 
-        try:
-            n_written = self._proc.stdin.write(data)
-            self._proc.stdin.flush()
-            return n_written
+        total = 0
+        view = memoryview(data)
+        while total < len(view):
+            _, w, _ = select.select([], [self._fd_w], [], self._timeout)
+            if not w:
+                raise TimeoutError("Timeout (_send_impl)")
 
-        except IOError as err:
-            logger.error("Broken pipe: %s", str(self))
-            raise err from None
+            try:
+                n_written = os.write(self._fd_w, view[total:])
+                if n_written == 0:
+                    raise BrokenPipeError("Connection has been closed")
+                total += n_written
 
-    def _shutdown_recv_impl(self):
-        """Close stdin
-        """
-        if self._proc.stdout is not None:
-            self._proc.stdout.close()
+            except OSError as e:
+                if e.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
+                    continue
+                if e.errno in (errno.EPIPE, errno.EBADF):
+                    raise BrokenPipeError("Connection has been closed") from e
+                raise
 
-        if self._proc.stderr is not None:
-            self._proc.stderr.close()
-
-    def _shutdown_send_impl(self):
-        """Close stdout
-        """
-        if self._proc.stdin is not None:
-            self._proc.stdin.close()
+        return total
 
     def _close_impl(self):
-        """Close process
+        """Terminate the process and free all resources.
         """
-        if self._is_alive_impl():
-            self._proc.kill()
-            self._proc.wait()
-            logger.info("%s killed by `close`", str(self))
+        # Cleanup process
+        if self._proc is not None:
+            if self.poll() is None:
+                with contextlib.suppress(Exception):
+                    self._proc.terminate()
+                try:
+                    self.wait(timeout=0)
+                except subprocess.TimeoutExpired:
+                    with contextlib.suppress(Exception):
+                        self._proc.kill()
+                    with contextlib.suppress(Exception):
+                        self.wait(timeout=0)
 
-        if self._slave is not None: # PTY mode
-            os.close(self._slave)
-            self._slave = None
+        # Cleanup fds
+        if self._fd_r != -1:
+            with contextlib.suppress(OSError):
+                os.close(self._fd_r)
+            self._fd_r = -1
 
-        try:
-            if self._proc.stdin is not None:
-                self._proc.stdin.close()
-        except BrokenPipeError:
-            pass
+        if self._fd_w != -1:
+            with contextlib.suppress(OSError):
+                os.close(self._fd_w)
+            self._fd_w = -1
 
-        try:
-            if self._proc.stdout is not None:
+        if self._pty_slave != -1:
+            with contextlib.suppress(OSError):
+                os.close(self._pty_slave)
+            self._pty_slave = -1
+
+        self._pty_master = -1
+
+        # Close subprocess streams
+        if self._proc is not None:
+            for stream in (self._proc.stdin, self._proc.stdout, self._proc.stderr):
+                if stream is not None:
+                    with contextlib.suppress(OSError):
+                        stream.close()
+
+    def _close_recv_impl(self):
+        """Close the receive end of the connection (half-close).
+        """
+        if self._proc is not None:
+            if self._proc.stdout:
                 self._proc.stdout.close()
-        except BrokenPipeError:
-            pass
-
-        try:
-            if self._proc.stderr is not None:
+            if self._proc.stderr:
                 self._proc.stderr.close()
-        except BrokenPipeError:
-            pass
 
-    def _is_alive_impl(self) -> bool:
-        """Check if the process is alive"""
-        return self._is_output_alive() or self.poll() is None
-
-    def __str__(self) -> str:
-        return f"'{self._filepath}' (PID={self._proc.pid})"
-
-    #
-    # Custom method
-    #
-    def _is_output_alive(self, timeout: Union[int, float]=0) -> bool:
-        """Check if either stdout or stderr is alive
+    def _close_send_impl(self):
+        """Close the send end of the connection (half-close).
         """
-        watch = list(filter(lambda f: f is not None, [self._proc.stdout, self._proc.stderr]))
-        if len(watch) == 0:
-            return False
+        if self._proc is not None:
+            if self._proc.stdin:
+                self._proc.stdin.close()
 
-        ready, [], [] = select.select(watch, [], [], timeout)
-        return len(ready) != 0
+    def _settimeout_impl(self, timeout: float):
+        """Set socket timeout (Tube semantics).
 
-    def poll(self) -> Optional[int]:
-        """Check if the process has exited
+        Args:
+            timeout: Negative -> blocking; non-negative -> seconds.
+
+        Raises:
+            OSError: If the underlying socket rejects the timeout (rare).
+            ValueError: Invalid timeout value.
         """
-        if self._proc.poll() is None:
-            return None
+        if timeout < 0:
+            self._timeout = None
+        else:
+            self._timeout = timeout
 
-        if self._returncode is None:
-            # First time to detect process exit
-            self._returncode = returncode = cast(int, self._proc.returncode)
-            name = signal_name(-returncode, detail=True)
-            if name:
-                name = ' --> ' + name
-
-            logger_func = logger.info if self._returncode == 0 else logger.error
-            logger_func("%s stopped with exit code %d%s", str(self), self._returncode, name)
-
-        return self._returncode
-
-    @tube_is_open
-    def wait(self, timeout: Optional[Union[int, float]]=None) -> int:
-        """Wait until the process dies
-
-        Wait until the process exits and get the status code.
+    def _gettimeout_impl(self) -> float:
+        """Get current timeout (Tube semantics).
 
         Returns:
-            code (int): Status code of the process
+            float: -1 for blocking (no timeout), or the current timeout in seconds.
         """
-        return self._proc.wait(timeout)
+        if self._timeout is None:
+            return -1
+        return self._timeout
 
+    def _is_alive_impl(self) -> bool:
+        """Check if the process is alive.
 
-__all__ = ['UnixProcess']
+        Returns:
+            bool: True if the process is alive, False otherwise.
+        """
+        return self.poll() is None
+
+    # --- Process operations -----------------------------------------------
+
+    def poll(self) -> int | None:
+        """Return the process returncode if finished, else None.
+        """
+        return None if self._proc is None else self._proc.poll()
+
+    def wait(self, timeout: float | None = None) -> int:
+        """Wait for the process to terminate and return its exit code.
+        """
+        if self._proc is None:
+            return 0
+        code = self._proc.wait(timeout)
+        self._is_alive = False
+        self._log_info(f"Process {str(self)} stopped with exit code {code}")
+        return code
+
+    def kill(self,
+            sig: int = signal.SIGTERM,
+            *,
+            killall: bool = False,
+            wait: bool | float = False,
+            force_sig: int = signal.SIGKILL,
+            timeout: float = 1.0) -> None:
+        """Send a signal to the process (or its process group) and optionally wait.
+
+        Args:
+            sig: Signal to send initially (default: SIGTERM).
+            killall: If True, signal the **process group** (best-effort). Falls back to
+                    the single PID when a process group is not available.
+            wait: If True, wait for termination. If a float, wait up to that many seconds.
+            force_sig: Signal to send if the process did not exit within the wait timeout.
+            timeout: Max seconds to wait when ``wait is True`` (ignored if ``wait`` is a float).
+
+        Raises:
+            PermissionError: If signaling is not permitted by the OS.
+            RuntimeError: If called when no process has been spawned.
+            OSError: Other OS-level signaling errors.
+        """
+        if self._proc is None:
+            raise RuntimeError("No process to signal")
+
+        # Prefer signaling the process group when requested (PTY path creates a new session).
+        pid = self._proc.pid
+        try:
+            if killall:
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(pid, sig)
+            else:
+                os.kill(pid, sig)
+        except ProcessLookupError:
+            # Already gone
+            return
+
+        # Wait behavior
+        if wait is True:
+            wait_timeout = timeout
+        elif isinstance(wait, (int, float)):
+            wait_timeout = float(wait) 
+        else:
+            return
+
+        try:
+            self._proc.wait(timeout=wait_timeout)
+        except Exception:
+            # Escalate with force signal
+            try:
+                if killall:
+                    with contextlib.suppress(ProcessLookupError):
+                        os.killpg(pid, force_sig)
+                else:
+                    os.kill(pid, force_sig)
+            except ProcessLookupError:
+                pass
+            with contextlib.suppress(Exception):
+                self._proc.wait(timeout=wait_timeout)
+
+    def is_alive(self) -> bool:
+        """Return True if the process is still running, False otherwise."""
+        return (self._proc is not None) and (self._proc.poll() is None)
+
+    def resize_pty(self, cols: int, rows: int) -> None:
+        """Resize the process PTY window.
+
+        Args:
+            cols: Number of columns.
+            rows: Number of rows.
+
+        Raises:
+            RuntimeError: If no PTY backend is active.
+            OSError: If the ioctl fails on the underlying PTY.
+        """
+        if self._pty_master == -1:
+            raise RuntimeError("PTY backend is not active (use_tty=False?)")
+
+        # struct winsize { unsigned short ws_row, ws_col, ws_xpixel, ws_ypixel; }
+        winsz = p16([rows, cols, 0, 0])
+        fcntl.ioctl(self._pty_master, termios.TIOCSWINSZ, winsz)
+
+    def set_raw(self, enable: bool) -> None:
+        """Toggle RAW mode on the PTY.
+
+        When enabled, disables ICANON/ECHO and output post-processing (ONLCR),
+        making the PTY behave like a raw pipe (no CRLF translation).
+
+        Args:
+            enable: True to enable RAW mode; False to restore previous cooked settings.
+
+        Raises:
+            RuntimeError: If no PTY backend is active.
+            OSError: If termios operations fail on the PTY.
+        """
+        if self._pty_master == -1:
+            raise RuntimeError("PTY backend is not active (use_tty=False?)")
+
+        # Save/restore termios attributes on first toggle.
+        if enable:
+            if self._saved_termios is None:
+                self._saved_termios = termios.tcgetattr(self._pty_master)
+            tty.setraw(self._pty_master, when=termios.TCSANOW)
+        else:
+            if self._saved_termios is not None:
+                termios.tcsetattr(self._pty_master, termios.TCSANOW, self._saved_termios)
+
+    # --- Helpers ----------------------------------------------------------
+
+    def _spawn_process(self, merge_stderr: bool, use_tty: bool, is_raw: bool):
+        stdin = subprocess.PIPE
+        stdout = subprocess.PIPE
+        stderr = subprocess.STDOUT if merge_stderr else subprocess.DEVNULL
+
+        def setup_tty():
+            # Become session leader so we can set controlling terminal
+            os.setsid()
+            # Make slave the controlling TTY
+            fcntl.ioctl(self._pty_slave, termios.TIOCSCTTY, 0)
+            # Dup slave to stdio
+            os.dup2(self._pty_slave, 0)
+            os.dup2(self._pty_slave, 1)
+            os.dup2(self._pty_slave, 2)
+            # Close master in child if leaked
+            with contextlib.suppress(OSError):
+                os.close(self._pty_master)
+
+        if use_tty:
+            self._pty_master, self._pty_slave = os.openpty()
+            if is_raw:
+                tty.setraw(self._pty_slave, when=termios.TCSANOW)
+
+        # pylint: disable-next=subprocess-popen-preexec-fn
+        self._proc = subprocess.Popen(
+            " ".join(shlex.quote(arg) for arg in self._args) if self._shell else self._args,
+            shell=self._shell,
+            cwd=self._workdir,
+            env=self._env,
+            preexec_fn=setup_tty if use_tty else None,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            close_fds=True,
+            bufsize=0,
+        )
+
+        with contextlib.suppress(OSError):
+            os.close(self._pty_slave)
+
+        if use_tty:
+            self._fd_r = self._pty_master
+            self._fd_w = self._pty_master
+        else:
+            assert self._proc.stdout is not None
+            assert self._proc.stdin is not None
+            self._fd_r = self._proc.stdout.fileno()
+            self._fd_w = self._proc.stdin.fileno()
+
+    @staticmethod
+    def _set_nonblocking(fd: int):
+        flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+        if not flags & os.O_NONBLOCK:
+            fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
