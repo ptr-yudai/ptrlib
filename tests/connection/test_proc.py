@@ -90,14 +90,14 @@ class TestProcess(unittest.TestCase):
         p.sendline(f"Hello 0x{a:08x}, 0x{b:08x}")
         r = p.recvregex("0x([0-9a-f]+), 0x([0-9a-f]+)")
         p.recvline()
-        self.assertEqual(int(r[1], 16), a)
+        self.assertEqual(int(r.group(1), 16), a)
         self.assertEqual(int(r[2], 16), b)
 
         # sendlineafter
         a, b = os.urandom(16).hex(), os.urandom(16).hex()
         p.sendline(a)
         v = p.sendlineafter(a + "\n", b)
-        self.assertEqual(v, len(b) + 1)
+        self.assertEqual(v, len(b) + len(p.newline))
         self.assertEqual(p.recvline().strip(), b.encode())
 
         # shutdown
@@ -137,7 +137,7 @@ class TestProcess(unittest.TestCase):
         # recvonce
         p.sendline(data)
         with self.assertRaises(TubeTimeout) as cm:
-            p.recvall(len(data) + 1 + 1, timeout=0.5)
+            p.recvall(len(data) + len(p.newline) + 1, timeout=0.5)
         self.assertEqual(cm.exception.buffered.decode().strip(), data)
 
         # recvuntil

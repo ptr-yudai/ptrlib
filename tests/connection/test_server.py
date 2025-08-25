@@ -43,3 +43,31 @@ class TestServer(unittest.TestCase):
 
         th1.join()
         th2.join()
+
+    def test_tcp_server_timeout(self):
+        """Test TCP server timeout
+        """
+        lock = True
+        port = 8000 + random.randint(0, 2000)
+        server = Server("localhost", port)
+
+        data = os.urandom(16).hex()
+        def serve():
+            nonlocal lock
+            conn = server.accept()
+            while lock:
+                pass
+            conn.close_send()
+            with self.assertRaises(TubeTimeout) as e:
+                conn.recvline(timeout=0.5)
+            self.assertEqual(e.exception.buffered, data.encode())
+
+        th = threading.Thread(target=serve, daemon=True)
+        th.start()
+
+        cli = Socket("localhost", port)
+        lock = False
+        cli.close_recv()
+        cli.send(data)
+
+        th.join()

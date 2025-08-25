@@ -90,9 +90,6 @@ class UnixProcess(Tube):
     @property
     def returncode(self) -> int:
         """Get the return code of the spawned process.
-
-        Raises:
-            ChildProcessError: If the process is still running.
         """
         return self.wait()
 
@@ -286,8 +283,10 @@ class UnixProcess(Tube):
         if self._proc is None:
             return 0
         code = self._proc.wait(timeout)
-        self._is_alive = False
-        self._log_info(f"Process {str(self)} stopped with exit code {code}")
+
+        if self._is_alive:
+            self._is_alive = False
+            self._log_info(f"Process {str(self)} stopped with exit code {code}")
         return code
 
     def kill(self,

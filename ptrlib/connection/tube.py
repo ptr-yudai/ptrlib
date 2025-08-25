@@ -13,7 +13,6 @@ Key features:
 - Abstract methods for transport-specific implementations.
 """
 import abc
-import code
 import contextlib
 import io
 import os
@@ -105,8 +104,8 @@ class Tube(metaclass=abc.ABCMeta):
     # --- Properties -------------------------------------------------------
 
     @property
-    def newline(self) -> list[bytes]:
-        """List of byte sequences considered as newline terminators.
+    def newline(self) -> bytes:
+        """A byte sequence considered as newline terminators.
 
         Examples:
             ```
@@ -114,6 +113,20 @@ class Tube(metaclass=abc.ABCMeta):
             p.newline = [b"\\n", b"\\r\\n"]
             sock = Socket("localhost", 80)
             sock.newline = "\\r\\n"
+            ```
+        """
+        return self._newline[0]
+
+    @property
+    def newlines(self) -> list[bytes]:
+        """List of byte sequences considered as newline terminators.
+
+        Examples:
+            ```
+            p = Process(["wine", "a.exe"])
+            p.newline = [b"\\n", "\\r\\n"]
+            p.newline  # b"\n"
+            p.newlines # b"\r\n"
             ```
         """
         return self._newline
@@ -302,7 +315,7 @@ class Tube(metaclass=abc.ABCMeta):
             OSError: If a system error occurred.
         """
         return self.recvuntil(
-            delim=self._newline,
+            delim=self.newlines,
             blocksize=blocksize,
             regex=None,
             timeout=timeout,
@@ -583,7 +596,7 @@ class Tube(metaclass=abc.ABCMeta):
             data = str(data)
 
         data = str2bytes(data)
-        return self.sendall(data + self.newline[0])
+        return self.sendall(data + self.newline)
 
     def sendkey(self):
         pass
@@ -1098,7 +1111,7 @@ class TubeTimeout(TimeoutError):
     """
     def __init__(self, message: str, *, buffered: bytes = b''):
         super().__init__(message)
-        self.buffered = buffered
+        self.buffered = bytes(buffered)
 
     def __bytes__(self) -> bytes:
         return self.buffered
