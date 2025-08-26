@@ -48,7 +48,8 @@ class TCPConnection(Tube):
     def __str__(self) -> str:
         try:
             return f"TCPConnection({self.remote_address})"
-        except RuntimeError:
+        except (RuntimeError, OSError):
+            # OSError: Windows raises WinError 10038 on closed socket
             return "TCPConnection(<closed>)"
 
     # ---- Properties ------------------------------------------------------
