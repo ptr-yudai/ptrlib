@@ -10,7 +10,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='ptrlib',
-    version='2.5.0',
+    version='3.0.0',
     description='CTF library',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -19,14 +19,14 @@ setup(
     author_email='ptr.yudai+dev@gmail.com',
     classifiers=[
         'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
     ],
     keywords='pwn crypto algorithm',
     packages=find_packages(exclude=['examples', 'tests']),
-    python_requires='>=3.8',
+    python_requires='>=3.10',
     install_requires=['pycryptodome', "pywin32; platform_system=='Windows'"],
     entry_points={
         'console_scripts': [

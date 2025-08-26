@@ -1,14 +1,18 @@
 import os
 import unittest
-from ptrlib.cpu import CPU
 from logging import getLogger, FATAL
+from ptrlib.cpu import CPU
 
 
 class TestIntelInstructions(unittest.TestCase):
+    """Tests for Intel-specific instructions
+    """
     def setUp(self):
         getLogger("ptrlib").setLevel(FATAL)
 
     def test_aes(self):
+        """Test AES instruction
+        """
         cpu = CPU('intel', 64)
 
         dat = b'\x00\xff\xee\xdd\xcc\xbb\xaa\x99'\
