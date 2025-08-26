@@ -19,8 +19,6 @@ setup(
     author_email='ptr.yudai+dev@gmail.com',
     classifiers=[
         'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
@@ -28,7 +26,7 @@ setup(
     ],
     keywords='pwn crypto algorithm',
     packages=find_packages(exclude=['examples', 'tests']),
-    python_requires='>=3.8',
+    python_requires='>=3.10',
     install_requires=['pycryptodome', "pywin32; platform_system=='Windows'"],
     entry_points={
         'console_scripts': [
