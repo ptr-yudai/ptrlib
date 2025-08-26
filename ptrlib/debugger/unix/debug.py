@@ -86,7 +86,7 @@ class UnixProcessDebugger:
     def _attach_direct(self):
         self._gdb = unix_process()(["gdb", "-q", "-p", str(self._pid)])
         self._gdb.recvuntil(GDB_ATTACH_MSG)
-        init_msg = self._gdb.recvuntil(self._gdb_prompt, lookahead=True)
+        init_msg = self._gdb.recvuntil(self._gdb_prompt, consume=False)
         if GDB_PTRACE_ERROR in init_msg:
             raise PermissionError(f"Cannot attach pid={self._pid}")
 
@@ -98,7 +98,7 @@ class UnixProcessDebugger:
 
         init_msg = b''
         for _ in range(3):
-            init_msg = self._gdb.recvuntil([CUSTOM_SUDO_PROMPT] + self._gdb_prompt, lookahead=True)
+            init_msg = self._gdb.recvuntil([CUSTOM_SUDO_PROMPT] + self._gdb_prompt, consume=False)
             if CUSTOM_SUDO_PROMPT.encode() in init_msg:
                 # Password is required (The user does not set NOPASSWD in sudoers)
                 self._gdb.sendlineafter(CUSTOM_SUDO_PROMPT, getpass.getpass(CUSTOM_SUDO_PROMPT))
@@ -171,8 +171,7 @@ class UnixProcessDebugger:
             return result
 
         self.gdb.after(self._gdb_prompt).sendline(command)
-        # TODO: self._gdb.before(self._gdb_prompt).lastline() to keep color sequence
-        result = self.gdb.recvuntil(self._gdb_prompt, drop=True, lookahead=True)
+        result = self.gdb.recvuntil(self._gdb_prompt, drop=True, consume=False)
         # Remove ANSI escape sequences aggressively
         result = CTRL_RE.sub(b'', ANSI_RE.sub(b'', result)).decode().strip()
         if resume:
