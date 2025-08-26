@@ -514,7 +514,7 @@ class ELF:
         if use_symbol:
             try:
                 return next(self._offset_symbol(b'main_arena'))
-            except KeyError:
+            except (KeyError, StopIteration):
                 pass
 
         # NOTE: This is a heuristic function

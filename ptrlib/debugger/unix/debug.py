@@ -14,7 +14,8 @@ if TYPE_CHECKING:
 logger = getLogger(__name__)
 
 CUSTOM_SUDO_PROMPT = "[sudo] password: "
-GDB_PTRACE_ERROR = b"ptrace: Operation not permitted.\n"
+GDB_ATTACH_MSG = b"Attaching to process "
+GDB_PTRACE_ERROR = b"ptrace: "
 ANSI_RE = re.compile(rb'\x1B\[[0-?]*[ -/]*[@-~]')
 CTRL_RE = re.compile(rb'[\x00-\x08\x0B-\x1F]')
 
@@ -84,6 +85,7 @@ class UnixProcessDebugger:
 
     def _attach_direct(self):
         self._gdb = unix_process()(["gdb", "-q", "-p", str(self._pid)])
+        self._gdb.recvuntil(GDB_ATTACH_MSG)
         init_msg = self._gdb.recvuntil(self._gdb_prompt, lookahead=True)
         if GDB_PTRACE_ERROR in init_msg:
             raise PermissionError(f"Cannot attach pid={self._pid}")

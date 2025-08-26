@@ -1,126 +1,158 @@
-"""This package provides Tube class.
+"""Abstract base class for bidirectional, buffered byte-stream communication.
+
+The Tube class provides a unified interface for interacting with various types of I/O streams
+(e.g., sockets, subprocesses, pipes) in a thread-safe and buffered manner. It supports high-level
+methods for sending and receiving data, line-based and regex-based reading, interactive sessions,
+and timeout management. Subclasses must implement low-level transport-specific hooks.
+
+Key features:
+- Buffered, thread-safe I/O with support for custom delimiters and regex patterns.
+- Flexible send/receive methods, including sendline, recvall, recvline, and recvuntil.
+- Interactive mode for user-driven sessions (with TTY/raw support).
+- Configurable debugging and logging.
+- Abstract methods for transport-specific implementations.
 """
 import abc
+import code
+import contextlib
+import io
 import os
 import re
 import select
 import sys
 import threading
+import time
+import typing
 from logging import getLogger
-from typing import Callable, List, Literal, Match, Optional, Union, Pattern, TypeVar
-from ptrlib.binary.encoding import \
-    bytes2str, str2bytes, bytes2hex, bytes2utf8, \
-    hexdump, AnsiParser, AnsiInstruction
-from ptrlib.console.color import Color
-from ptrlib.types import PtrlibIntLikeT
-
-_is_windows = os.name == 'nt'
+from ptrlib.console import Color
+from ptrlib.binary.encoding import str2bytes
 
 logger = getLogger(__name__)
 
 
-def tube_is_open(method):
-    """Ensure that connection is not *explicitly* closed
-    """
-    def decorator(self, *args, **kwargs):
-        assert isinstance(self, Tube), "Invalid usage of decorator"
-        if self.is_closed:
-            raise BrokenPipeError("Connection has already been closed by `close`")
-        return method(self, *args, **kwargs)
-    return decorator
+DebugModeT = typing.Literal['none', 'plain', 'hex']
+DelimiterT = str | bytes | list[str] | list[bytes] | list[str | bytes]
+RegexDelimiterT = str | bytes | re.Pattern | list[str | bytes | re.Pattern]
+AtomicSendT = int | float | str | bytes
 
-def tube_is_send_open(method):
-    """Ensure that sender connection is not explicitly closed
-    """
-    def decorator(self, *args, **kwargs):
-        assert isinstance(self, Tube), "Invalid usage of decorator"
-        if self.is_send_closed:
-            raise BrokenPipeError("Connection has already been closed by `shutdown`")
-        return method(self, *args, **kwargs)
-    return decorator
+def _is_tty_stdin() -> bool:
+    with contextlib.suppress(Exception):
+        return sys.stdin.isatty()
+    return False
 
-def tube_is_recv_open(method):
-    """Ensure that receiver connection is not explicitly closed
-    """
-    def decorator(self, *args, **kwargs):
-        assert isinstance(self, Tube), "Invalid usage of decorator"
-        if self.is_recv_closed:
-            raise BrokenPipeError("Connection has already been closed by `shutdown`")
-        return method(self, *args, **kwargs)
-    return decorator
-
-
-
-TubeType = TypeVar('TubeType', bound='Tube')
-AtomicSendT = Union[PtrlibIntLikeT, float, str, bytes]
-AtomicRecvT = Union[str, bytes]
+def _is_posix() -> bool:
+    return os.name == "posix"
 
 class Tube(metaclass=abc.ABCMeta):
-    """Abstract class for streaming data
+    """Abstract base for bidirectional, buffered byte-stream communication.
 
-    A child class must implement the following methods:
+    Subclasses must implement the low-level hooks:
+    - `_recv_impl`
+    - `_send_impl`
+    - `_close_impl`
+    - `_close_recv_impl`
+    - `_close_send_impl`
+    - `_settimeout_impl`
+    - `_gettimeout_impl`
 
-      - "_settimeout_impl"
-      - "_recv_impl"
-      - "_send_impl"
-      - "_close_impl"
-      - "_is_alive_impl
-      - "_shutdown_recv_impl"
-      - "_shutdown_send_impl"
+    High-level methods (recv*, send*) operate against an internal buffer and respect
+    the instance-wide timeout via the `timeout(...)` context manager.
     """
-    _POLL_TIMEOUT = 0.1
-
-    def __new__(cls, *args, **kwargs):
-        cls._settimeout_impl = tube_is_open(cls._settimeout_impl)
-        cls._recv_impl = tube_is_recv_open(tube_is_open(cls._recv_impl))
-        cls._send_impl = tube_is_send_open(tube_is_open(cls._send_impl))
-        cls._close_impl = tube_is_open(cls._close_impl)
-        cls._is_alive_impl = tube_is_open(cls._is_alive_impl)
-        cls._shutdown_recv_impl = tube_is_recv_open(cls._shutdown_recv_impl)
-        cls._shutdown_send_impl = tube_is_send_open(cls._shutdown_send_impl)
-        return super().__new__(cls)
-
-    #
-    # Constructor
-    #
     def __init__(self,
-                 timeout: Union[int, float]=0):
-        """Base constructor
-
-        Args:
-            timeout (float): Default timeout in second.
-        """
+                 logfile: str | os.PathLike | typing.BinaryIO | None = None,
+                 debug: bool | DebugModeT = False,
+                 quiet: bool = False):
+        self._debug: DebugModeT
         self._buffer = b''
-        self._debug = False
-        self._hexdump = True
+        self._mutex = threading.Lock()
+        self._logfile: typing.BinaryIO | None = None
+        self._prompt: str = '[ptrlib]$ '
+        self._is_alive: bool = True
+        self._quiet: bool = quiet
+        self._logger = getLogger(__name__) # Fallback logger
 
-        self._is_closed = False
-        self._is_send_closed = False
-        self._is_recv_closed = False
+        # Configuration options
+        self._newline: list[bytes] = [b'\n']
+        self.debug = debug # Let setter validate and normalize it
 
-        self._newline = b'\n'
-        self._default_timeout = timeout
-        self.settimeout()
+        # Logging target
+        if isinstance(logfile, str):
+            self._logfile = open(os.path.expanduser(logfile), "wb")
+        elif isinstance(logfile, os.PathLike):
+            self._logfile = open(os.fspath(logfile), "wb")
+        elif isinstance(logfile, io.BufferedWriter):
+            self._logfile = logfile
+        elif logfile is not None:
+            raise TypeError(f"expected str, PathLike, or BinaryIO, not {type(logfile)}")
 
-    #
-    # Properties
-    #
+    def __del__(self):
+        if self._logfile is not None:
+            self._logfile.close()
+        self.close()
+
+    def _log_info(self, message: str, *args, stacklevel: int = 2):
+        if not self._quiet:
+            self._logger.info(message, stacklevel=stacklevel, *args)
+
+    def _log_warning(self, message: str, *args, stacklevel: int = 2):
+        if not self._quiet:
+            self._logger.warning(message, stacklevel=stacklevel, *args)
+
+    def _log_error(self, message: str, *args, stacklevel: int = 2):
+        if not self._quiet:
+            self._logger.error(message, stacklevel=stacklevel, *args)
+
+    # --- Properties -------------------------------------------------------
+
     @property
-    def debug(self):
-        """Debug mode.
-
-        Every packet is printed on calling recv and send methods if the debug mode is enabled.
-
-        Values:
-            - `False`: Disable debug mode.
-            - `True`: Enable debug mode.
-            - `"plain"`: Enable debug mode and change print format to plaintext mode.
-            - `"hex"`: Enable debug mode and change print format to hexdump mode.
+    def newline(self) -> list[bytes]:
+        """List of byte sequences considered as newline terminators.
 
         Examples:
             ```
-            sock = Socket("...")
-            sock.debug = True
+            p = Process(["wine", "a.exe"])
+            p.newline = [b"\\n", b"\\r\\n"]
+            sock = Socket("localhost", 80)
+            sock.newline = "\\r\\n"
+            ```
+        """
+        return self._newline
+
+    @newline.setter
+    def newline(self, value: DelimiterT):
+        """Set newline delimiter(s).
+
+        Args:
+            value: A single delimiter (str/bytes) or a list of delimiters.
+                   Strings are encoded by `str2bytes`.
+
+        Raises:
+            ValueError: If the newline list is empty.
+        """
+        if isinstance(value, list):
+            if len(value) == 0:
+                raise ValueError("The newline list must not be empty")
+            self._newline = [str2bytes(v) for v in value]
+        else:
+            self._newline = [str2bytes(value)]
+
+    @property
+    def debug(self) -> str:
+        """Debug mode for I/O tracing.
+
+        When enabled, incoming and outgoing data is printed.
+
+        Values:
+        - 'none'  : Disable debugging.
+        - 'plain' : Print incoming bytes as UTF-8.
+        - 'hex'   : Print incoming bytes as a hexdump-like view.
+        - True  -> 'hex'
+        - False -> 'none'
+
+        Examples:
+            ```
+            sock = Socket("...", debug=True)
+            sock.debug = False
             sock.debug = 'plain'
             sock.debug = 'hex'
             ```
@@ -128,824 +160,797 @@ class Tube(metaclass=abc.ABCMeta):
         return self._debug
 
     @debug.setter
-    def debug(self, is_debug: Union[bool, Literal['plain', 'hex']]):
-        if isinstance(is_debug, bool):
-            self._debug = is_debug
-        elif is_debug == 'plain':
-            self._debug = True
-            self._hexdump = False
-        elif is_debug == 'hex':
-            self._debug = True
-            self._hexdump = True
+    def debug(self, value: bool | DebugModeT):
+        if isinstance(value, bool):
+            self._debug = 'hex' if value else 'none'
+        elif isinstance(value, str):
+            if value in ('none', 'plain', 'hex'):
+                self._debug = value
+            else:
+                raise ValueError(f"expected 'none', 'plain', or 'hex', not {repr(value)}")
         else:
-            raise ValueError('`debug` can be either bool, "plain", or "hex"')
+            raise TypeError(f"expected bool or str, not {type(value)}")
 
     @property
-    def is_closed(self):
-        """Get if this tube is explicitly closed.
+    def prompt(self) -> str:
+        """Prompt string displayed in the interactive mode.
         """
-        return self._is_closed
+        return self._prompt
 
-    @property
-    def is_send_closed(self):
-        """Get if the tube for sending data is explicitly closed.
-        """
-        return self._is_send_closed
+    @prompt.setter
+    def prompt(self, value: str):
+        self._prompt = value
 
-    @property
-    def is_recv_closed(self):
-        """Get if the tube for receiving data is explicitly closed.
-        """
-        return self._is_recv_closed
-
-    @property
-    def newline(self) -> bytes:
-        """Get the current definition of a newline.
-        """
-        return self._newline
-
-    @newline.setter
-    def newline(self, line: bytes):
-        assert isinstance(line, (bytes, bytearray)), f"Newline must be bytes, not {type(line)}"
-        self._newline = line
-
-    #
-    # Methods
-    #
-    def settimeout(self, timeout: Optional[Union[float, PtrlibIntLikeT]]=None):
-        """Set timeout
-        
-        Args:
-            timeout (float): Timeout in second
-
-        Note:
-            Set timeout to None in order to set the default timeout)
-
-        Examples:
-            ```
-            p = Socket("0.0.0.0", 1337, timeout=3)
-            # ...
-            p.settimeout(5) # Timeout is set to 5
-            # ...
-            p.settimeout()  # Timeout is set to 3
-            ```
-        """
-        if timeout is None:
-            self._settimeout_impl(self._default_timeout)
-        elif not isinstance(timeout, float):
-            self._settimeout_impl(int(timeout))
-        else:
-            self._settimeout_impl(timeout)
+    # --- Receive methods --------------------------------------------------
 
     def recv(self,
-             size: PtrlibIntLikeT=4096,
-             timeout: Optional[Union[PtrlibIntLikeT, float]]=None) -> bytes:
-        """Receive data with buffering
-
-        Receive raw data of at most `size` bytes.
+             blocksize: int = 4096,
+             timeout: int | float = -1) -> bytes:
+        """Receive up to ``blocksize`` bytes.
 
         Args:
-            size   : Size to receive (Use `recvonce` to read exactly `size` bytes)
-            timeout: Timeout in second
+            blocksize: Maximum size for each low-level read.
+            timeout: Timeout for each low-level read operation.
+
+        Behavior:
+            - If the internal buffer holds data, return up to ``blocksize`` bytes from it.
+            - If the buffer is empty, perform a single low-level read
+              via ``_recv_impl(blocksize)`` under the timeout context.
 
         Returns:
-            bytes: Received data
+            bytes: Data received from the stream.
 
         Raises:
-            ConnectionAbortedError: Connection is aborted by process
-            ConnectionResetError: Connection is closed by peer
-            TimeoutError: Timeout exceeded
-            OSError: System error
-
-        Examples:
-            ```
-            tube.recv(4)
-            try:
-                tube.recv(timeout=3.14)
-            except TimeoutError:
-                pass
-            ```
+            EOFError: If the connection is closed before any data is received.
+            ValueError: If ``blocksize`` is negative.
+            TubeTimeout: If the operation timed out.
+            OSError: If a system error occurred.
         """
-        if size is not None:
-            size = int(size)
-            assert size >= 0, "`size` must be a positive integer"
+        if blocksize < 0:
+            raise ValueError(f"blocksize must be >= 0, not {blocksize}")
+        if blocksize == 0:
+            return b''
 
-        # NOTE: We always return buffer if it's not empty
-        # This is because we do not know how many bytes we can read.
-        if len(self._buffer):
-            data, self._buffer = self._buffer[:size], self._buffer[size:]
-            return data
+        if self._is_alive and not self._is_alive_impl():
+            # First time detection of dead tube
+            self._is_alive = False
+            self._log_warning(f"Connection {str(self)} is dead")
 
-        if timeout is not None:
-            self.settimeout(timeout)
+        with self._mutex:
+            if self._buffer:
+                out, self._buffer = self._buffer[:blocksize], self._buffer[blocksize:]
+                return self._trace_incoming(out)
 
-        try:
-            data = self._recv_impl(size - len(self._buffer))
-            if self._debug and len(data) > 0:
-                logger.info("Received %s (%d}) bytes:", hex(len(data)), len(data))
-                if self._hexdump:
-                    hexdump(data, prefix="    " + Color.CYAN, postfix=Color.END)
-                else:
-                    sys.stdout.write(f'{Color.BOLD}<< {Color.CYAN}')
-                    utf8str, leftover, marker = bytes2utf8(data)
-                    for c, t in zip(utf8str, marker):
-                        if t:
-                            if 0x7f <= ord(c) < 0x100 or c == 0:
-                                sys.stdout.write(f'{Color.RED}\\x{ord(c):02x}{Color.CYAN}')
-                            elif ord(c) == 0x0a:
-                                sys.stdout.write(f'{c}{Color.END}{Color.BOLD}<< {Color.CYAN}')
-                            else:
-                                sys.stdout.write(c)
-                        else:
-                            sys.stdout.write(f'{Color.RED}\\x{ord(c):02x}{Color.CYAN}')
-                    sys.stdout.write(bytes2str(leftover))
-                    sys.stdout.write(f'{Color.END}\n')
+        # Buffer empty: perform a single recv from the underlying transport.
+        with self.timeout(timeout):
+            try:
+                chunk = self._recv_impl(blocksize)
+            except TimeoutError as e:
+                raise TubeTimeout(str(e), buffered=self._buffer) from None
+        # Do not store into the buffer here; return what we got.
+        return self._trace_incoming(chunk)
 
-            self._buffer += data
-
-        except TimeoutError as err:
-            data = self._buffer + err.args[1]
-            self._buffer = b''
-            raise TimeoutError("Timeout (recv)", data) from err
-
-        finally:
-            if timeout is not None:
-                # Reset timeout to default value
-                self.settimeout()
-
-        data, self._buffer = self._buffer[:size], self._buffer[size:]
-        return data
-
-    def recvonce(self,
-                 size: int,
-                 timeout: Optional[Union[int, float]]=None) -> bytes:
-        """Receive raw data of exact size with buffering
-
-        Receive raw data of exactly `size` bytes.
+    def recvall(self,
+                size: int = -1,
+                blocksize: int = 4096,
+                timeout: int | float = -1) -> bytes:
+        """Receive all requested data.
 
         Args:
-            size   : Data size to receive
-            timeout: Timeout in second
+            size: Number of bytes to read.
+                  - If ``size >= 0``, read **exactly** ``size`` bytes. If EOF occurs first,
+                    raise ``EOFError``.
+                  - If ``size == -1``, read until EOF and return everything, including
+                    previously buffered bytes.
+            blocksize: Maximum size for each low-level read.
+            timeout: Timeout for each low-level read operation.
 
         Returns:
-            bytes: Received data
-        """
-        data = b''
-
-        while len(data) < size:
-            try:
-                data += self.recv(size - len(data), timeout)
-            except TimeoutError as err:
-                raise TimeoutError("Timeout (recvonce)", data + err.args[1]) from err
-
-        if len(data) > size:
-            self.unget(data[size:])
-        return data[:size]
-
-    def recvuntil(self,
-                  delim: Union[AtomicRecvT, List[AtomicRecvT]],
-                  size: int=4096,
-                  timeout: Optional[Union[int, float]]=None,
-                  drop: bool=False,
-                  lookahead: bool=False) -> bytes:
-        """Receive raw data until `delim` comes
-
-        Args:
-            delim    : The delimiter bytes
-            size     : The data size to receive at once
-            timeout  : Timeout in second
-            drop     : Discard delimiter or not
-            lookahead: Unget delimiter to buffer or not
-
-        Returns:
-            bytes: Received data
+            bytes: Data received from the stream.
 
         Raises:
-            ConnectionAbortedError: Connection is aborted by process
-            ConnectionResetError: Connection is closed by peer
-            TimeoutError: Timeout exceeded
-            OSError: System error
-
-        Examples:
-            ```
-            echo.sendline("abc123def")
-            echo.recvuntil("123") # abc123
-
-            echo.sendline("abc123def")
-            echo.recvuntil("123", drop=True) # abc
-
-            echo.sendline("abc123def")
-            echo.recvuntil("123", lookahead=True) # abc123
-            echo.recvonce(6)                      # 123def
-            ```
+            EOFError: When ``size >= 0`` but the connection ends before enough data is received.
+            ValueError: If ``size < -1`` or ``blocksize`` is negative.
+            TubeTimeout: If ``size >= 0`` and the operation timed out.
+            OSError: If ``size >= 0`` and a system error occurred.
         """
-        assert isinstance(delim, (str, bytes, bytearray, list)), \
-            "`delim` must be either str, bytes, or list"
+        if size < -1:
+            raise ValueError(f"size must be -1 or >= 0, not {size}")
+        if blocksize < 0:
+            raise ValueError(f"blocksize must be >= 0, not {blocksize}")
 
-        # Preprocess
-        delim_list: List[bytes] = []
-        if isinstance(delim, list):
-            for i, d in enumerate(delim):
-                assert isinstance(d, (str, bytes, bytearray)), \
-                    f"`delim[{i}]` must be either str or bytes"
-                delim_list.append(str2bytes(delim[i]))
-        else:
-            delim_list.append(str2bytes(delim))
-
-        if any(map(lambda d: len(d) == 0, delim_list)):
-            return b'' # Empty delimiter
-
-        # Iterate until we find one of the delimiters
-        found_delim = None
-        prev_len = 0
-        data = b''
-        while True:
-            try:
-                data += self.recv(size, timeout)
-            except TimeoutError as err:
-                raise TimeoutError("Timeout (recvuntil)", data + err.args[1]) from err
-            except Exception as err:
-                err.args = (err.args[0], data)
-                raise err from None
-
-            for d in delim_list:
-                if d in data[max(0, prev_len-len(d)):]:
-                    found_delim = d
-                    break
-            if found_delim is not None:
-                break
-
-            prev_len = len(data)
-
-        i = data.find(found_delim)
-        j = i + len(found_delim)
-        if not drop:
-            i = j
-
-        ret, data = data[:i], data[j:]
-        self.unget(data)
-        if lookahead:
-            self.unget(found_delim)
-
-        return ret
-
-    def recvline(self,
-                 size: int=4096,
-                 timeout: Optional[Union[int, float]]=None,
-                 drop: bool=True,
-                 lookahead: bool=False) -> bytes:
-        """Receive a line of data
-
-        Args:
-            size     : The data size to receive at once
-            timeout  : Timeout (in second)
-            drop     : Discard trailing newlines or not
-            lookahead: Unget trailing newline to buffer or not
-
-        Returns:
-            bytes: Received data
-        """
-        try:
-            line = self.recvuntil(self._newline, size, timeout, lookahead=lookahead)
-        except TimeoutError as err:
-            raise TimeoutError("Timeout (recvline)", err.args[1]) from err
-
-        return line.rstrip() if drop else line
-
-    def recvlineafter(self,
-                      delim: Union[AtomicRecvT, List[AtomicRecvT]],
-                      size: int=4096,
-                      timeout: Optional[Union[int, float]]=None,
-                      drop: bool=True,
-                      lookahead: bool=False) -> bytes:
-        """Receive a line of data after receiving `delim`
-
-        Args:
-            delim    : The delimiter bytes
-            size     : The data size to receive at once
-            timeout  : Timeout (in second)
-            drop     : Discard trailing newline or not
-            lookahead: Unget trailing newline to buffer or not
-
-        Returns:
-            bytes: Received data
-
-        Raises:
-            ConnectionAbortedError: Connection is aborted by process
-            ConnectionResetError: Connection is closed by peer
-            TimeoutError: Timeout exceeded
-            OSError: System error
-        """
-        try:
-            self.recvuntil(delim, size, timeout)
-        except TimeoutError as err:
-            # NOTE: We do not set received value here
-            raise TimeoutError("Timeout (recvlineafter)", b'') from err
-
-        try:
-            return self.recvline(size, timeout, drop, lookahead)
-        except TimeoutError as err:
-            raise TimeoutError("Timeout (recvlineafter)", err.args[1]) from err
-
-    def recvregex(self,
-                  regex: Union[str, bytes, Pattern[bytes]],
-                  size: int=4096,
-                  timeout: Optional[Union[int, float]]=None) -> Match[bytes]:
-        """Receive until a pattern comes
-
-        Receive data until a given regex pattern matches.
-
-        Args:
-            regex  : Regular expression
-            size   : Size to read at once
-            timeout: Timeout in second
-
-        Returns:
-            re.Match: Returns a :obj:`re.Match` object.
-
-        Raises:
-            ConnectionAbortedError: Connection is aborted by process
-            ConnectionResetError: Connection is closed by peer
-            TimeoutError: Timeout exceeded
-            OSError: System error
-        """
-        assert isinstance(regex, (str, bytes, bytearray, re.Pattern)), \
-            "`regex` must be either str, bytes, or re.Pattern"
-
-        if isinstance(regex, str):
-            regex = str2bytes(regex)
-        regex = re.compile(regex)
-
-        data = b''
-        match = None
-        while match is None:
-            try:
-                data += self.recv(size, timeout)
-            except TimeoutError as err:
-                raise TimeoutError("Timeout (recvregex)", data + err.args[1]) from err
-            match = regex.search(data)
-
-        self.unget(data[match.end():])
-        return match
-
-    def recvscreen(self,
-                   returns: type=str,
-                   stop: Optional[Callable[[AnsiInstruction], bool]]=None,
-                   timeout: Union[int, float]=1.0):
-        """Receive a screen
-
-        Receive a screen drawn by ncurses (ANSI escape sequence)
-
-        Args:
-            returns: Either str or list
-            stop: Function to determine when to stop emulating instructions
-            timeout: Timeout until stopping recv
-
-        Returns:
-            str: Rectangle string drawing the screen
-        """
-        assert returns in [list, str, bytes], \
-            "`returns` must be either list or str"
-
-        def _ansi_stream(self):
-            """Generator for recvscreen
-            """
+        out = bytearray()
+        if size == -1:
+            # Read until EOF.
             while True:
                 try:
-                    yield self.recv(timeout=timeout)
-                except TimeoutError as e:
-                    self.unget(e.args[1])
+                    chunk = self.recv(blocksize, timeout=timeout)
+                except (EOFError, OSError, TubeTimeout):
                     break
+                out += chunk
+            return bytes(out)
 
-        ansi = AnsiParser(_ansi_stream(self))
-        scr = ansi.draw_screen(returns, stop)
-        self.unget(ansi.buffer)
-        return scr
+        # Read exactly 'size' bytes.
+        while len(out) < size:
+            try:
+                chunk = self.recv(min(blocksize, size - len(out)), timeout=timeout)
+            except TubeTimeout as e:
+                raise TubeTimeout(str(e), buffered=out) from None
+            out += chunk
+        return bytes(out)
 
-    def before(self: TubeType,
-              delim: Union[AtomicRecvT, List[AtomicRecvT]],
-              size: int = 4096,
-              timeout: Optional[Union[int, float]] = None) -> TubeType:
-        """Wait until data arrives. 
-
-        This method works in the same as `recvuntil` except that this method returns `self`
-        and received data is buffered.
-
-        Args:
-            delim    : The delimiter bytes
-            size     : The data size to receive at once
-            timeout  : Timeout in second
-
-        Returns:
-            Tube: Self.
-
-        Raises:
-            ConnectionAbortedError: Connection is aborted by process
-            ConnectionResetError: Connection is closed by peer
-            TimeoutError: Timeout exceeded
-            OSError: System error
-
-        Examples:
-            ```
-            msg = tube.after("Message: ").recvline()
-            tube.after("[42] ").recvregex(r"ID: (\\d+)")
-            ```
-        """
-        raise NotImplementedError("Not implemented yet")
-
-    def after(self: TubeType,
-              delim: Union[AtomicRecvT, List[AtomicRecvT]],
-              size: int = 4096,
-              timeout: Optional[Union[int, float]] = None,
-              lookahead: bool = False) -> TubeType:
-        """Wait until data arrives.
-
-        This method works in the same as `recvuntil` except that this method returns `self`.
+    def recvline(self,
+                 blocksize: int = 4096,
+                 timeout: int | float = -1,
+                 drop: bool = True,
+                 consume: bool = True) -> bytes:
+        """Read until any configured newline delimiter is encountered.
 
         Args:
-            delim    : The delimiter bytes
-            size     : The data size to receive at once
-            timeout  : Timeout in second
-            lookahead: Unget delimiter to buffer or not
+            blocksize: Maximum size for each low-level read attempt.
+            timeout: Timeout for each low-level read operation.
+            drop: If True, exclude the newline delimiter from the returned bytes.
+            consume: If True, remove the delimiter from the internal buffer.
 
         Returns:
-            Tube: Self.
+            bytes: Data up to (and optionally including) the newline delimiter.
 
         Raises:
-            ConnectionAbortedError: Connection is aborted by process
-            ConnectionResetError: Connection is closed by peer
-            TimeoutError: Timeout exceeded
-            OSError: System error
-
-        Examples:
-            ```
-            msg = tube.after("Message: ").recvline()
-            tube.after("[42] ").recvregex(r"ID: (\\d+)")
-            ```
+            EOFError: If the connection is closed before a newline is received.
+            ValueError: If ``blocksize`` is negative.
+            TubeTimeout: If the operation timed out.
+            OSError: If a system error occurred.
         """
-        self.recvuntil(delim, size, timeout, True, lookahead)
+        return self.recvuntil(
+            delim=self._newline,
+            blocksize=blocksize,
+            regex=None,
+            timeout=timeout,
+            drop=drop,
+            consume=consume
+        )
+
+    def recvregex(self,
+                  regex: RegexDelimiterT,
+                  blocksize: int = 4096,
+                  timeout: int | float = -1,
+                  consume: bool = True) -> re.Match:
+        """Block until any of the regex patterns matches and return the match object.
+
+        The search is performed against the internal buffer. If no match is found,
+        more data is read from the underlying endpoint in chunks of ``blocksize``
+        until a match is found or EOF occurs.
+
+        Args:
+            regex: A single pattern or a list of patterns (bytes/str/compiled).
+            blocksize: Number of bytes to request per low-level read.
+            timeout: Timeout for each low-level read operation.
+            consume: If True, bytes up to the end of the match are removed
+                     from the internal buffer.
+
+        Returns:
+            re.Match: The first match found (ties broken by the earliest match end).
+
+        Raises:
+            EOFError: If the connection is closed before a match is found.
+            ValueError: If ``blocksize`` is negative.
+            TubeTimeout: If the operation timed out.
+            OSError: If a system error occurred.
+        """
+        patterns = self._normalize_patterns(regex)
+        if len(patterns) == 0:
+            raise ValueError("No pattern is provided.")
+
+        def _best_match(buf: bytes) -> re.Match | None:
+            best_m = None
+            best_end = -1
+            for pat in patterns:
+                m = pat.search(buf)
+                if m:
+                    e = m.end()
+                    if best_end == -1 or e < best_end:
+                        best_end = e
+                        best_m = m
+            return best_m
+
+        out, self._buffer = bytearray(self._buffer), b''
+        while True:
+            m = _best_match(out)
+            if m is not None:
+                if consume:
+                    self._buffer = out[m.end():]
+                else:
+                    self._buffer = out
+                return m
+
+            # Need more data
+            with self.timeout(timeout):
+                try:
+                    chunk = self.recv(blocksize)
+                except TubeTimeout as e:
+                    raise TubeTimeout(str(e), buffered=out) from None
+
+            out += chunk
+
+    def recvuntil(self,
+                  delim: DelimiterT | None = None,
+                  blocksize: int = 4096,
+                  regex: RegexDelimiterT | None = None,
+                  timeout: int | float = -1,
+                  drop: bool = False,
+                  consume: bool = True) -> bytes:
+        """Receive until a delimiter or regex match is found.
+
+        Exactly one of ``delim`` or ``regex`` must be provided.
+
+        Args:
+            delim: Delimiter(s) to wait for. A single ``bytes``/``str`` or a list of such
+                values. If a list is given, the method stops at the **earliest** occurrence
+                of **any** delimiter.
+            blocksize: Number of bytes to request per low-level read.
+            regex: A single regex pattern or a list of patterns. Patterns may be ``bytes``,
+                ``str``, or compiled ``re.Pattern``.
+                The method stops at the **earliest** match among all patterns.
+            timeout: Timeout for each low-level read operation.
+            drop: If True, exclude the newline delimiter from the returned bytes.
+            consume: If True, remove the delimiter from the internal buffer.
+
+        Returns:
+            bytes: Data up to (and optionally including) the match. When ``regex`` is used,
+                this method still returns **bytes**, not a match object.
+
+        Raises:
+            EOFError: If the connection is closed before a delimiter or pattern is found.
+            ValueError: If both or neither of ``delim`` and ``regex`` are provided,
+                        or if ``blocksize`` is negative.
+            TubeTimeout: If the operation timed out.
+            OSError: If a system error occurred.
+        """
+        use_delim = delim is not None
+        use_regex = regex is not None
+        if use_delim == use_regex:
+            raise ValueError("Specify exactly one of `delim` or `regex`.")
+
+        if use_regex:
+            # Regex path
+            m = self.recvregex(regex, blocksize, timeout=timeout, consume=False)
+            with self._mutex:
+                start, end = m.span()
+                before = self._buffer[:start]
+                matched = self._buffer[start:end]
+                ret = before if drop else before + matched
+                if consume:
+                    self._buffer = self._buffer[end:]
+            return ret
+
+        # Delimiter path
+        assert delim is not None
+        delims = self._normalize_delims(delim)
+
+        def _search(buf: bytes) -> tuple[int, int] | None:
+            best = None
+            for d in delims:
+                idx = buf.find(d)
+                if idx != -1:
+                    end = idx + len(d)
+                    if best is None or end < best[1]:
+                        best = (idx, end)
+            return best
+
+        out, self._buffer = bytearray(self._buffer), b''
+        while True:
+            m = _search(out)
+            if m is not None:
+                start, end = m
+                before = out[:start]
+                matched = out[start:end]
+                ret = before if drop else before + matched
+                if consume:
+                    self._buffer = out[end:]
+                else:
+                    self._buffer = out
+                return ret
+
+            # Not found yet: read more
+            try:
+                chunk = self.recv(blocksize, timeout=timeout)
+            except TubeTimeout as e:
+                raise TubeTimeout(str(e), buffered=out) from None
+
+            if not chunk:
+                raise EOFError("stream ended before delimiter/regex was found")
+            out += chunk
+
+    def after(self,
+              delim: DelimiterT | None = None,
+              blocksize: int = 4096,
+              regex: RegexDelimiterT | None = None,
+              timeout: int | float = -1) -> 'Tube':
+        """Wait for a delimiter (or regex) and then return `self`.
+
+        Useful for chained calls like:
+            ```
+            tube.after(b'Name: ').sendline(name)
+            leak = tube.after(regex=r'Hello, .{32}').recvline()
+            ```
+
+        Args:
+            delim: Delimiter(s) to wait for. A single ``bytes``/``str`` or a list of such
+                values. If a list is given, the method stops at the **earliest** occurrence
+                of **any** delimiter.
+            blocksize: Number of bytes to request per low-level read.
+            regex: A single regex pattern or a list of patterns. Patterns may be ``bytes``,
+                ``str``, or compiled ``re.Pattern``.
+                The method stops at the **earliest** match among all patterns.
+            timeout: Timeout for each low-level read operation.
+
+        Returns:
+            Tube: The current tube instance.
+
+        Raises:
+            EOFError: If the connection is closed before a delimiter or pattern is found.
+            ValueError: If both or neither of ``delim`` and ``regex`` are provided,
+                        or if ``blocksize`` is negative.
+            TubeTimeout: If the operation timed out.
+            OSError: If a system error occurred.
+        """
+        self.recvuntil(delim, blocksize, regex, timeout)
         return self
 
-    def send(self, data: Union[str, bytes]) -> int:
-        """Send raw data
+    # --- Send methods -----------------------------------------------------
 
-        Send as much data as possible.
+    def send(self,
+             data: str | bytes) -> int:
+        """Send a single chunk of data
+
+        This is a thin wrapper that issues **one** low-level write. It may
+        send fewer bytes than provided, depending on the underlying endpoint.
 
         Args:
-            data: Data to send
+            data: Data to send.
 
         Returns:
-            int: Length of sent data
+            int: Number of bytes actually written.
 
-        Note:
-            It is NOT ensured that all data is sent.
-            Use `sendonce` to make sure the whole data is sent.
-
-        Examples:
-            ```
-            tube.send("Hello")
-            tube.send(b"\xde\xad\xbe\xef")
-            ```
+        Raises:
+            BrokenPipeError: If the send-side has been closed by the peer.
+            OSError: If a system error occurred.
         """
-        assert isinstance(data, (str, bytes, bytearray)), "`data` must be either str or bytes"
+        if self._is_alive and not self._is_alive_impl():
+            # First time detection of dead tube
+            self._is_alive = False
+            self._log_warning(f"Connection is closed: {str(self)}")
+
         data = str2bytes(data)
+        if not data:
+            return 0
 
-        size = self._send_impl(data)
-        if self._debug:
-            logger.info("Sent %s (%d) bytes:", hex(size), size)
-            if self._hexdump:
-                hexdump(data[:size], prefix=Color.YELLOW, postfix=Color.END)
-            else:
-                sys.stdout.write(f'{Color.BOLD}>> {Color.YELLOW}')
-                utf8str, leftover, marker = bytes2utf8(data[:size])
-                for c, t in zip(utf8str, marker):
-                    if t:
-                        if 0x7f <= ord(c) < 0x100 or c == 0:
-                            sys.stdout.write(f'{Color.RED}\\x{ord(c):02x}{Color.YELLOW}')
-                        elif ord(c) == 0x0a:
-                            sys.stdout.write(f'{c}{Color.END}{Color.BOLD}>> {Color.YELLOW}')
-                        else:
-                            sys.stdout.write(c)
-                    else:
-                        sys.stdout.write(f'{Color.RED}\\x{ord(c):02x}{Color.YELLOW}')
-                sys.stdout.write(bytes2str(leftover))
-                sys.stdout.write(f'{Color.END}\n')
+        n = self._send_impl(data)
+        return n
 
-
-        return size
-
-    def sendonce(self, data: Union[str, bytes]):
-        """Send the whole data
-
-        Send the whole data.
-        This method will never return until it finishes sending
-        the whole data, unlike `send`.
+    def sendall(self,
+                data: str | bytes) -> int:
+        """Send all bytes, blocking until everything is written (or an error occurs).
 
         Args:
-            data: Data to send
+            data: Data to send.
+
+        Returns:
+            int: Total number of bytes written (== len(data) on success).
+
+        Raises:
+            BrokenPipeError: If the send-side has been closed by the peer.
+            OSError: If a system error occurred.
         """
-        to_send = len(data)
-        while to_send > 0:
-            sent = self.send(data)
-            data = data[sent:]
-            to_send -= sent
+        data = str2bytes(data)
+        if not data:
+            return 0
+
+        total = 0
+        view = memoryview(data)
+        while total < len(view):
+            n_written = self.send(view[total:])
+            assert n_written >= 0, "BUG: `send` unexpectedly returned negative value"
+            total += n_written
+        return total
 
     def sendline(self,
-                 data: Union[AtomicSendT, List[AtomicSendT]]):
-        """Send a line
+                 data: AtomicSendT | list[AtomicSendT]) -> int:
+        """Send data followed by the current newline delimiter.
 
-        Send a line of data.
+        The first configured newline sequence (``self.newline[0]``) is used. If none
+        is configured, ``b'\\n'`` is assumed.
 
         Args:
-            data (bytes) : Data to send
+            data: String, bytes, int, float, or a list of such values.
+                  Integer and float values will be converted to strings.
+                  If a list is provided, each element will be sent followed by the newline.
+
+        Returns:
+            int: Total number of bytes written (payload + newline).
+
+        Raises:
+            BrokenPipeError: If the send-side has been closed by the peer.
+            OSError: If a system error occurred.
         """
         if isinstance(data, list):
-            for d in data:
-                self.sendline(d)
-            return
+            total = 0
+            for item in data:
+                total += self.sendline(item)
+            return total
 
-        if isinstance(data, (str, bytes, bytearray)):
-            data = str2bytes(data)
+        if isinstance(data, (int, float)):
+            data = str(data)
 
-        elif isinstance(data, float):
-            data = str(data).encode()
+        data = str2bytes(data)
+        return self.sendall(data + self.newline[0])
 
-        else:
-            # Explicitly call "__int__"
-            data = str(int(data)).encode()
+    def sendkey(self):
+        pass
 
-        self.send(data + self._newline)
+    # --- Buffering operations ---------------------------------------------
 
-    def sendafter(self,
-                  delim: Union[AtomicRecvT, List[AtomicRecvT]],
-                  data: AtomicSendT,
-                  size: int=4096,
-                  timeout: Optional[Union[int, float]]=None,
-                  drop: bool=False,
-                  lookahead: bool=False) -> bytes:
-        """Send raw data after a delimiter
-
-        Send raw data after `delim` is received.
+    def peek(self, size: int = -1, blocksize: int = 4096, timeout: int | float = -1) -> bytes:
+        """Return exactly ``size`` bytes from the internal buffer **without consuming** them.
 
         Args:
-            delim    : The delimiter
-            data     : Data to send
-            size     : Data size to receive at once
-            timeout  : Timeout in second
-            drop     : Discard delimiter or not
-            lookahead: Unget delimiter to buffer or not
+            size: The number of bytes to return. If ``size < 0``, return the entire buffer.
 
         Returns:
-            bytes: Received bytes before `delim` comes.
-
-        Examples:
-            ```
-            tube.sendafter("> ", p32(len(data)) + data)
-            tube.sendafter("command: ", 1) # b"1" is sent
-            ```
+            bytes
         """
-        recv_data = self.recvuntil(delim, size, timeout, drop, lookahead)
+        if size < 0:
+            return self._buffer
 
-        if isinstance(data, (str, bytes, bytearray)):
+        out = self.recvall(size, blocksize, timeout)
+        self.unget(out)
+        return out
+
+    def unget(self, data: str | bytes) -> None:
+        """Push ``data`` back to the **front** of the internal buffer.
+
+        The next receive operation will return these bytes first.
+
+        Args:
+            data: Bytes to be re-inserted at the start of the buffer.
+        """
+        if isinstance(data, str):
             data = str2bytes(data)
+        with self._mutex:
+            self._buffer = bytes(data) + self._buffer
 
-        elif isinstance(data, float):
-            data = str(data).encode()
-
-        else:
-            # Explicitly call "__int__"
-            data = str(int(data)).encode()
-
-        self.send(data)
-        return recv_data
-
-    def sendlineafter(self,
-                      delim: Union[AtomicRecvT, List[AtomicRecvT]],
-                      data: AtomicSendT,
-                      size: int=4096,
-                      timeout: Optional[Union[int, float]]=None,
-                      drop: bool=False,
-                      lookahead: bool=False) -> bytes:
-        """Send raw data after a delimiter
-
-        Send raw data with newline after `delim` is received.
-
-        Args:
-            delim (bytes): The delimiter
-            data (bytes) : Data to send
-            timeout (int): Timeout (in second)
-
-        Returns:
-            bytes: Received bytes before `delim` comes.
-        """
-        recv_data = self.recvuntil(delim, size, timeout, drop, lookahead)
-        self.sendline(data)
-
-        return recv_data
-
-    def sendctrl(self, name: str):
-        """Send control key
-
-        Send control key given its name
-
-        Args:
-            name: Name of the control key to send
-        """
-        if name.lower() in ['w', 'up']:
-            self.send(b'\x1bOA')
-        elif name.lower() in ['s', 'down']:
-            self.send(b'\x1bOB')
-        elif name.lower() in ['a', 'left']:
-            self.send(b'\x1bOD')
-        elif name.lower() in ['d', 'right']:
-            self.send(b'\x1bOC')
-        elif name.lower() in ['esc', 'escape']:
-            self.send(b'\x1b')
-        elif name.lower() in ['bk', 'backspace']:
-            self.send(b'\x08')
-        elif name.lower() in ['del', 'delete']:
-            self.send(b'\x7f')
-        else:
-            raise ValueError(f"Invalid control key name: {name}")
-
-    def sh(self,
-           prompt: str="[ptrlib]$ ",
-           raw: bool=False):
-        """Alias for interactive
-
-        Args:
-            prompt: Prompt string to show on input
-            raw   : Escape non-printable characters or not
-        """
-        self.interactive(prompt, raw)
-
-    def interactive(self,
-                    prompt: str="[ptrlib]$ ",
-                    raw: bool=False,
-                    readline: Optional[Callable[[], str]]=None,
-                    oninterrupt: Optional[Callable[[], bool]]=None,
-                    onexit: Optional[Callable[[], None]]=None):
-        """Interactive mode
-
-        Args:
-            prompt: Prompt string to show on input
-            raw   : Escape non-printable characters or not
-        """
-        prompt = f"{Color.BOLD}{Color.BLUE}{prompt}{Color.END}"
-
-        def pretty_print_hex(c: str):
-            sys.stdout.write(f'{Color.RED}\\x{ord(c):02x}{Color.END}')
-
-        def pretty_print(data: bytes, prev: bytes=b''):
-            """Print data in a human-friendly way
-            """
-            leftover = b''
-
-            if raw:
-                sys.stdout.write(bytes2str(data))
-
-            else:
-                utf8str, leftover, marker = bytes2utf8(data)
-                if len(utf8str) == 0 and prev == leftover:
-                    utf8str = f'{Color.RED}{bytes2hex(leftover)}{Color.END}'
-                    leftover = b''
-
-                for c, t in zip(utf8str, marker):
-                    if t:
-                        if 0x7f <= ord(c) < 0x100:
-                            pretty_print_hex(c)
-                        elif ord(c) in [0x00]:
-                            pretty_print_hex(c)
-                        else:
-                            sys.stdout.write(c)
-                    else:
-                        pretty_print_hex(c)
-
-            sys.stdout.flush()
-            return leftover
-
-        def thread_recv():
-            """Receive data from tube and print to stdout
-            """
-            nonlocal stop_event
-            leftover = b''
-            while self.is_alive() and not stop_event.is_set():
-                try:
-                    data = self.recv(timeout=self._POLL_TIMEOUT)
-                    leftover = pretty_print(data, leftover)
-
-                    if not self.is_alive():
-                        logger.warning("Connection closed by %s", str(self))
-
-                except TimeoutError:
-                    pass # NOTE: We can ignore args since recv will never buffer
-                except BrokenPipeError as e:
-                    logger.warning(e)
-                    break
-                except (EOFError, ConnectionAbortedError, ConnectionResetError):
-                    logger.warning("Connection closed by %s", str(self))
-                    break
-
-        def thread_send():
-            """Read user input and send it to tube
-            """
-            nonlocal stop_event
-            while self.is_alive() and not stop_event.is_set():
-                sys.stdout.write(prompt)
-                sys.stdout.flush()
-                try:
-                    if not _is_windows:
-                        # NOTE: Wait for data since sys.stdin.read blocks
-                        #       even if stdin is closed by keyboard interrupt
-                        while self.is_alive() and not stop_event.is_set():
-                            r, [], [] = select.select(
-                                [sys.stdin], [], [], self._POLL_TIMEOUT
-                            )
-                            if r:
-                                break
-
-                    if self.is_alive() and not stop_event.is_set():
-                        if readline is None:
-                            line = sys.stdin.readline()
-                        else:
-                            try:
-                                line = readline()
-                            except KeyboardInterrupt:
-                                # When interrupt is raised from custom readline
-                                print("ponta!")
-                                stop_event.set()
-                                break
-                        self.send(line)
-                except (ConnectionResetError, ConnectionAbortedError, OSError, ValueError):
-                    break
-
-        stop_event = threading.Event()
-        th_recv = threading.Thread(target=thread_recv)
-        th_send = threading.Thread(target=thread_send)
-        th_recv.start()
-        th_send.start()
-
-        while True:
-            try:
-                th_recv.join()
-                th_send.join()
-            except KeyboardInterrupt:
-                if oninterrupt is not None and oninterrupt():
-                    continue
-                logger.warning("Intterupted by user")
-                stop_event.set()
-                th_recv.join()
-                th_send.join()
-            break
-
-        if onexit is not None:
-            onexit()
+    # --- Closing / lifecycle ----------------------------------------------
 
     def close(self):
-        """Close this connection
-
-        Note:
-            This method can only be called once.
+        """Close the tube and release any resources.
         """
-        self._close_impl()
-        self._is_closed = True
+        if self._is_alive:
+            self._is_alive = False
+            self._log_info(f"Connection {str(self)} closed")
+        with self._mutex:
+            self._close_impl()
 
-    def unget(self, data: Union[str, bytes]):
-        """Unshift data to buffer
+    def close_recv(self):
+        """Close the receive end of the tube.
+        """
+        with self._mutex:
+            self._close_recv_impl()
+
+    def close_send(self):
+        """Close the send end of the tube.
+        """
+        self._close_send_impl()
+
+    # --- Interactive session ----------------------------------------------
+
+    def interactive(self,
+                    prompt: str | None = None,
+                    use_tty: bool = False,
+                    is_raw: bool = False,
+                    encoding: str = "utf-8",
+                    blocksize: int = 4096,
+                    *,
+                    readline: typing.Callable[[], str] | None = None,
+                    oninterrupt: typing.Callable[[], bool] | None = None,
+                    onexit: typing.Callable[[], None] | None = None,
+                    ansi_on_windows: bool = True):
+        """Run an interactive session with the remote endpoint.
+
+        Two-thread model:
+            - RX thread: continuously receives bytes and prints them to stdout.
+            - TX thread: prompts and reads user input, then sends it to the peer.
+
+        Output formatting:
+            - If ``is_raw`` is True, received bytes are written to ``stdout.buffer`` as-is.
+            - If ``is_raw`` is False, bytes are decoded with ``encoding`` and undecodable
+              bytes are rendered as ``\\xNN`` using ``errors='backslashreplace'``.
+
+        Input modes:
+            - Line mode (default): each line is sent with the tube's newline sequence
+              (via ``sendline``). The line source is ``readline()`` if provided;
+              otherwise a built-in line reader is used.
+            - Key passthrough (``use_tty=True``): character-at-a-time mode.
+              On POSIX, the local terminal is switched to raw mode so that arrow keys
+              and ESC sequences are passed unchanged. On Windows, raw keystrokes are
+              read via ``msvcrt``; if ``ansi_on_windows`` is True, common special keys
+              (arrows) are translated to ANSI escape sequences (e.g. Up => ``\\x1b[A``).
+
+        Session control:
+            - ``oninterrupt`` is called when the user hits Ctrl-C in line mode.
+              If it returns True, the session continues; otherwise the session ends.
+            - In key passthrough mode, Ctrl-C is sent to the peer as ``\\x03``.
+              Use ``escape_key`` (default: Ctrl-]) to locally end the session.
+            - ``onexit`` is called once both threads finish and just before returning.
+
+        This method blocks until the session ends and **swallows network I/O errors**
+        inside worker threads (they terminate the session instead of raising here).
 
         Args:
-            data: Data to revert
+            prompt: Prompt string shown in line mode.
+            use_tty: Enable character-at-a-time mode for TUI/curses programs.
+            is_raw: If True, print incoming bytes as-is without decoding.
+                    Always treated as True if ``use_tty`` is set to True.
+            encoding: Text encoding used when ``is_raw`` is False (default: UTF-8).
+            readline: Optional callable that returns a single input line (without EOL).
+            oninterrupt: Callback invoked on KeyboardInterrupt in line mode.
+                         Return True to continue, False/None to end the session.
+            onexit: Callback invoked when the interactive session ends.
+            ansi_on_windows: Windows only—translate arrow keys to ANSI if True.
+
+        Raises:
+            ValueError: If ``use_tty`` is requested but stdin is not a TTY.
+            RuntimeError: If platform lacks required TTY support in passthrough mode.
+        """
+        rx_timeout = 0.01
+        tx_timeout = 0.01
+        stop = threading.Event()
+        io_lock = threading.Lock()
+
+        if prompt is None:
+            prompt = self._prompt
+
+        if use_tty:
+            is_raw = True
+
+        def rx_worker():
+            while not stop.is_set():
+                try:
+                    data = self.recv(blocksize, timeout=rx_timeout)
+                    if not data:
+                        continue # Unreachable
+                    with io_lock:
+                        if is_raw:
+                            sys.stdout.buffer.write(data)
+                            sys.stdout.buffer.flush()
+                        else:
+                            text = data.decode(encoding, errors='backslashreplace')
+                            sys.stdout.write(text)
+                            sys.stdout.flush()
+
+                except TubeTimeout:
+                    continue
+
+                except (EOFError, OSError):
+                    # Peer closed
+                    stop.set()
+                    break
+
+        def tx_line_reader() -> str | None:
+            if readline is not None:
+                try:
+                    return readline()
+                except KeyboardInterrupt:
+                    # When interrupt is raised from custom readline
+                    return None
+
+            if _is_posix():
+                while not stop.is_set():
+                    r, [], [] = select.select([sys.stdin], [], [], tx_timeout)
+                    if r:
+                        break
+
+            line = sys.stdin.readline()
+            if line == '':
+                return None
+            return line
+
+        def tx_worker_line_mode():
+            while not stop.is_set():
+                if prompt:
+                    time.sleep(tx_timeout) # TODO: Delay prompt for better UX
+                    with io_lock:
+                        sys.stdout.write(f"{Color.BOLD}{Color.BLUE}{prompt}{Color.END}")
+                        sys.stdout.flush()
+                try:
+                    line = tx_line_reader()
+                except KeyboardInterrupt:
+                    # Ctrl-C: let the caller decide
+                    if oninterrupt is not None:
+                        cont = bool(oninterrupt())
+                    else:
+                        cont = False
+
+                    if cont:
+                        with io_lock:
+                            sys.stdout.write("\n")
+                            sys.stdout.flush()
+                        continue
+
+                    stop.set()
+                    break
+
+                if line is None:
+                    # Stdin closed (Ctrl-D) or stop signaled
+                    stop.set()
+                    break
+
+                try:
+                    self.send(str2bytes(line))
+                except (BrokenPipeError, OSError) as e:
+                    stop.set()
+                    self._logger.error("Connection closed: %s", e)
+                    break
+
+        def tx_worker_key_mode():
+            # Character-at-a-time; POSIX: raw TTY; Windows: msvcrt
+            if _is_posix():
+                if not _is_tty_stdin():
+                    raise ValueError("`use_tty` requires a TTY on stdin")
+                import termios, tty
+                fd = sys.stdin.fileno()
+                old_attrs = termios.tcgetattr(fd)
+                try:
+                    tty.setraw(fd, termios.TCSANOW)
+                    while not stop.is_set():
+                        r, _, _ = select.select([fd], [], [])
+                        if stop.is_set():
+                            break
+                        if not r:
+                            continue
+                        data = os.read(fd, 4096)
+                        if not data:
+                            stop.set()
+                            break
+
+                        try:
+                            self.sendall(data)
+                        except (BrokenPipeError, OSError) as e:
+                            stop.set()
+                            self._logger.error("Connection closed: %s", e)
+                            break
+                finally:
+                    # Restore terminal attributes
+                    with contextlib.suppress(Exception):
+                        termios.tcsetattr(fd, termios.TCSANOW, old_attrs)
+
+            else:
+                # Windows
+                try:
+                    import msvcrt
+                except Exception as e:
+                    raise RuntimeError("key_passthrough requires msvcrt on Windows") from e
+
+                def _win_key_to_ansi() -> bytes | None:
+                    """Read a key; convert arrows to ANSI if requested."""
+                    ch = msvcrt.getwch()  # returns str
+                    if ch == '\x00' or ch == '\xe0':
+                        # special key prefix
+                        code = msvcrt.getwch()
+                        if not ansi_on_windows:
+                            # return None to ignore special keys or encode direct?
+                            return b""
+                        m = {
+                            'H': '\x1b[A',  # up
+                            'P': '\x1b[B',  # down
+                            'K': '\x1b[D',  # left
+                            'M': '\x1b[C',  # right
+                        }.get(code)
+                        return m.encode('ascii') if m else b""
+                    else:
+                        return ch.encode('utf-8', errors='ignore')
+
+                while not stop.is_set():
+                    if not msvcrt.kbhit():
+                        time.sleep(rx_timeout)
+                        continue
+                    b = _win_key_to_ansi()
+                    if b is None:
+                        continue
+                    if b == b"":
+                        continue
+
+                    try:
+                        self.sendall(b)
+                    except (BrokenPipeError, OSError):
+                        stop.set()
+                        break
+
+        rx = threading.Thread(target=rx_worker, name='tube-rx', daemon=True)
+        if use_tty:
+            tx = threading.Thread(target=tx_worker_key_mode, name='tube-tx', daemon=True)
+        else:
+            tx = threading.Thread(target=tx_worker_line_mode, name='tube-tx', daemon=True)
+
+        rx.start()
+        tx.start()
+
+        try:
+            while tx.is_alive() or rx.is_alive():
+                if not tx.is_alive() or not rx.is_alive():
+                    stop.set()
+                time.sleep(rx_timeout)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            stop.set()
+            tx.join(timeout=0.1)
+            rx.join(timeout=0.1)
+            if onexit:
+                onexit()
+
+    def sh(self, *args, **kwargs):
+        self.interactive(*args, **kwargs)
+
+    # --- Timeout ----------------------------------------------------------
+
+    @contextlib.contextmanager
+    def timeout(self, timeout: int | float):
+        """Temporarily set an I/O timeout for the enclosed operations.
+
+        The previous timeout value is restored after the context exits.
+
+        Args:
+            timeout: The timeout value in seconds.
+                     If ``timeout`` is negative, the timeout is temporarily disabled.
 
         Examples:
             ```
-            leak = tube.recvline().rstrip(b"> ")
-            tube.unget("> ")
-            # ...
-            tube.sendlineafter("> ", "1")
+            with tube.timeout(5):
+                line = tube.recvline()
             ```
         """
-        assert isinstance(data, (str, bytes)), "`data` must be either str or bytes"
+        old_timeout = self._gettimeout_impl()
+        try:
+            self._settimeout_impl(timeout)
+            yield
+        finally:
+            self._settimeout_impl(old_timeout)
 
-        self._buffer = str2bytes(data) + self._buffer
+    # --- Backward compatibility -------------------------------------------
 
-    def is_alive(self) -> bool:
-        """Check if connection is not closed
+    def recvlineafter(self,
+                      delim: DelimiterT,
+                      blocksize: int = 4096,
+                      regex: RegexDelimiterT | None = None,
+                      timeout: int | float = -1,
+                      drop: bool = True,
+                      consume: bool = True) -> bytes:
+        """Wait for a delimiter (or regex), then read a line.
 
-        Returns:
-            bool: False if connection is closed, otherwise True
-
-        Examples:
-            ```
-            while tube.is_alive():
-                print(tube.recv())
-            ```
+        Note:
+            This method is deprecated.
+            Use `after(delim, blocksize, regex, timeout).recvline(...)` instead.
         """
-        if self._is_closed:
-            return False
-        return self._is_alive_impl()
+        return self.after(delim, blocksize, regex, timeout) \
+            .recvline(blocksize, timeout, drop, consume)
 
-    def shutdown(self, target: Literal['send', 'recv']):
-        """Kill one connection
+    def sendlineafter(self,
+                      delim: DelimiterT,
+                      data: str | bytes,
+                      blocksize: int = 4096,
+                      regex: RegexDelimiterT | None = None,
+                      timeout: int | float = -1) -> int:
+        """Wait for a delimiter (or regex), then send a line.
+
+        Note:
+            This method is deprecated.
+            Use `after(delim, blocksize, regex, timeout).sendline(...)` instead.
+        """
+        return self.after(delim, blocksize, regex, timeout) \
+            .sendline(data)
+
+    def shutdown(self, target: typing.Literal['send', 'recv']):
+        """Shut down a specific connection.
 
         Args:
             target (str): Connection to close (`send` or `recv`)
@@ -965,84 +970,137 @@ class Tube(metaclass=abc.ABCMeta):
            data = tube.recv() # NG
            ```
         """
-        if target in ['write', 'send', 'stdin']:
-            self._shutdown_send_impl()
-            self._is_send_closed = True
-        elif target in ['read', 'recv', 'stdout', 'stderr']:
-            self._shutdown_recv_impl()
-            self._is_recv_closed = True
+        if target.lower() in ['write', 'send', 'stdin']:
+            self.close_send()
+        elif target.lower() in ['read', 'recv', 'stdout', 'stderr']:
+            self.close_recv()
         else:
             raise ValueError("`target` must either 'send' or 'recv'")
 
-    def __enter__(self):
-        return self
+    # --- Helpers ----------------------------------------------------------
 
-    def __exit__(self, _e_type, _e_value, _traceback):
-        if not self._is_closed:
-            self.close()
+    def _normalize_delims(self, d: DelimiterT) -> list[bytes]:
+        if isinstance(d, list):
+            return [str2bytes(x) for x in d]
+        return [str2bytes(d)]
 
-    def __str__(self) -> str:
-        return "<unknown tube>"
+    def _normalize_patterns(self, p: RegexDelimiterT) -> list[re.Pattern]:
+        items = p if isinstance(p, list) else [p]
+        compiled: list[re.Pattern] = []
+        for it in items:
+            if isinstance(it, re.Pattern):
+                compiled.append(it)
+            else:
+                compiled.append(re.compile(str2bytes(it), re.DOTALL))
+        return compiled
 
-    def __del__(self):
-        if hasattr(self, '_init_done') and not self._is_closed:
-            self.close()
+    def _trace_incoming(self, data: bytes) -> bytes:
+        # TODO
+        return data
 
-    #
-    # Abstract methods
-    #
+    # --- Abstracts --------------------------------------------------------
+
     @abc.abstractmethod
-    def _settimeout_impl(self, timeout: Union[int, float]):
-        """Abstract method for `settimeout`
-
-        Set timeout for receive and send.
+    def _recv_impl(self, blocksize: int) -> bytes:
+        """Low-level receive. Must be implemented by subclasses.
 
         Args:
-            timeout: Timeout in second
-        """
+            blocksize: The maximum number of bytes to read.
 
-    @abc.abstractmethod
-    def _recv_impl(self, size: int) -> bytes:
-        """Abstract method for `recv`
+        Returns:
+            bytes: The received data.
 
-        Receives at most `size` bytes from tube.
-        This method must be a blocking method.
+        Raises:
+            EOFError: The process has closed its output stream.
+            TimeoutError: The operation timed out.
+            OSError: System error.
         """
+        raise NotImplementedError
 
     @abc.abstractmethod
     def _send_impl(self, data: bytes) -> int:
-        """Abstract method for `send`
-
-        Sends tube as much data as possible.
-
+        """Low-level send. Must be implemented by subclasses.
+        
         Args:
-            data: Data to send
+            data: Data to send.
+
+        Returns:
+            int: The number of bytes sent.
+
+        Raises:
+            BrokenPipeError: The process has closed its input stream.
+            TimeoutError: The operation timed out.
+            OSError: System error.
         """
+        raise NotImplementedError
 
     @abc.abstractmethod
     def _close_impl(self):
-        """Abstract method for `close`
-
-        Close the connection.
-        This method is ensured to be called only once.
+        """Low-level close. Must be implemented by subclasses.
         """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def _close_recv_impl(self):
+        """Low-level close receive. Must be implemented by subclasses.
+
+        Closes the receive channel if possible.
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def _close_send_impl(self):
+        """Low-level close send. Must be implemented by subclasses.
+
+        Closes the send channel if possible.
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def _settimeout_impl(self, timeout: float):
+        """Low-level timeout setter. Must be implemented by subclasses.
+
+        Args:
+            timeout: The timeout value to set.
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def _gettimeout_impl(self) -> float:
+        """Low-level timeout getter. Must be implemented by subclasses.
+
+        Returns:
+            The current timeout value.
+        """
+        raise NotImplementedError
 
     @abc.abstractmethod
     def _is_alive_impl(self) -> bool:
-        """Abstract method for `is_alive`
+        """Low-level liveness check. Must be implemented by subclasses.
 
-        This method must return True iff the connection is alive.
+        Implementation of this method should return True
+        if it cannot determine the liveness of the connection.
+
+        Returns:
+            bool: True if the connection is alive, False otherwise.
         """
+        raise NotImplementedError
 
-    @abc.abstractmethod
-    def _shutdown_recv_impl(self):
-        """Kill receiver connection
-        """
+class TubeTimeout(TimeoutError):
+    """Timeout with captured partial data.
 
-    @abc.abstractmethod
-    def _shutdown_send_impl(self):
-        """Kill sender connection
-        """
+    Attributes:
+        buffered (bytes): Bytes obtained until timeout.
 
+    Note:
+        - This exception subclasses `TimeoutError`, so existing `except TimeoutError`
+          handlers will still work. Prefer catching `TubeTimeout` when you need data.
+    """
+    def __init__(self, message: str, *, buffered: bytes = b''):
+        super().__init__(message)
+        self.buffered = buffered
 
-__all__ = ['Tube']
+    def __bytes__(self) -> bytes:
+        return self.buffered
+
+__all__ = ['Tube', 'TubeTimeout']

@@ -6,7 +6,7 @@ import random
 import unittest
 from logging import FATAL, getLogger
 
-from ptrlib import Process, is_token
+from ptrlib import Process, is_token, TubeTimeout
 
 _is_windows = os.name == 'nt'
 
@@ -21,6 +21,31 @@ class TestProcess(unittest.TestCase):
 
     def test_basic(self):
         """Basic tests
+        """
+        p = Process("./tests/test.bin/test_echo.x64")
+        p.sendline(["\x01\x10\x80\xff", b"\xde\x02\xad\x20\xbe\x90\xef\xee"])
+        self.assertEqual(p.recvline(), b"\x01\x10\x80\xff")
+        self.assertEqual(p.recvline(), b"\xde\x02\xad\x20\xbe\x90\xef\xee")
+
+        candidates = ["Cat", "Dog", "Bird", "Fish", "Hamster"]
+        answer = random.choice(candidates)
+        p.sendline(answer)
+        self.assertEqual(p.recvuntil(answer), answer.encode())
+
+        p.sendline(b"Message: This is a 'test message'")
+        r = p.after(": ").recvregex(r"'(.+)'")
+        self.assertEqual(r.group(1), b"test message")
+
+        candidates = ["Cat", "Dog", "Bird", "Fish", "Hamster"]
+        answer = random.choice(candidates)
+        p.sendline(answer + " is cute!")
+        line = p.after(regex=[r".{3}\s", r".{4}\s", r"Hamster\s"]).recvline()
+        self.assertEqual(line, b"is cute!")
+
+        p.close()
+
+    def test_compatibility(self):
+        """Old basic tests
         """
         mod = inspect.getmodule(Process)
         assert mod is not None
@@ -72,22 +97,23 @@ class TestProcess(unittest.TestCase):
         a, b = os.urandom(16).hex(), os.urandom(16).hex()
         p.sendline(a)
         v = p.sendlineafter(a + "\n", b)
-        self.assertEqual(v.strip(), a.encode())
+        self.assertEqual(v, len(b) + 1)
         self.assertEqual(p.recvline().strip(), b.encode())
 
         # shutdown
         p.send(msg[::-1])
-        p.shutdown('send')
-        self.assertEqual(p.recvonce(len(msg)), msg[::-1])
+        p.close_send()
+        self.assertEqual(p.recvall(len(msg)), msg[::-1])
 
         # wait
-        self.assertEqual(p.wait(), 0)
-
         with self.assertLogs(module_name) as cm:
-            p.close()
+            self.assertEqual(p.wait(), 0)
         self.assertEqual(len(cm.output), 1)
         self.assertEqual(cm.output[0],
-                         f'INFO:{module_name}:{str(p)} stopped with exit code 0')
+                         f'INFO:{module_name}:Process {str(p)} stopped with exit code 0')
+
+        self.assertEqual(p.wait(), 0)
+        p.close()
 
     def test_timeout(self):
         """Timeout tests
@@ -97,32 +123,32 @@ class TestProcess(unittest.TestCase):
         module_name = mod.__name__
 
         with self.assertLogs(module_name) as cm:
-            p = Process("./tests/test.bin/test_echo.x64")
+            p = Process("./tests/test.bin/test_echo.x64", use_tty=True)
         self.assertEqual(len(cm.output), 1)
         self.assertEqual(cm.output[0],
                          f'INFO:{module_name}:Successfully created a new process {str(p)}')
         data = os.urandom(16).hex()
 
         # recv
-        with self.assertRaises(TimeoutError) as cm:
+        with self.assertRaises(TubeTimeout) as cm:
             p.recv(timeout=0.5)
-        self.assertEqual(cm.exception.args[1], b"")
+        self.assertEqual(cm.exception.buffered, b"")
 
         # recvonce
         p.sendline(data)
-        with self.assertRaises(TimeoutError) as cm:
-            p.recvonce(len(data) + 1 + 1, timeout=0.5)
-        self.assertEqual(cm.exception.args[1].decode().strip(), data)
+        with self.assertRaises(TubeTimeout) as cm:
+            p.recvall(len(data) + 1 + 1, timeout=0.5)
+        self.assertEqual(cm.exception.buffered.decode().strip(), data)
 
         # recvuntil
         p.sendline(data)
-        with self.assertRaises(TimeoutError) as cm:
+        with self.assertRaises(TubeTimeout) as cm:
             p.recvuntil("*** never expected ***", timeout=0.5)
-        self.assertEqual(cm.exception.args[1].decode().strip(), data)
+        self.assertEqual(cm.exception.buffered.decode().strip(), data)
 
         # sendlineafter
         a, b = os.urandom(16).hex(), os.urandom(16).hex()
         p.sendline(a)
-        with self.assertRaises(TimeoutError) as cm:
+        with self.assertRaises(TubeTimeout) as cm:
             p.sendlineafter(b"neko", b, timeout=0.5)
-        self.assertEqual(cm.exception.args[1].decode().strip(), a)
+        self.assertEqual(cm.exception.buffered.decode().strip(), a)

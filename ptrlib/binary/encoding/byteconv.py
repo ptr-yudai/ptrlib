@@ -38,7 +38,7 @@ def str2bytes(data: Union[str, bytes]) -> bytes:
         except ValueError:
             return data.encode('utf-8')
 
-    if isinstance(data, (bytes, bytearray)):
+    if isinstance(data, (bytes, bytearray, memoryview)):
         return bytes(data)
 
     raise TypeError(f"{type(data)} given ('str' expected)")
