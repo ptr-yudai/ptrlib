@@ -2,14 +2,13 @@
 """
 import struct
 from logging import getLogger
-from typing import List, Union
 from ptrlib.types import PtrlibEndiannessT, PtrlibIntLikeT
 from .flat import flat
 
 logger = getLogger(__name__)
 
 
-def p8(data: Union[List[PtrlibIntLikeT], PtrlibIntLikeT]) -> bytes:
+def p8(data: list[PtrlibIntLikeT] | PtrlibIntLikeT) -> bytes:
     """Pack a 1-byte value.
 
     Args:
@@ -31,7 +30,7 @@ def p8(data: Union[List[PtrlibIntLikeT], PtrlibIntLikeT]) -> bytes:
 
     return (idata & 0xff).to_bytes(1, byteorder='little')
 
-def p16(data: Union[List[PtrlibIntLikeT], PtrlibIntLikeT],
+def p16(data: list[PtrlibIntLikeT] | PtrlibIntLikeT,
         byteorder: PtrlibEndiannessT='little') -> bytes:
     """Pack a 2-byte value.
 
@@ -55,7 +54,7 @@ def p16(data: Union[List[PtrlibIntLikeT], PtrlibIntLikeT],
 
     return (idata & 0xffff).to_bytes(2, byteorder=byteorder)
 
-def p32(data: Union[List[PtrlibIntLikeT], List[float], PtrlibIntLikeT, float],
+def p32(data: list[PtrlibIntLikeT] | list[float] | PtrlibIntLikeT | float,
         byteorder: PtrlibEndiannessT='little') -> bytes:
     """Pack a 4-byte value.
 
@@ -82,7 +81,7 @@ def p32(data: Union[List[PtrlibIntLikeT], List[float], PtrlibIntLikeT, float],
 
     return (idata & 0xffffffff).to_bytes(4, byteorder=byteorder)
 
-def p64(data: Union[List[PtrlibIntLikeT], List[float], PtrlibIntLikeT, float],
+def p64(data: list[PtrlibIntLikeT] | list[float] | PtrlibIntLikeT | float,
         byteorder: PtrlibEndiannessT='little') -> bytes:
     """Pack a 8-byte value.
 

@@ -1,4 +1,4 @@
-"""This package provides assemblers for Intel architecture.
+"""This package provides assemblers for Arm architecture.
 """
 import contextlib
 import os
@@ -25,13 +25,15 @@ logger = getLogger(__name__)
 def assemble_keystone(assembly: str,
                       address: int = 0,
                       bits: PtrlibBitsT = 64,
-                      syntax: PtrlibAssemblySyntaxT | None = None) -> bytes:
+                      thumb: bool = False,
+                      is_big: bool = False) -> bytes:
     """Assemble with keystone engine.
 
     Args:
         assembly (str): Assembly code.
         bits (int): The bits (16, 32, or 64) for the assembly. Default to 64.
-        syntax (str, optional): 'intel' for Intel syntax, or 'att' for AT&T syntax.
+        thumb (bool): Assemble in THUMB mode. Default to False.
+        is_big (bool): Assemble in big-endian mode. Default to False.
 
     Raises:
         ModuleNotFoundError: Keystone is not available.
@@ -41,16 +43,14 @@ def assemble_keystone(assembly: str,
         raise ModuleNotFoundError("Keystone is not available. "
                                   "Install it with `pip install keystone-engine`.")
 
-    mode = {16: keystone.KS_MODE_16, 32: keystone.KS_MODE_32, 64: keystone.KS_MODE_64}
-    ks = keystone.Ks(keystone.KS_ARCH_X86, mode[bits])
-
-    if syntax is None:
-        syntax = _guess_asm_syntax(assembly)
-
-    if syntax == 'att':
-        ks.syntax = keystone.KS_OPT_SYNTAX_ATT
+    arch = keystone.KS_ARCH_ARM if bits == 32 else keystone.KS_ARCH_ARM64
+    mode = keystone.KS_MODE_ARM if thumb is False else keystone.KS_MODE_THUMB
+    if is_big:
+        mode |= keystone.KS_MODE_BIG_ENDIAN
     else:
-        ks.syntax = keystone.KS_OPT_SYNTAX_INTEL
+        mode |= keystone.KS_MODE_LITTLE_ENDIAN
+
+    ks = keystone.Ks(arch, mode)
 
     has_label, instructions = _normalize_assembly(assembly)
     if has_label:
@@ -80,34 +80,39 @@ def assemble_keystone(assembly: str,
 
 def assemble_gcc(assembly: str,
                  bits: PtrlibBitsT = 64,
-                 syntax: PtrlibAssemblySyntaxT | None = None) -> bytes:
+                 thumb: bool = False,
+                 is_big: bool = False) -> bytes:
     """Assemble with GCC.
 
     Args:
         assembly (str): Assembly code.
         bits (int): The bits (16, 32, or 64) for the assembly. Default to 64.
-        syntax (str, optional): 'intel' for Intel syntax, or 'att' for AT&T syntax.
+        thumb (bool): Assemble in THUMB mode. Default to False.
+        is_big (bool): Assemble in big-endian mode. Default to False.
 
     Raises:
         FileNotFoundError: Compiler not found.
         OSError: Assemble failed.
     """
-    gcc_path = gcc('intel', bits)
-    objcopy_path = objcopy('intel', bits)
+    gcc_path = gcc('arm', bits)
+    objcopy_path = objcopy('arm', bits)
 
     assembly = '\n'.join(_normalize_assembly(assembly)[1])
-    if syntax == 'att':
-        assembly = '.att_syntax\n' + assembly
-    else:
-        assembly = '.intel_syntax noprefix\n' + assembly
-
-    assembly = f'.code{bits}\n' + assembly
+    header = ['.text']
+    if bits == 32:
+        header.append('.thumb' if thumb else '.arm')
+    assembly = '\n'.join(header) + '\n' + assembly
 
     fname_s   = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())+'.S'
     fname_o   = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())+'.o'
     fname_bin = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())+'.bin'
     with open(fname_s, 'w', encoding='utf-8') as f:
         f.write(assembly)
+
+    cflags = ['-nostdlib', '-c']
+    if bits == 32:
+        cflags.append('-mthumb' if thumb else '-marm')
+    cflags.append('-mbig-endian' if is_big else '-mlittle-endian')
 
     with contextlib.suppress(FileNotFoundError), \
          contextlib.ExitStack() as stack:
@@ -116,7 +121,7 @@ def assemble_gcc(assembly: str,
         stack.callback(os.unlink, fname_bin)
 
         # Assemble
-        cmd = [gcc_path, '-nostdlib', '-c', fname_s, '-o', fname_o]
+        cmd = [gcc_path, *cflags, fname_s, '-o', fname_o]
         res = subprocess.run(cmd, stderr=subprocess.PIPE, check=False)
 
         for line in res.stderr.decode().splitlines():
@@ -137,55 +142,6 @@ def assemble_gcc(assembly: str,
 
         with open(fname_bin, 'rb') as f:
             return f.read()
-
-    raise OSError("Assemble failed")
-
-def assemble_nasm(assembly: str, address: int, bits: PtrlibBitsT = 64) -> bytes:
-    """Assemble with NASM.
-
-    Args:
-        assembly (str): Assembly code.
-        address (int): The address of the first instruction.
-        bits (int): The bits (16, 32, or 64) for the assembly. Default to 64.
-
-    Raises:
-        FileNotFoundError: Compiler not found.
-        OSError: Assemble failed.
-    """
-    nasm_path = nasm()
-
-    assembly = '\n'.join(_normalize_assembly(assembly)[1])
-    assembly = f'bits {bits}\n' + assembly
-    if address > 0:
-        assembly = 'org {address}\n' + assembly
-
-    fname_s = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())+'.S'
-    fname_o = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())+'.o'
-    with open(fname_s, 'w', encoding='utf-8') as f:
-        f.write(assembly)
-
-    with contextlib.suppress(FileNotFoundError), \
-         contextlib.ExitStack() as stack:
-        stack.callback(os.unlink, fname_s)
-        stack.callback(os.unlink, fname_o)
-
-        # Assemble
-        cmd = [nasm_path, '-fbin', fname_s, '-o', fname_o]
-        with subprocess.Popen(cmd, stderr=subprocess.PIPE) as p:
-            if p.stderr is not None:
-                for line in p.stderr.read().decode().splitlines():
-                    logger.error(line)
-
-            if p.wait() != 0:
-                logger.error("Line | Code")
-                logger.error("-" * 32)
-                for i, line in enumerate(assembly.splitlines()):
-                    logger.error("%4d | %s", i + 1, line)
-                raise OSError("Assemble failed")
-
-        with open(fname_o, 'rb') as f:
-            output = f.read()
-        return output
 
     raise OSError("Assemble failed")
 
@@ -213,6 +169,10 @@ def _normalize_assembly(assembly: str) -> tuple[bool, list[str]]:
                 i += 1
             i += 1
 
+        elif assembly[i] == '@' and (i == 0 or assembly[i-1].isspace()):
+            while i+1 < len(assembly) and assembly[i+1] != '\n':
+                i += 1
+
         elif assembly[i] == '\n':
             if token := token.strip():
                 tokens.append(token)
@@ -234,22 +194,18 @@ def _normalize_assembly(assembly: str) -> tuple[bool, list[str]]:
     # Normalize syntax
     has_label = False
     re_label = re.compile(r'^[a-zA-Z0-9_.]+:')
-    re_spec = re.compile(r'(byte|word|dword|qword)\s*\[', re.IGNORECASE)
     re_many_ws = re.compile(r'[ \t]+')
     re_comma = re.compile(r',\s*')
     re_lbracket = re.compile(r'\[\s*')
     re_rbracket = re.compile(r'\s*\]')
-
     for i, token in enumerate(tokens):
         if not has_label and re_label.match(token) is not None:
             has_label = True
 
         # Collapse excessive spaces
-        u = re_many_ws.sub(' ', t).strip()
+        u = re_many_ws.sub(' ', token).strip()
         # Ensure single space after commas
         u = re_comma.sub(', ', u)
-        # Ensure "spec [" -> "spec ptr ["
-        u = re_spec.sub(r'\1 ptr \[', token)
         # Tighten brackets "[ ... ]" -> "[...]" then ensure ", [" spacing
         u = re_lbracket.sub('[', u)
         u = re_rbracket.sub(']', u)
@@ -259,26 +215,5 @@ def _normalize_assembly(assembly: str) -> tuple[bool, list[str]]:
 
     return has_label, tokens
 
-def _guess_asm_syntax(assembly: str) -> PtrlibAssemblySyntaxT:
-    """Guess if the given assembly is written in Intel or AT&T syntax.
 
-    Args:
-        Assembly (str): Assembly code.
-
-    Returns:
-        str: 'intel' or 'att'
-    """
-    att_score = 0
-    intel_score = 0
-
-    att_score += len(re.findall(r'\$\b[0-9A-Fa-fx]+\b', assembly))
-    att_score += len(re.findall(r'%[a-zA-Z][a-zA-Z0-9]*', assembly))
-    att_score += len(re.findall(r'\(\s*%', assembly))
-    intel_score += len(re.findall(r'\[[^\]]+\]', assembly))
-
-    if att_score > intel_score:
-        return 'att'
-    return 'intel'
-
-
-__all__ = ['assemble_keystone', 'assemble_gcc', 'assemble_nasm']
+__all__ = ['assemble_keystone', 'assemble_gcc']
