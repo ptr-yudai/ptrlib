@@ -14,11 +14,13 @@ def _cpu_factory(arch: Literal['intel'], bits: PtrlibBitsT = ...) -> IntelCPU: .
 @overload
 def _cpu_factory(arch: Literal['arm'], bits: PtrlibBitsT = ...) -> ArmCPU: ...
 @overload
-def _cpu_factory(arch: PtrlibArchT, bits: PtrlibBitsT = ...) -> IntelCPU | ArmCPU: ...
+def _cpu_factory(arch: Literal['mips'], bits: PtrlibBitsT = ...) -> MipsCPU: ...
+@overload
+def _cpu_factory(arch: PtrlibArchT, bits: PtrlibBitsT = ...) -> IntelCPU | ArmCPU | MipsCPU: ...
 # --- overloads end ---
 
 def _cpu_factory(arch: PtrlibArchT='intel',
-                 bits: PtrlibBitsT=64) -> IntelCPU | ArmCPU:
+                 bits: PtrlibBitsT=64) -> IntelCPU | ArmCPU | MipsCPU:
     """Create a CPU instance.
 
     Examples:
