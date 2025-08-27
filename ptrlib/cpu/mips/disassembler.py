@@ -1,4 +1,4 @@
-"""This package provides disassemblers for Intel architecture.
+"""This package provides disassemblers for MIPS architecture.
 """
 import contextlib
 import os
@@ -24,13 +24,13 @@ logger = getLogger(__name__)
 
 OBJDUMP_RE = re.compile(
     r'^\s*(?P<address>[0-9a-f]+):\s+'
-    r'(?P<bytecode>(?:[0-9a-f]{2}(?:\s[0-9a-f]{2})*|[0-9a-f]{4}|[0-9a-f]{8}))'
+    r'(?P<bytecode>(?:[0-9a-f]{2}(?:\s[0-9a-f]{2})*|[0-9a-f]{8}|[0-9a-f]{4}))'
     r'(?:\s+(?P<asm>.*))?$',
-    re.IGNORECASE | re.VERBOSE
+    re.IGNORECASE
 )
 
-class ArmDisassembly(NamedTuple):
-    """A single Arm instruction.
+class MipsDisassembly(NamedTuple):
+    """A single MIPS instruction.
 
     Attributes:
         address (int): The address of this instruction.
@@ -44,12 +44,11 @@ class ArmDisassembly(NamedTuple):
     operands: list[str]
 
     def __str__(self):
-        ops = ", ".join(self.operands) if self.operands else ""
-        return f'{self.address:08x}: ({self.bytes.hex()}) {self.mnemonic} {ops}'.rstrip()
+        return f'{self.address:08x}: ({self.bytes.hex()}) {self.mnemonic} {",".join(self.operands)}'
 
 
 def _split_operands_top_level(s: str) -> list[str]:
-    """Split operand string by commas that are not inside [], {}, or () and not in quotes."""
+    """Split by commas that are not inside [], {}, or () and not inside quotes."""
     result: list[str] = []
     buf: list[str] = []
     depth_square = depth_paren = depth_brace = 0
@@ -103,45 +102,37 @@ def _split_operands_top_level(s: str) -> list[str]:
 def disassemble_capstone(bytecode: bytes,
                          address: int = 0,
                          bits: PtrlibBitsT = 64,
-                         thumb: bool = False,
-                         is_big: bool = False) -> list[ArmDisassembly]:
-    """Disassemble with capstone engine.
+                         is_big: bool = False) -> list[MipsDisassembly]:
+    """Disassemble with capstone engine (MIPS32/MIPS64).
 
     Args:
         bytecode (bytes): The machine code.
-        address (int): The address of the first instruction. Default to 0.
-        bits (int): 32 for ARM/Thumb, 64 for AArch64. Default to 64.
-        thumb (bool): Disassemble in THUMB mode. Default to False.
-        is_big (bool): Disassemble in big-endian mode. Default to False.
+        address (int): The start address of the first instruction. Default 0.
+        bits (int): 32 for MIPS32, 64 for MIPS64. Default 64.
+        is_big (bool): True for big-endian decoding.
 
     Returns:
-        list: A list of :obj:`ArmDisassembly` objects.
-
-    Raises:
-        ModuleNotFoundError: Capstone is not available.
-        ValueError: Invalid `bits` value.
+        list[MipsDisassembly]
     """
     if not CAPSTONE_AVAILABLE:
         raise ModuleNotFoundError("Capstone is not available. "
                                   "Install it with `pip install capstone`.")
-    if bits not in (32, 64):
-        raise ValueError("`bits` must be either 32 or 64")
 
-    if bits == 64:
-        arch = capstone.CS_ARCH_ARM64
-        mode = capstone.CS_MODE_LITTLE_ENDIAN if not is_big else capstone.CS_MODE_BIG_ENDIAN
+    if bits == 32:
+        mode = capstone.CS_MODE_MIPS32
+    elif bits == 64:
+        mode = capstone.CS_MODE_MIPS64
     else:
-        arch = capstone.CS_ARCH_ARM
-        mode = capstone.CS_MODE_LITTLE_ENDIAN if not is_big else capstone.CS_MODE_BIG_ENDIAN
-        mode |= capstone.CS_MODE_THUMB if thumb else capstone.CS_MODE_ARM
+        raise ValueError("bits must be 32 (MIPS32) or 64 (MIPS64)")
 
-    cs = capstone.Cs(arch, mode)
+    mode |= capstone.CS_MODE_BIG_ENDIAN if is_big else capstone.CS_MODE_LITTLE_ENDIAN
+    cs = capstone.Cs(capstone.CS_ARCH_MIPS, mode)
 
-    instructions: list[ArmDisassembly] = []
+    instructions: list[MipsDisassembly] = []
     for i in cs.disasm(bytecode, address):
         op_str = i.op_str or ""
         operands = _split_operands_top_level(op_str) if op_str else []
-        instructions.append(ArmDisassembly(
+        instructions.append(MipsDisassembly(
             address=i.address,
             bytes=bytes(i.bytes),
             mnemonic=i.mnemonic,
@@ -150,56 +141,48 @@ def disassemble_capstone(bytecode: bytes,
     return instructions
 
 
-
 def disassemble_objdump(bytecode: bytes,
                         address: int = 0,
                         bits: PtrlibBitsT = 64,
-                        thumb: bool = False,
-                        is_big: bool = False) -> list[ArmDisassembly]:
-    """Disassemble with objdump.
+                        is_big: bool = False) -> list[MipsDisassembly]:
+    """Disassemble with objdump (MIPS32/MIPS64).
 
     Args:
         bytecode (bytes): The machine code.
-        address (int): The address of the first instruction. Default to 0.
-        bits (int): 32 for ARM/Thumb, 64 for AArch64. Default to 32.
-        thumb (bool): Disassemble in THUMB mode. Default to False.
-        is_big (bool): Disassemble in big-endian mode. Default to False.
+        address (int): The start address of the first instruction. Default 0.
+        bits (int): 32 for MIPS32, 64 for MIPS64. Default 64.
+        is_big (bool): True for big-endian decoding.
 
     Returns:
-        list: A list of :obj:`ArmDisassembly` objects.
+        list[MipsDisassembly]
     """
+    objdump_path = objdump('mips', bits)
     if bits not in (32, 64):
-        raise ValueError("`bits` must be either 32 or 64")
-
-    objdump_path = objdump('arm', bits)
-    machine = 'arm' if bits == 32 else 'aarch64'
+        raise ValueError("bits must be 32 (MIPS32) or 64 (MIPS64)")
 
     if len(bytecode) == 0:
         return []
 
-    fname_bin = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())+'.bin'
+    fname_bin = os.path.join(tempfile.gettempdir(), os.urandom(24).hex()) + '.bin'
     with open(fname_bin, 'wb') as f:
         f.write(bytecode)
 
-    with contextlib.suppress(FileNotFoundError), \
-         contextlib.ExitStack() as stack:
+    with contextlib.suppress(FileNotFoundError), contextlib.ExitStack() as stack:
         stack.callback(os.unlink, fname_bin)
 
         # Disassemble
-        cmd = [objdump_path, '-b', 'binary', '-m', machine, '-D', f'--adjust-vma={address}']
-        cmd.append('-EB' if is_big else '-EL')
-        if bits == 32:
-            cmd += ['-M', 'force-thumb' if thumb else 'force-arm']
-        cmd.append(fname_bin)
-
+        cmd = [objdump_path, '-b', 'binary', '-m', 'mips', '-D',
+               ('-EB' if is_big else '-EL'),
+               '-M', ('mips64' if bits == 64 else 'mips32'),
+               f'--adjust-vma={address}',
+               fname_bin]
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
 
         if res.returncode != 0:
-            logger.error(res.stderr.decode())
+            logger.error(res.stderr.decode(errors='ignore'))
             raise OSError("Disassemble failed")
 
-        # Parse the output of objdump
-        instructions: list[ArmDisassembly] = []
+        instructions: list[MipsDisassembly] = []
         for line in res.stdout.decode(errors='ignore').splitlines():
             m = OBJDUMP_RE.match(line)
             if m is None:
@@ -217,10 +200,9 @@ def disassemble_objdump(bytecode: bytes,
             parts = asm_text.split(None, 1)
             mnemonic = parts[0]
             operand_text = parts[1] if len(parts) > 1 else ''
-
             operands = _split_operands_top_level(operand_text) if operand_text else []
 
-            instructions.append(ArmDisassembly(
+            instructions.append(MipsDisassembly(
                 address=int(m['address'], 16),
                 bytes=bytes.fromhex(bc_hex),
                 mnemonic=mnemonic,
@@ -232,4 +214,4 @@ def disassemble_objdump(bytecode: bytes,
     raise OSError("Disassemble failed")
 
 
-__all__ = ['ArmDisassembly', 'disassemble_capstone', 'disassemble_objdump']
+__all__ = ['MipsDisassembly', 'disassemble_capstone', 'disassemble_objdump']

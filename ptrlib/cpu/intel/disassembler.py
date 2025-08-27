@@ -6,7 +6,7 @@ from logging import getLogger
 import re
 import subprocess
 import tempfile
-from typing import List, NamedTuple, TYPE_CHECKING
+from typing import NamedTuple, TYPE_CHECKING
 from ptrlib.types import PtrlibAssemblySyntaxT, PtrlibBitsT
 from ptrlib.cpu.external import objdump
 
@@ -46,9 +46,9 @@ class IntelDisassembly(NamedTuple):
     """
     address: int
     bytes: bytes
-    prefix: List[str]
+    prefix: list[str]
     mnemonic: str
-    operands: List[str]
+    operands: list[str]
 
     def __str__(self):
         return f'{self.address:08x}: ({self.bytes.hex()}) {self.mnemonic} {",".join(self.operands)}'
@@ -56,7 +56,7 @@ class IntelDisassembly(NamedTuple):
 def disassemble_capstone(bytecode: bytes,
                          address: int=0,
                          bits: PtrlibBitsT=64,
-                         syntax: PtrlibAssemblySyntaxT='intel') -> List[IntelDisassembly]:
+                         syntax: PtrlibAssemblySyntaxT='intel') -> list[IntelDisassembly]:
     """Disassemble with capstone engine.
 
     Args:
@@ -80,7 +80,7 @@ def disassemble_capstone(bytecode: bytes,
     else:
         cs.syntax = capstone.CS_OPT_SYNTAX_INTEL
 
-    instructions: List[IntelDisassembly] = []
+    instructions: list[IntelDisassembly] = []
     for i in cs.disasm(bytecode, address):
         instructions.append(IntelDisassembly(
             address=i.address,
@@ -96,7 +96,7 @@ def disassemble_capstone(bytecode: bytes,
 def disassemble_objdump(bytecode: bytes, 
                         address: int=0,
                         bits: PtrlibBitsT=64,
-                        syntax: PtrlibAssemblySyntaxT='intel') -> List[IntelDisassembly]:
+                        syntax: PtrlibAssemblySyntaxT='intel') -> list[IntelDisassembly]:
     """Disassemble with objdump.
 
     Args:
@@ -135,7 +135,7 @@ def disassemble_objdump(bytecode: bytes,
             raise OSError("Disassemble failed")
 
         # Parse the output of objdump
-        instructions: List[IntelDisassembly] = []
+        instructions: list[IntelDisassembly] = []
         for line in res.stdout.decode().splitlines():
             m = OBJDUMP_RE.match(line)
             if m is None:

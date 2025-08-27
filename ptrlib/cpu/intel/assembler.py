@@ -109,8 +109,7 @@ def assemble_gcc(assembly: str,
     with open(fname_s, 'w', encoding='utf-8') as f:
         f.write(assembly)
 
-    with contextlib.suppress(FileNotFoundError), \
-         contextlib.ExitStack() as stack:
+    with contextlib.suppress(FileNotFoundError), contextlib.ExitStack() as stack:
         stack.callback(os.unlink, fname_s)
         stack.callback(os.unlink, fname_o)
         stack.callback(os.unlink, fname_bin)
@@ -164,8 +163,7 @@ def assemble_nasm(assembly: str, address: int, bits: PtrlibBitsT = 64) -> bytes:
     with open(fname_s, 'w', encoding='utf-8') as f:
         f.write(assembly)
 
-    with contextlib.suppress(FileNotFoundError), \
-         contextlib.ExitStack() as stack:
+    with contextlib.suppress(FileNotFoundError), contextlib.ExitStack() as stack:
         stack.callback(os.unlink, fname_s)
         stack.callback(os.unlink, fname_o)
 

@@ -1,31 +1,24 @@
-"""This package provides the IntelCPU class.
+"""This package provides the ArmCPU class.
 """
 import importlib.util
 from logging import getLogger
 from ptrlib.types \
-    import PtrlibBitsT, PtrlibAssemblerT, PtrlibDisassemblerT, PtrlibAssemblySyntaxT
+    import PtrlibBitsT, PtrlibAssemblerT, PtrlibDisassemblerT
 from ptrlib.cpu.external import gcc, objcopy
-from ptrlib.cpu.intel.assembler import assemble_gcc, assemble_keystone, assemble_nasm
-from ptrlib.cpu.intel.disassembler \
-    import disassemble_capstone, disassemble_objdump, IntelDisassembly
-from ptrlib.cpu.intel.instructions import Instructions
-from ptrlib.cpu.intel.syscall import SyscallTable
+from ptrlib.cpu.mips.assembler import assemble_gcc, assemble_keystone
+from ptrlib.cpu.mips.disassembler \
+    import disassemble_capstone, disassemble_objdump, MipsDisassembly
+from ptrlib.cpu.mips.instructions import Instructions
+from ptrlib.cpu.mips.syscall import SyscallTable
 
 logger = getLogger(__name__)
 
 
-class IntelCPU:
-    """CPU and assembly features for Intel architecture.
+class MipsCPU:
+    """CPU and assembly features for MIPS architecture.
 
     Examples:
         ```
-        key = b"ThisIsATestKey!!"
-        cpu = IntelCPU()
-        a = cpu.instruction.aesenc(b"AAAABBBBCCCCDDDD", key)
-        print(cpu.instruction.aesenc_inv(a, key))
-
-        cpu = IntelCPU(32)
-        cpu.assemble(f"mov eax, {cpu.syscall.execve}")
         ```
     """
     def __init__(self, bits: PtrlibBitsT=64):
@@ -37,12 +30,12 @@ class IntelCPU:
         self.syscall = SyscallTable(bits)
         # SyscallTable: System call table.
         self.instruction = Instructions()
-        # Instructions: Emulated Intel instructions.
+        # Instructions: Emulated MIPS instructions.
 
         # Determine assembler
         try:
-            gcc('intel', self._bits)
-            objcopy('intel', self._bits)
+            gcc('mips', self._bits)
+            objcopy('mips', self._bits)
             self._assembler = 'gcc'
         except FileNotFoundError:
             if importlib.util.find_spec('keystone') is not None:
@@ -63,7 +56,6 @@ class IntelCPU:
         This property can be either of the following values:
             - `"keystone"`: Use keystone (external library) for :obj:`assemble`.
             - `"gcc"`: Use GCC (external tool) for :obj:`assemble`.
-            - `"nasm"`: Use NASM (external tool) for :obj:`assemble`.
             - `"none"`: Assembler is not available.
         """
         return self._assembler
@@ -71,6 +63,8 @@ class IntelCPU:
     @assembler.setter
     def assembler(self, assembler: PtrlibAssemblerT):
         assert assembler in ('keystone', 'gcc', 'nasm'), "Invalid assembler name"
+        if assembler == 'nasm':
+            raise NotImplementedError("NASM does not support MIPS architecture.")
         self._assembler = assembler
 
     @property
@@ -92,49 +86,46 @@ class IntelCPU:
     def assemble(self,
                  assembly: str,
                  address: int=0,
-                 syntax: PtrlibAssemblySyntaxT='intel') -> bytes:
+                 is_big: bool=False) -> bytes:
         """Convert assembly into machine code.
 
         Args:
             assembly (str): The assemble code.
             address (int): The address of the first instruction. Default to 0.
-            syntax (str, optional): 'intel' for Intel syntax, or 'att' for AT&T syntax.
+            is_big (bool): Assemble in big-endian mode. Default to False.
 
         Returns:
             bytes: The generated machine code.
         """
         if self._assembler == 'gcc':
-            return assemble_gcc(assembly, self._bits, syntax)
+            return assemble_gcc(assembly, self._bits, is_big)
 
         if self._assembler == 'keystone':
-            return assemble_keystone(assembly, address, self._bits, syntax)
-
-        if self._assembler == 'nasm':
-            return assemble_nasm(assembly, address, self._bits)
+            return assemble_keystone(assembly, address, self._bits, is_big)
 
         raise NotImplementedError(f"Unsupported assembler: '{self._assembler}'")
 
     def disassemble(self,
                     bytecode: bytes,
-                    address: int=0,
-                    syntax: PtrlibAssemblySyntaxT='intel') -> list[IntelDisassembly]:
+                    address: int = 0,
+                    is_big: bool = False) -> list[MipsDisassembly]:
         """Disassemble machine code into assembly.
 
         Args:
             bytecode (bytes): The machine code.
             address (int): The address of the first instruction. Default to 0.
-            syntax (str, optional): 'intel' for Intel syntax, or 'att' for AT&T syntax.
+            is_big (bool): Disassemble in big-endian mode. Default to False.
 
         Returns:
-            list: A list of :obj:`IntelDisassembly` objects.
+            list: A list of :obj:`MipsDisassembly` objects.
         """
         if self._disassembler == 'objdump':
-            return disassemble_objdump(bytecode, address, self._bits, syntax)
+            return disassemble_objdump(bytecode, address, self._bits, is_big)
 
         if self._disassembler == 'capstone':
-            return disassemble_capstone(bytecode, address, self._bits, syntax)
+            return disassemble_capstone(bytecode, address, self._bits, is_big)
 
         raise NotImplementedError(f"Unsupported assembler: {self._disassembler}")
 
 
-__all__ = ['IntelCPU']
+__all__ = ['MipsCPU']

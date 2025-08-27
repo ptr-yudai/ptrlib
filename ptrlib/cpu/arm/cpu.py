@@ -1,4 +1,4 @@
-"""This package provides the IntelCPU class.
+"""This package provides the ArmCPU class.
 """
 import importlib.util
 from logging import getLogger
@@ -15,10 +15,15 @@ logger = getLogger(__name__)
 
 
 class ArmCPU:
-    """CPU and assembly features for Intel Arm
+    """CPU and assembly features for Arm architecture.
 
     Examples:
         ```
+        cpu = ArmCPU(32)
+        code = cpu.assemble("mov r0, #0; bx lr", thumb=True)
+        cpu = ArmCPU(64)
+        for insn in cpu.disassemble(b'\x00\x00\x81\xe5\x00\x20\x83\xe5'):
+            print(insn, insn.mnemonic, insn.operands)
         ```
     """
     def __init__(self, bits: PtrlibBitsT=64):

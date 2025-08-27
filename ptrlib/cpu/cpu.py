@@ -4,6 +4,7 @@ from typing import overload, Literal
 from ptrlib.types import PtrlibArchT, PtrlibBitsT
 from .intel.cpu import IntelCPU
 from .arm.cpu import ArmCPU
+from .mips.cpu import MipsCPU
 
 # --- overloads start ---
 @overload
@@ -34,7 +35,7 @@ def _cpu_factory(arch: PtrlibArchT='intel',
     if arch == 'arm':
         return ArmCPU(bits)
     if arch == 'mips':
-        raise NotImplementedError("This architecture is not supported yet.")
+        return MipsCPU(bits)
     if arch == 'sparc':
         raise NotImplementedError("This architecture is not supported yet.")
     if arch == 'risc-v':
