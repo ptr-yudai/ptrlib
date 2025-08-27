@@ -243,11 +243,11 @@ def _normalize_assembly(assembly: str) -> tuple[bool, list[str]]:
             has_label = True
 
         # Collapse excessive spaces
-        u = re_many_ws.sub(' ', t).strip()
+        u = re_many_ws.sub(' ', token).strip()
         # Ensure single space after commas
         u = re_comma.sub(', ', u)
         # Ensure "spec [" -> "spec ptr ["
-        u = re_spec.sub(r'\1 ptr \[', token)
+        u = re_spec.sub(r'\1 ptr \[', u)
         # Tighten brackets "[ ... ]" -> "[...]" then ensure ", [" spacing
         u = re_lbracket.sub('[', u)
         u = re_rbracket.sub(']', u)
