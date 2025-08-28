@@ -189,12 +189,12 @@ class UnixProcess(Tube):
                 with contextlib.suppress(Exception):
                     self._proc.terminate()
                 try:
-                    self.wait(timeout=0)
+                    self.wait(timeout=0.1)
                 except subprocess.TimeoutExpired:
                     with contextlib.suppress(Exception):
                         self._proc.kill()
                     with contextlib.suppress(Exception):
-                        self.wait(timeout=0)
+                        self.wait(timeout=0.1)
 
         # Cleanup fds
         if self._fd_r != -1:

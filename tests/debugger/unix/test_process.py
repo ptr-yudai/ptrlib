@@ -77,7 +77,7 @@ class TestUnixProcessManager(unittest.TestCase):
             self.assertEqual(p.recvline(), f'[{i}] Hello, World!'.encode())
         self.assertEqual(p.recvline(), b'END')
 
-        p.close()
+        self.assertEqual(p.wait(), 0)
 
     def test_write(self):
         """Test process.write
@@ -97,7 +97,7 @@ class TestUnixProcessManager(unittest.TestCase):
             self.assertEqual(p.recvline(), f'[{i}] ABCDE, World!'.encode())
         self.assertEqual(p.recvline(), b'END')
 
-        p.close()
+        self.assertEqual(p.wait(), 0)
 
     def test_search(self):
         """Test process.search

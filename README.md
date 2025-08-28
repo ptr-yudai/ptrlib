@@ -15,7 +15,7 @@ Ptrlib is designed to be as library-independent as possible.
 Also, ptrlib has some pros such as supporting Windows process.
 
 ## Requirements
-Supports: Python 3.8 or later
+Supports: Python 3.10 or later
 
 Library Dependency:
 - pycryptodome
@@ -50,11 +50,12 @@ You can run executable or create socket like this:
 ```python
 sock = Process("./pwn01", cwd="/home/ctf")
 sock = Process(["./pwn01", "--debug"], env={"FLAG": "flag{dummy}"})
-sock = Process("make menuconfig", shell=True)
+sock = Process("emacs -nw", shell=True, use_tty=True)
 sock = Socket("localhost", 1234)
 sock = Socket("example.com", 443, ssl=True, sni="neko")
-sock = SSH("example.com", 22, username="ubuntu", password="p4s$w0rd")
-sock = SSH("example.com", 22, username="ubuntu", identity="./id_rsa")
+sock = Socket("0.0.0.0", 8033, udp=True)
+sock = SSH("example.com", username="ubuntu", password="p4s$w0rd")
+sock = SSH("example.com", username="ubuntu", port=8022, identity="./id_rsa")
 ```
 
 If you have the target binary or libc, it's recommended to load them first.
@@ -88,20 +89,21 @@ Write ROP chain
 addr_stage2 = elf.section(".bss") + 0x400
 
 payload = b'A' * 0x108
-payload += flat([
+payload += p64([
   # puts(puts@got)
-  next(elf.gadget("pop rdi; ret;")),
+  elf.gadget("pop rdi; ret;"),
   elf.got("puts"),
   elf.plt("puts"),
   # gets(stage2)
-  next(elf.gadget("pop rdi; ret;")),
+  # You can use indices to skip useless gadgets (e.g., newlines)
+  elf.gadget("pop rdi; ret;")[1],
   addr_stage2,
   elf.plt("gets"),
   # stack pivot
-  next(elf.gadget("pop rbp; ret;")),
+  next(elf.gadget("pop rbp; ret;")), # old notation: `next` also works
   addr_stage2,
-  next(elf.gadget("leave\n ret")) # GCC-style
-], map=p64)
+  elf.gadget("leave\n ret") # GCC-style
+])
 sock.sendlineafter("Data: ", payload)
 
 """

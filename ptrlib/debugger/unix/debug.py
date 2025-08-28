@@ -60,15 +60,18 @@ class UnixProcessDebugger:
     def gdb(self) -> UnixProcess:
         """Debugger session
         """
-        assert self._gdb is not None
+        if self._gdb is None:
+            raise RuntimeError("Debugger is not attached.")
         return self._gdb
 
     @property
     def is_attached(self) -> bool:
+        """Check if the debugger is attached to a process.
+        """
         return self._gdb is not None
 
     @property
-    def debug(self) -> bool:
+    def debug(self) -> str:
         """Debug mode
         """
         return self.gdb.debug
@@ -94,7 +97,7 @@ class UnixProcessDebugger:
         self._gdb = unix_process()([
             "sudo", "-S", "-p", CUSTOM_SUDO_PROMPT,
             "gdb", "-q", "-p", str(self._pid)
-        ])
+        ], use_tty=True)
 
         init_msg = b''
         for _ in range(3):

@@ -24,7 +24,7 @@ import time
 import typing
 from logging import getLogger
 from ptrlib.console import Color
-from ptrlib.binary.encoding import str2bytes
+from ptrlib.binary.encoding import str2bytes, hexdump
 
 logger = getLogger(__name__)
 
@@ -462,7 +462,7 @@ class Tube(metaclass=abc.ABCMeta):
                     self._buffer = out[end:]
                 else:
                     self._buffer = out
-                return ret
+                return bytes(ret)
 
             # Not found yet: read more
             try:
@@ -539,6 +539,7 @@ class Tube(metaclass=abc.ABCMeta):
             return 0
 
         n = self._send_impl(data)
+        self._trace_outcoming(data[:n])
         return n
 
     def sendall(self,
@@ -1007,8 +1008,25 @@ class Tube(metaclass=abc.ABCMeta):
                 compiled.append(re.compile(str2bytes(it), re.DOTALL))
         return compiled
 
+    def _trace_outcoming(self, data: bytes) -> bytes:
+        if self._debug == 'hex':
+            hexdump(data, prefix=f"{Color.WHITE}[send] {Color.END}")
+        elif self._debug == 'plain':
+            for line in data.split(self.newline):
+                sys.stdout.buffer.write(Color.WHITE.encode() + b'[send] ' + Color.END.encode())
+                sys.stdout.buffer.write(Color.BRIGHT_CYAN.encode() + line + self.newline + Color.END.encode())
+                sys.stdout.buffer.flush()
+        return data
+
     def _trace_incoming(self, data: bytes) -> bytes:
-        # TODO
+        if self._debug == 'hex':
+            hexdump(data, prefix=f"{Color.WHITE}[recv] {Color.END}",
+                    color_ascii=Color.BRIGHT_GREEN, color_nonascii=Color.GREEN)
+        elif self._debug == 'plain':
+            for line in data.split(self.newline):
+                sys.stdout.buffer.write(Color.WHITE.encode() + b'[recv] ' + Color.END.encode())
+                sys.stdout.buffer.write(Color.BRIGHT_GREEN.encode() + line + self.newline + Color.END.encode())
+                sys.stdout.buffer.flush()
         return data
 
     # --- Abstracts --------------------------------------------------------
