@@ -56,14 +56,14 @@ class UnixProcess(Tube):
         self._timeout: float | None = None
         self._proc: subprocess.Popen | None = None
 
-        super().__init__(**kwargs)
-        self._logger = getLogger(__name__)
-
         self._workdir = os.path.realpath(cwd) if cwd else os.getcwd()
         self._args = args if isinstance(args, list) else shlex.split(args)
         self._env = os.environ.copy() if env is None else env
         self._shell = shell
         self._filepath = self._args[0]
+
+        super().__init__(**kwargs)
+        self._logger = getLogger(__name__)
 
         self._spawn_process(merge_stderr, use_tty, is_raw)
         self._set_nonblocking(self._fd_r)
@@ -113,6 +113,12 @@ class UnixProcess(Tube):
         return self._process
 
     # --- Abstracts --------------------------------------------------------
+
+    @property
+    def _logname_impl(self) -> str:
+        """Get the log file name for this process.
+        """
+        return f'Process({self._filepath})'
 
     def _recv_impl(self, blocksize: int):
         """Read up to ``blocksize`` bytes from the process.

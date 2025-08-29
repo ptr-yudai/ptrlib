@@ -14,7 +14,6 @@ Key features:
 """
 import abc
 import contextlib
-import io
 import os
 import re
 import select
@@ -22,9 +21,13 @@ import sys
 import threading
 import time
 import typing
+import unicodedata
 from logging import getLogger
+from pathlib import Path
+
 from ptrlib.console import Color
 from ptrlib.binary.encoding import str2bytes, hexdump
+from ptrlib.filestruct.pcap import PcapFile
 
 logger = getLogger(__name__)
 
@@ -58,8 +61,8 @@ class Tube(metaclass=abc.ABCMeta):
     the instance-wide timeout via the `timeout(...)` context manager.
     """
     def __init__(self,
-                 logfile: str | os.PathLike | typing.BinaryIO | None = None,
                  debug: bool | DebugModeT = False,
+                 pcap: str | None = None,
                  quiet: bool = False):
         self._debug: DebugModeT
         self._buffer = b''
@@ -75,14 +78,13 @@ class Tube(metaclass=abc.ABCMeta):
         self.debug = debug # Let setter validate and normalize it
 
         # Logging target
-        if isinstance(logfile, str):
-            self._logfile = open(os.path.expanduser(logfile), "wb")
-        elif isinstance(logfile, os.PathLike):
-            self._logfile = open(os.fspath(logfile), "wb")
-        elif isinstance(logfile, io.BufferedWriter):
-            self._logfile = logfile
-        elif logfile is not None:
-            raise TypeError(f"expected str, PathLike, or BinaryIO, not {type(logfile)}")
+        if pcap is None:
+            path = Path(f"/tmp/ptrlib/log-{self._sanitize_filename(self._logname_impl)}.pcap")
+            path.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            path = Path(pcap)
+
+        self._pcap: PcapFile = PcapFile(path)
 
     def __del__(self):
         if self._logfile is not None:
@@ -193,6 +195,12 @@ class Tube(metaclass=abc.ABCMeta):
     @prompt.setter
     def prompt(self, value: str):
         self._prompt = value
+
+    @property
+    def pcap(self) -> PcapFile:
+        """PCAP file for the connection.
+        """
+        return self._pcap
 
     # --- Receive methods --------------------------------------------------
 
@@ -1013,9 +1021,12 @@ class Tube(metaclass=abc.ABCMeta):
             hexdump(data, prefix=f"{Color.WHITE}[send] {Color.END}")
         elif self._debug == 'plain':
             for line in data.split(self.newline):
-                sys.stdout.buffer.write(Color.WHITE.encode() + b'[send] ' + Color.END.encode())
-                sys.stdout.buffer.write(Color.BRIGHT_CYAN.encode() + line + self.newline + Color.END.encode())
+                log  = Color.WHITE.encode() + b'[send] ' + Color.END.encode()
+                log += Color.BRIGHT_CYAN.encode() + line + self.newline + Color.END.encode()
+                sys.stdout.buffer.write(log)
                 sys.stdout.buffer.flush()
+
+        self._pcap.send(data)
         return data
 
     def _trace_incoming(self, data: bytes) -> bytes:
@@ -1024,12 +1035,62 @@ class Tube(metaclass=abc.ABCMeta):
                     color_ascii=Color.BRIGHT_GREEN, color_nonascii=Color.GREEN)
         elif self._debug == 'plain':
             for line in data.split(self.newline):
-                sys.stdout.buffer.write(Color.WHITE.encode() + b'[recv] ' + Color.END.encode())
-                sys.stdout.buffer.write(Color.BRIGHT_GREEN.encode() + line + self.newline + Color.END.encode())
+                log  = Color.WHITE.encode() + b'[recv] ' + Color.END.encode()
+                log += Color.BRIGHT_GREEN.encode() + line + self.newline + Color.END.encode()
+                sys.stdout.buffer.write(log)
                 sys.stdout.buffer.flush()
+
+        self._pcap.recv(data)
         return data
 
+    @staticmethod
+    def _sanitize_filename(name: str, maxlen: int = 255) -> str:
+        s = unicodedata.normalize("NFKC", name)
+        s = s.replace("\x00", "")
+        s = s.replace("/", "_")
+        s = s.replace(os.sep, "_")
+
+        out = []
+        prev_us = False
+        for ch in s:
+            cat = unicodedata.category(ch)[0]
+            if ch in "._-" or cat in ("L", "N"):
+                out.append(ch)
+                prev_us = False
+            else:
+                if not prev_us:
+                    out.append("_")
+                    prev_us = True
+
+        base = "".join(out)
+        base = re.sub(r"_+", "_", base)
+        base = base.strip("._")
+        if not base:
+            base = "untitled"
+        if base[0] == ".":
+            base = "_" + base.lstrip(".")
+
+        def fits(b: str) -> bool:
+            return len(b.encode("utf-8")) <= maxlen
+
+        while not fits(base) and len(base) > 1:
+            base = base[:-1]
+        if not fits(base):
+            base = ""
+
+        if not base:
+            base = "untitled"
+            while not fits(base) and len(base) > 1:
+                base = base[:-1]
+
+        return base
+
     # --- Abstracts --------------------------------------------------------
+
+    @property
+    @abc.abstractmethod
+    def _logname_impl(self) -> str:
+        raise NotImplementedError
 
     @abc.abstractmethod
     def _recv_impl(self, blocksize: int) -> bytes:

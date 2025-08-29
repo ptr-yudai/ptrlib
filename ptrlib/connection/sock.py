@@ -38,6 +38,16 @@ class Socket(Tube):
         This constructor accepts multiple notations and normalizes them to (host, port),
         then creates a TCP connection. If ``ssl=True``, the socket is wrapped with TLS.
 
+        Args:
+            host: Host name of the remote server.
+            port: Port number.
+            ssl: Enable SSL/TLS for the connection if True.
+            sni: Server Name Indication (SNI) for the connection.
+            udp: Use UDP for the connection if True.
+            debug: Debug mode for I/O tracing. ('none', 'plain', or 'hex')
+            quiet: Suppress output if True.
+            pcap: File path to the pcap log file.
+
         Accepted address forms:
             - Separate host/port:
                 ``Socket("example.com", 443)``
@@ -80,9 +90,6 @@ class Socket(Tube):
         self._oob_flag = False
         self._is_udp: bool = bool(udp)
 
-        super().__init__(**kwargs)
-        self._logger = getLogger(__name__)
-
         # Detect scheme "udp://..." to auto-enable UDP
         lower = host.strip().lower()
         if lower.startswith("udp://"):
@@ -92,6 +99,13 @@ class Socket(Tube):
             raise ValueError("SSL/TLS is not supported over UDP")
 
         self._host, self._port = self._parse_host_port(host, port)
+
+        super().__init__(**kwargs)
+        self._logger = getLogger(__name__)
+
+        self._pcap.udp = self._is_udp
+        self._pcap.remote = self._host
+        self._pcap.remote_port = self._port
 
         try:
             if not self._is_udp:
@@ -140,6 +154,13 @@ class Socket(Tube):
         return f"Socket[{proto}]({self._host}:{self._port})"
 
     # --- Abstracts --------------------------------------------------------
+
+    @property
+    def _logname_impl(self) -> str:
+        """Get the log file name for this process.
+        """
+        proto = "UDP" if self._is_udp else "TCP"
+        return f'Socket[{proto}]({self._host}:{self._port})'
 
     def _recv_impl(self, blocksize: int) -> bytes:
         """Low-level receive from the socket.

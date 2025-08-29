@@ -116,14 +116,15 @@ class WinProcess(Tube):
         self._h_stdout: int = 0  # Windows HANDLE (for PeekNamedPipe)
         self._h_stderr: int = 0
 
-        super().__init__(**kwargs)
-        self._logger = getLogger(__name__)
-        self._newline = [b'\r\n']
-
-        argv = args if isinstance(args, list) else shlex.split(args)
+        self._args = args if isinstance(args, list) else shlex.split(args)
+        self._filepath = self._args[0]
         stdin = subprocess.PIPE
         stdout = subprocess.PIPE
         stderr = subprocess.STDOUT if merge_stderr else subprocess.PIPE
+
+        super().__init__(**kwargs)
+        self._logger = getLogger(__name__)
+        self._newline = [b'\r\n']
 
         flags = 0
         if creationflags:
@@ -143,7 +144,7 @@ class WinProcess(Tube):
 
         # Spawn
         self._proc = subprocess.Popen(
-            argv if not shell else " ".join(shlex.quote(a) for a in argv),
+            self._args if not shell else " ".join(shlex.quote(a) for a in self._args),
             shell=shell,
             env=env,
             cwd=cwd,
@@ -245,6 +246,12 @@ class WinProcess(Tube):
                 self._proc.wait(timeout=wait_timeout)
 
     # --- Abstracts --------------------------------------------------------
+
+    @property
+    def _logname_impl(self) -> str:
+        """Get the log file name for this process.
+        """
+        return f'Process({self._filepath})'
 
     def _recv_impl(self, blocksize: int) -> bytes:
         """Receive up to ``blocksize`` bytes from the child.
