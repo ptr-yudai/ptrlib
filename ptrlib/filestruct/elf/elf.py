@@ -8,7 +8,7 @@ from zlib import crc32
 from ptrlib.types import PtrlibIntLikeT, PtrlibArchT, PtrlibBitsT, PtrlibAssemblySyntaxT, GeneratorOrInt
 from ptrlib.binary.packing import u32
 from ptrlib.binary.encoding import str2bytes
-from ptrlib.cpu import CPU
+from ptrlib.cpu import CPU, PtrlibCpuT
 from ptrlib.pwn.xop import GadgetFinder
 from .parser import ELFParser
 
@@ -29,7 +29,7 @@ class ELF:
         self._base = 0
         self._debug_parser = self._get_debug_parser()
         self._gadget = GadgetFinder(self)
-        self.cpu = CPU(self.arch, self.bits)
+        self._cpu = CPU(self.arch, self.bits)
 
     @property
     def bits(self) -> PtrlibBitsT:
@@ -51,6 +51,12 @@ class ELF:
             - `"risc-v"`: RISC-V series (`EM_RISCV`)
         """
         return self._parser.arch
+
+    @property
+    def cpu(self) -> PtrlibCpuT:
+        """CPU instance for this ELF file
+        """
+        return self._cpu
 
     def _get_debug_parser(self):
         # ref: https://sourceware.org/gdb/current/onlinedocs/gdb.html/Separate-Debug-Files.html
@@ -351,15 +357,15 @@ class ELF:
         raise KeyError(f"0x{addr:x} is not a static address.")
 
     def read(self, addr: int, size: int) -> bytes:
-        """Returns the bytes of a size from a virtual address.
+        """Returns bytes given its virtual address.
 
         If a non-existent address is specified, None is returned.
 
-        Unintended behaviour will occur if the segment is crossed.
+        Unintended behaviour will occur if ```addr + size``` exceeds the segment boundary.
 
         Args:
             addr (int): Start virtual address
-            size (int): Size of bytes
+            size (int): Size to read
 
         Returns:
             bytes: Bytes in the file.
@@ -567,17 +573,21 @@ class ELF:
         shdr = self._parser.section_by_name(name)
         return shdr['sh_addr']
 
-    def gadget(self, code: str, syntax: PtrlibAssemblySyntaxT='intel') -> GeneratorOrInt:
+    def gadget(self,
+               code: str | bytes,
+               syntax: PtrlibAssemblySyntaxT='intel',
+               thumb: bool=False) -> GeneratorOrInt:
         """Find ROP/COP gadgets.
 
         Args:
-            code (str/bytes): Assembly or machine code of ROP gadget
-            syntax (str): Syntax of code (default to intel)
+            code (str/bytes): Assembly or machine code of ROP gadget.
+            syntax (str): Syntax of code. Used only for Intel architecture.
+            thumb (bool): Thumb mode. Used only for ARM architecture.
 
         Returns:
             generator: Generator to yield the addresses of the found gadgets
         """
-        return self._gadget.search(code, syntax)
+        return self._gadget.search(code, syntax, thumb)
 
     @cache
     def relro(self) -> int:

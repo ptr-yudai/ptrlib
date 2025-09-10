@@ -67,7 +67,6 @@ class Tube(metaclass=abc.ABCMeta):
         self._debug: DebugModeT
         self._buffer = b''
         self._mutex = threading.Lock()
-        self._logfile: typing.BinaryIO | None = None
         self._prompt: str = '[ptrlib]$ '
         self._is_alive: bool = True
         self._quiet: bool = quiet
@@ -87,8 +86,6 @@ class Tube(metaclass=abc.ABCMeta):
         self._pcap: PcapFile = PcapFile(path)
 
     def __del__(self):
-        if self._logfile is not None:
-            self._logfile.close()
         self.close()
 
     def _log_info(self, message: str, *args, stacklevel: int = 2):
@@ -649,6 +646,7 @@ class Tube(metaclass=abc.ABCMeta):
         if self._is_alive:
             self._is_alive = False
             self._log_info(f"Connection {str(self)} closed")
+            self._pcap.close()
         with self._mutex:
             self._close_impl()
 
@@ -662,6 +660,7 @@ class Tube(metaclass=abc.ABCMeta):
         """Close the send end of the tube.
         """
         self._close_send_impl()
+        self._pcap.close_send()
 
     # --- Interactive session ----------------------------------------------
 
@@ -739,7 +738,9 @@ class Tube(metaclass=abc.ABCMeta):
                 try:
                     data = self.recv(blocksize, timeout=rx_timeout)
                     if not data:
-                        continue # Unreachable
+                        stop.set()
+                        break
+
                     with io_lock:
                         if is_raw:
                             sys.stdout.buffer.write(data)

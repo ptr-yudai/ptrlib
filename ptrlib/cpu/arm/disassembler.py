@@ -214,6 +214,9 @@ def disassemble_objdump(bytecode: bytes,
                 continue
 
             asm_text = m['asm'].strip()
+            if '\t; ' in asm_text:
+                # Strip comment
+                asm_text = asm_text[:asm_text.index('\t; ')]
             parts = asm_text.split(None, 1)
             mnemonic = parts[0]
             operand_text = parts[1] if len(parts) > 1 else ''

@@ -424,6 +424,7 @@ class PcapFile:
         hdr = _pack_pcap_packet_header(ts, len(frame), len(frame))
         self._fh.write(hdr)
         self._fh.write(frame)
+        self._fh.flush()
 
     def _alloc_ip_id(self) -> int:
         self._ip_id = (self._ip_id + 1) & 0xFFFF

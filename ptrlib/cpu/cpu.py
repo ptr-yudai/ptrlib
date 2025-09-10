@@ -6,6 +6,8 @@ from .intel.cpu import IntelCPU
 from .arm.cpu import ArmCPU
 from .mips.cpu import MipsCPU
 
+PtrlibCpuT = IntelCPU | ArmCPU | MipsCPU
+
 # --- overloads start ---
 @overload
 def _cpu_factory() -> IntelCPU: ...
@@ -16,11 +18,11 @@ def _cpu_factory(arch: Literal['arm'], bits: PtrlibBitsT = ...) -> ArmCPU: ...
 @overload
 def _cpu_factory(arch: Literal['mips'], bits: PtrlibBitsT = ...) -> MipsCPU: ...
 @overload
-def _cpu_factory(arch: PtrlibArchT, bits: PtrlibBitsT = ...) -> IntelCPU | ArmCPU | MipsCPU: ...
+def _cpu_factory(arch: PtrlibArchT, bits: PtrlibBitsT = ...) -> PtrlibCpuT: ...
 # --- overloads end ---
 
 def _cpu_factory(arch: PtrlibArchT='intel',
-                 bits: PtrlibBitsT=64) -> IntelCPU | ArmCPU | MipsCPU:
+                 bits: PtrlibBitsT=64) -> PtrlibCpuT:
     """Create a CPU instance.
 
     Examples:
@@ -48,4 +50,4 @@ def _cpu_factory(arch: PtrlibArchT='intel',
 CPU = _cpu_factory
 
 
-__all__ = ['CPU', 'ArmCPU', 'IntelCPU']
+__all__ = ['CPU', 'ArmCPU', 'IntelCPU', 'PtrlibCpuT']
