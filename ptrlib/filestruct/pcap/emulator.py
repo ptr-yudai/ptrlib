@@ -6,6 +6,7 @@ import pathlib
 import socket
 import struct
 import time
+import typing
 
 
 def _checksum(data: bytes) -> int:
@@ -192,9 +193,12 @@ class PcapFile:
         self._rfin = False
 
         # Output file handle
-        self._fh = open(self.path, "wb")
+        self._fh: typing.BinaryIO | None = open(self.path, "wb")
         self._fh.write(_pack_pcap_global_header(linktype=1, snaplen=65535))
         self._fh.flush()
+
+    def __del__(self):
+        self.close()
 
     @property
     def remote(self) -> str:
@@ -270,37 +274,37 @@ class PcapFile:
     def close(self, ts: float | None = None) -> None:
         """Close the session. If TCP, send FIN from both sides.
         """
-        if self.udp:
-            # UDP: Do nothing
+        try:
+            if self.udp:
+                # UDP: Do nothing
+                self.flush()
+                return
+
+            # Do nothing if not connected
+            if not self._tcp_connected:
+                return
+
+            now = self._now(ts)
+            eps = 0.0001
+
+            if not self._lfin:
+                self._tcp_send(flags=TCP_FIN | TCP_ACK, ts=now)
+                self._lfin = True
+                if self.auto_ack:
+                    self._tcp_recv(flags=TCP_ACK, ts=now + eps)
+                now += 2 * eps
+
+            if not self._rfin:
+                self._tcp_recv(flags=TCP_FIN | TCP_ACK, ts=now)
+                self._rfin = True
+                self._tcp_send(flags=TCP_ACK, ts=now + eps)
+
             self.flush()
-            self._fh.close()
-            return
 
-        # Do nothing if not connected
-        if not self._tcp_connected:
-            try:
-                self._fh.flush()
-            finally:
+        finally:
+            if self._fh is not None:
                 self._fh.close()
-            return
-
-        now = self._now(ts)
-        eps = 0.0001
-
-        if not self._lfin:
-            self._tcp_send(flags=TCP_FIN | TCP_ACK, ts=now)
-            self._lfin = True
-            if self.auto_ack:
-                self._tcp_recv(flags=TCP_ACK, ts=now + eps)
-            now += 2 * eps
-
-        if not self._rfin:
-            self._tcp_recv(flags=TCP_FIN | TCP_ACK, ts=now)
-            self._rfin = True
-            self._tcp_send(flags=TCP_ACK, ts=now + eps)
-
-        self.flush()
-        self._fh.close()
+                self._fh = None
 
     def advance(self, seconds: float) -> None:
         """Advance the internal clock by a specified number of seconds.
@@ -310,9 +314,9 @@ class PcapFile:
     def flush(self) -> None:
         """Flush the file handle and synchronize the file system.
         """
+        if self._fh is None:
+            return
         self._fh.flush()
-        if hasattr(os, "fsync"):
-            os.fsync(self._fh.fileno())
 
     def __enter__(self) -> "PcapFile":
         return self
@@ -320,8 +324,6 @@ class PcapFile:
     def __exit__(self, _exc_type, _exc, _tb):
         with contextlib.suppress(Exception):
             self.close()
-        with contextlib.suppress(Exception):
-            self._fh.close()
 
     def _segment(self, data: bytes, ts: float | None):
         if self.udp or len(data) <= self.mss:
@@ -418,6 +420,7 @@ class PcapFile:
         self._write(ts, frame)
 
     def _write(self, ts: float, frame: bytes) -> None:
+        assert self._fh is not None, "Pcap file already closed"
         if ts <= self._last_ts:
             ts = self._last_ts + 0.000001
         self._last_ts = ts
