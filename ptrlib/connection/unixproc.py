@@ -20,9 +20,10 @@ import shlex
 import termios
 import subprocess
 from logging import getLogger
-from .tube import Tube
 from ptrlib.debugger.unix import UnixProcessManager
 from ptrlib.binary.packing import p16
+from ptrlib.arch.linux import signal_name
+from .tube import Tube
 
 
 TcAttrT = list[int | list[int | bytes]]
@@ -292,7 +293,10 @@ class UnixProcess(Tube):
 
         if self._is_alive:
             self._is_alive = False
-            self._log_info(f"Process {str(self)} stopped with exit code {code}")
+            name = signal_name(-code, detail=True)
+            if name:
+                name = ' --> ' + name
+            self._log_info(f"Process {str(self)} stopped with exit code {code}{name}")
         return code
 
     def kill(self,

@@ -3,7 +3,6 @@
 from logging import getLogger, INFO, StreamHandler
 from .algorithm import *
 from .types import *
-from .arch import *
 from .binary import *
 from .connection import *
 from .console import *
