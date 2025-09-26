@@ -1,6 +1,7 @@
 import os
 import random
 import threading
+import time
 import unittest
 from logging import getLogger, FATAL
 from ptrlib import Socket, Server, TubeTimeout
@@ -71,3 +72,46 @@ class TestServer(unittest.TestCase):
         cli.send(data)
 
         th.join()
+
+    def test_udp_server(self):
+        """Test UDP server functionality
+        """
+        port = 12000 + random.randint(0, 2000)
+        server = Server("localhost", port, udp=True)
+
+        # 10 lines up, 10 lines back
+        data = os.urandom(16 * 20).hex()
+
+        def serve_udp():
+            conn = server.accept()  # waits for first datagram
+            # First 10 messages should be received from client
+            for i in range(10):
+                expected = data[i*32:(i+1)*32].encode()
+                self.assertEqual(conn.recvline(), expected)
+            # Send next 10 messages back to client
+            for i in range(10, 20):
+                conn.sendline(data[i*32:(i+1)*32])
+                time.sleep(0.01)
+
+        th = threading.Thread(target=serve_udp, daemon=True)
+        th.start()
+
+        cli = Socket("localhost", port, udp=True)
+        # Send 10 messages
+        for i in range(10):
+            cli.sendline(data[i*32:(i+1)*32])
+            time.sleep(0.01)
+        # Receive 10 messages
+        for i in range(10, 20):
+            expected = data[i*32:(i+1)*32].encode()
+            self.assertEqual(cli.recvline(), expected)
+
+        th.join()
+
+    def test_udp_server_accept_timeout(self):
+        """Server.accept should timeout on UDP when no datagram arrives
+        """
+        port = 14000 + random.randint(0, 2000)
+        server = Server("localhost", port, udp=True)
+        with self.assertRaises(TimeoutError):
+            _ = server.accept(timeout=0.2)

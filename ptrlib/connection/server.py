@@ -1,13 +1,13 @@
-"""TCP server and connection abstractions.
+"""TCP/UDP server and connection abstractions.
 
-This module provides the `Server` class for creating and managing TCP listening sockets,
-and the `TCPConnection` class for handling individual accepted TCP connections with a
-buffered send/receive API. Supports IPv4, IPv6, dual-stack sockets, and thread-safe
-acceptance of incoming connections.
+This module provides:
+- Server: A TCP or UDP server class for managing incoming connections.
+- SocketClient: A Tube-based wrapper around an accepted client socket (TCP or UDP).
 
-Classes:
-    Server: A TCP server class for managing incoming connections.
-    TCPConnection: A TCP connection class for handling individual client connections.
+Features:
+- IPv4/IPv6, optional dualstack (IPv6 socket that accepts v4-mapped addresses on platforms that support it)
+- Thread-safe acceptance for TCP (multiple threads can call accept concurrently)
+- UDP acceptance: per-client connected UDP sockets on the same port using SO_REUSEPORT
 """
 import socket
 import select
@@ -19,18 +19,19 @@ from .tube import Tube
 
 AddressT = tuple[str, int] | tuple[str, int, int, int]
 
-class TCPConnection(Tube):
-    """A single accepted TCP connection wrapped as a Tube.
+
+class SocketClient(Tube):
+    """A single accepted client connection (TCP or UDP) wrapped as a Tube.
 
     This class is returned by :meth:`Server.accept` and provides the usual
     buffered `recv*` / `send*` API backed by a connected socket.
 
     Args:
-        sock: A connected socket (already accepted).
+        sock: A connected socket (TCP/UDP). For TCP, a stream socket. For UDP, a datagram socket connected to a specific peer.
         peer: Optional peer address tuple for display/logging.
 
     Raises:
-        ValueError: If `sock` is not a connected TCP socket.
+        ValueError: If `sock` is not a connected TCP or UDP socket.
     """
     def __init__(self, sock: socket.socket, peer: AddressT | None = None, **kwargs):
         self._sock: socket.socket | None
@@ -38,19 +39,38 @@ class TCPConnection(Tube):
         self._sock = sock
         self._peer = peer
 
-        if not isinstance(sock, socket.socket) or sock.type != socket.SOCK_STREAM:
-            raise ValueError("TCPConnection requires a connected TCP socket")
+        if not isinstance(sock, socket.socket):
+            raise ValueError("SocketClient requires a socket object")
+
+        # Determine transport type
+        self._is_udp: bool = (sock.type == socket.SOCK_DGRAM)
 
         self._timeout: float | None = None
         super().__init__(**kwargs)
         self._logger = getLogger(__name__)
 
-    def __str__(self) -> str:
+        # Configure PCAP metadata
         try:
-            return f"TCPConnection({self.remote_address})"
+            addr = self._peer if self._peer is not None else self._sock.getpeername()
+        except Exception:
+            addr = None
+
+        host: str = "unknown"
+        port: int = 0
+        if isinstance(addr, tuple) and len(addr) >= 2:
+            host = addr[0]
+            port = int(addr[1])
+
+        self._pcap.udp = self._is_udp
+        self._pcap.remote = host
+        self._pcap.remote_port = port
+
+    def __str__(self) -> str:
+        proto = "UDP" if self._is_udp else "TCP"
+        try:
+            return f"SocketClient[{proto}]({self.remote_address})"
         except (RuntimeError, OSError):
-            # OSError: Windows raises WinError 10038 on closed socket
-            return "TCPConnection(<closed>)"
+            return f"SocketClient[{proto}](<closed>)"
 
     # ---- Properties ------------------------------------------------------
 
@@ -63,7 +83,6 @@ class TCPConnection(Tube):
         """
         if self._sock is None:
             raise RuntimeError("Connection is closed")
-
         return self._sock.getpeername()
 
     @property
@@ -75,19 +94,29 @@ class TCPConnection(Tube):
         """
         if self._sock is None:
             raise RuntimeError("Connection is closed")
-
         return self._sock.getsockname()
 
     # ---- Abstracts ------------------------------------------------------
+
+    @property
+    def _logname_impl(self) -> str:
+        """Get the log file name for this connection."""
+        proto = "UDP" if self._is_udp else "TCP"
+        with contextlib.suppress(Exception):
+            host, port = self.remote_address[0], self.remote_address[1]
+            return f"SocketClient[{proto}]({host}:{port})"
+        return f"SocketClient[{proto}](unknown)"
 
     def _recv_impl(self, blocksize: int) -> bytes:
         """Receive up to ``blocksize`` bytes from the connection.
 
         Returns:
-            bytes: Received data. Empty only if peer performed an orderly shutdown.
+            bytes: Received data. Empty only if:
+                   - TCP: peer performed an orderly shutdown
+                   - UDP: a zero-length datagram arrived
 
         Raises:
-            EOFError: The peer closed the connection (orderly shutdown or reset).
+            EOFError: (TCP) The peer closed the connection (orderly shutdown or reset).
             TimeoutError: The read operation timed out.
             OSError: Other OS-level socket errors.
         """
@@ -98,7 +127,8 @@ class TCPConnection(Tube):
 
         try:
             data = self._sock.recv(blocksize)
-            if not data:
+            if not self._is_udp and not data:
+                # TCP: orderly shutdown => EOF
                 raise EOFError("Connection closed by peer")
             return data
 
@@ -120,7 +150,9 @@ class TCPConnection(Tube):
             int: Number of bytes written (may be less than ``len(data)``).
 
         Raises:
-            BrokenPipeError: The peer closed the write side / connection broken.
+            BrokenPipeError:
+                - TCP: The peer closed the write side / connection broken.
+                - UDP: Destination unreachable surfaced as send error.
             TimeoutError: The write operation timed out.
             OSError: Other OS-level socket errors.
         """
@@ -129,8 +161,9 @@ class TCPConnection(Tube):
 
         try:
             n = self._sock.send(data)
-            if n == 0:
-                raise BrokenPipeError("Connection is broken")
+            if not self._is_udp and n == 0:
+                # TCP only: 0 on send generally indicates a broken connection
+                raise BrokenPipeError("Broken connection")
             return n
 
         except socket.timeout as e:
@@ -142,6 +175,9 @@ class TCPConnection(Tube):
         except OSError as e:
             if e.errno in (errno.EPIPE, errno.ECONNRESET, errno.ENOTCONN, errno.ESHUTDOWN):
                 raise BrokenPipeError("Socket not connected or shutdown") from e
+            # UDP may return ECONNREFUSED when ICMP Port Unreachable is received.
+            if self._is_udp and e.errno in (getattr(errno, "ECONNREFUSED", -1),):
+                raise BrokenPipeError("Destination unreachable") from e
             raise
 
     def _close_impl(self):
@@ -157,21 +193,13 @@ class TCPConnection(Tube):
                 sock.close()
 
     def _close_recv_impl(self):
-        """Half-close the receive side.
-
-        Raises:
-            (never)
-        """
+        """Half-close the receive side (TCP only)."""
         if self._sock is not None:
             with contextlib.suppress(Exception):
                 self._sock.shutdown(socket.SHUT_RD)
 
     def _close_send_impl(self):
-        """Half-close the send side.
-
-        Raises:
-            (never)
-        """
+        """Half-close the send side (TCP only)."""
         if self._sock is not None:
             with contextlib.suppress(Exception):
                 self._sock.shutdown(socket.SHUT_WR)
@@ -188,8 +216,9 @@ class TCPConnection(Tube):
             self._timeout = timeout
 
     def _gettimeout_impl(self) -> float:
+        # Tube semantics: -1 for blocking (no timeout)
         if self._timeout is None:
-            return 0.0
+            return -1
         return self._timeout
 
     def _is_alive_impl(self) -> bool:
@@ -204,9 +233,11 @@ class TCPConnection(Tube):
         with self.timeout(-1):
             try:
                 self._sock.setblocking(False)
+                # Peek without consuming; for UDP, this just detects presence.
                 return self._sock.recv(1, socket.MSG_PEEK) == 1
             except (BlockingIOError, ValueError):
                 # SSLSocket may raise ValueError but we treat it as alive
+                # Also, no data available -> consider alive.
                 return True
             except (ConnectionResetError, socket.timeout):
                 return False
@@ -215,20 +246,26 @@ class TCPConnection(Tube):
 
 
 class Server:
-    """A TCP listening socket that accepts connections as :class:`TCPConnection`.
+    """A TCP/UDP listening endpoint that accepts clients as :class:`SocketClient`.
 
-    Thread-safe for concurrent ``accept()`` calls: multiple threads may call
+    Thread-safe for concurrent ``accept()`` calls in TCP mode: multiple threads may call
     :meth:`accept` simultaneously on the same instance and each will obtain
     distinct client connections (kernel arbiters which waiter gets awakened).
 
+    UDP mode:
+        - The server binds a UDP socket.
+        - Each :meth:`accept` waits for one datagram to discover a peer, then creates a new
+          per-client UDP socket bound to the same (addr, port) using SO_REUSEPORT (if available)
+          and connects it to that peer. The initial datagram is pushed into the returned client's
+          buffer, so ``recv*`` sees it first.
+
     Args:
         host: Bind address (e.g., "0.0.0.0", "::", or hostname).
-        port: TCP port to listen on.
-        backlog: Listen backlog.
-        reuse_addr: Set SO_REUSEADDR (default True).
-        reuse_port: Set SO_REUSEPORT if available (default False).
-        dualstack: If True, prefer an IPv6 socket with IPV6_V6ONLY=0 to accept
+        port: Port to listen on.
+        backlog: Listen backlog (TCP only).
+        dualstack: If True (TCP/UDP), prefer an IPv6 socket with IPV6_V6ONLY=0 to accept
                    both IPv6 and IPv4 (platform-dependent).
+        udp: If True, run as a UDP server (default False -> TCP).
 
     Raises:
         OSError: Any OS-level failure during socket creation/bind/listen.
@@ -239,12 +276,17 @@ class Server:
                  port: int,
                  *,
                  backlog: int = 128,
-                 dualstack: bool = True):
+                 dualstack: bool = True,
+                 udp: bool = False):
         self._sock: socket.socket | None = None
+        self._is_udp: bool = bool(udp)
 
         # Choose an address family via getaddrinfo; prefer IPv6 dualstack if requested.
         family = socket.AF_UNSPEC
-        infos = socket.getaddrinfo(host, port, family, socket.SOCK_STREAM, 0, socket.AI_PASSIVE)
+        socktype = socket.SOCK_DGRAM if self._is_udp else socket.SOCK_STREAM
+        flags = socket.AI_PASSIVE
+
+        infos = socket.getaddrinfo(host, port, family, socktype, 0, flags)
         # Try IPv6 first (for dualstack), then IPv4.
         infos_sorted = sorted(
             infos,
@@ -252,13 +294,13 @@ class Server:
         )
 
         last_err: OSError | None = None
-        for af, socktype, proto, _canon, sa in infos_sorted:
-            s = socket.socket(af, socktype, proto)
+        for af, st, proto, _canon, sa in infos_sorted:
+            s = socket.socket(af, st, proto)
             try:
                 with contextlib.suppress(OSError):
                     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 if hasattr(socket, 'SO_REUSEPORT'):
-                    # Some platform does not support SO_REUSEPORT
+                    # Some platforms do not support SO_REUSEPORT
                     with contextlib.suppress(OSError):
                         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
 
@@ -268,7 +310,9 @@ class Server:
                         s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
 
                 s.bind(sa)
-                s.listen(backlog)
+
+                if not self._is_udp:
+                    s.listen(backlog)
                 s.setblocking(False)
                 self._sock = s
                 return
@@ -283,10 +327,11 @@ class Server:
         raise last_err
 
     def __str__(self) -> str:
+        mode = "UDP" if self._is_udp else "TCP"
         try:
-            return f"Server(listening on {self.address})"
+            return f"Server[{mode}](listening on {self.address})"
         except RuntimeError:
-            return "Server(<closed>)"
+            return f"Server[{mode}](<closed>)"
 
     def __del__(self):
         self.close()
@@ -329,41 +374,90 @@ class Server:
                 sock.close()
 
     def accept(self,
-               accept_timeout: float | int | None = None,
-               **kwargs) -> TCPConnection:
-        """Accept a single incoming connection and wrap it as :class:`TCPConnection`.
+               timeout: float | int | None = None,
+               **kwargs) -> SocketClient:
+        """Accept a single incoming connection and wrap it as :class:`SocketClient`.
 
-        This method is safe to call concurrently from multiple threads.
+        TCP:
+            - Blocks (with select) until a pending connection is ready,
+              then returns a connected client.
+
+        UDP:
+            - Waits for a datagram to arrive.
+            - Creates a per-client UDP socket bound to the same port (SO_REUSEPORT)
+              and connects it to the peer.
+            - Pushes the first datagram into the client's buffer so the next recv* call consumes it.
+
+        This method is safe to call concurrently from multiple threads in TCP mode.
+        In UDP mode, concurrent calls are supported as long as SO_REUSEPORT is available.
 
         Returns:
-            TCPConnection: A Tube-like connection object for the accepted client.
+            SocketClient: A Tube-like connection object for the accepted client.
 
         Raises:
-            TimeoutError: No connection arrived within ``timeout`` seconds.
-            OSError: Accept failed due to an OS error (e.g., EMFILE/ENFILE).
+            TimeoutError: No connection (TCP) or datagram (UDP) arrived within ``timeout`` seconds.
+            OSError: Accept failed / socket errors.
             RuntimeError: Server is closed.
         """
         if self._sock is None:
             raise RuntimeError("server is closed")
 
-        # Block in select() rather than changing SO timeout (thread-safe).
+        if not self._is_udp:
+            # ---- TCP accept path ----
+            rlist = [self._sock]
+            while True:
+                r, _, _ = select.select(rlist, [], [], timeout)
+                if not r:
+                    raise TimeoutError("accept timed out")
+
+                try:
+                    conn, addr = self._sock.accept()
+                    conn.setblocking(True)  # connection-level I/O uses its own timeout
+                    break
+                except BlockingIOError:
+                    # Raced: another thread accepted first; keep waiting.
+                    continue
+                except InterruptedError:
+                    # Retry on EINTR
+                    continue
+
+            return SocketClient(conn, addr, **kwargs)
+
+        # ---- UDP accept path ----
+        # Wait for a datagram, then Create a per-client connected UDP socket bound to the same port.
         rlist = [self._sock]
-        while True:
-            r, _, _ = select.select(rlist, [], [], accept_timeout)
-            if not r:
-                raise TimeoutError("accept timed out")
+        r, _, _ = select.select(rlist, [], [], timeout)
+        if not r:
+            raise TimeoutError("accept timed out")
 
-            try:
-                conn, addr = self._sock.accept()
-                conn.setblocking(True) # connection-level I/O uses its own timeout
-                break
-            except BlockingIOError:
-                # Raced: another thread accepted first; keep waiting.
-                continue
-            except InterruptedError:
-                # Retry on EINTR
-                continue
+        # Receive one datagram to discover the peer
+        try:
+            first_data, peer = self._sock.recvfrom(65535)
+        except InterruptedError:
+            # Try again once
+            first_data, peer = self._sock.recvfrom(65535)
 
-        return TCPConnection(conn, addr, **kwargs)
+        # Create a per-client UDP socket bound to the same address:port (requires REUSEPORT)
+        af = self._sock.family
+        s2 = socket.socket(af, socket.SOCK_DGRAM, 0)
+        with contextlib.suppress(OSError):
+            s2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if hasattr(socket, 'SO_REUSEPORT'):
+            with contextlib.suppress(OSError):
+                s2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
 
-__all__ = ['Server', 'TCPConnection']
+        local_sa = self._sock.getsockname()
+        # Bind to the same local address/port; for IPv6 the tuple includes flowinfo/scopeid
+        s2.bind(local_sa)
+        # Connect to the peer so recv/send work without specifying address
+        s2.connect(peer)
+        s2.setblocking(True)
+
+        client = SocketClient(s2, peer, **kwargs)
+        # Push the first datagram so the next recv* consumes it
+        if first_data:
+            client.unget(first_data)
+        return client
+
+
+__all__ = ['Server', 'SocketClient']

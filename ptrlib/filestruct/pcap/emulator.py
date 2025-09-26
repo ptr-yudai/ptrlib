@@ -1,7 +1,6 @@
 """Pcap emulator for TCP/UDP communication
 """
 import contextlib
-import os
 import pathlib
 import socket
 import struct
