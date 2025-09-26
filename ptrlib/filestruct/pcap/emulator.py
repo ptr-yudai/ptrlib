@@ -42,6 +42,7 @@ def _pack_pcap_packet_header(ts: float, caplen: int, length: int) -> bytes:
     return struct.pack("<IIII", sec, usec, caplen, length)
 
 ETH_P_IP = 0x0800
+ETH_P_IPV6 = 0x86DD
 IP_PROTO_TCP = 6
 IP_PROTO_UDP = 17
 
@@ -82,6 +83,63 @@ def _ipv4_header(src_ip: str,
         src, dst,
     )
     return header
+
+def _ipv6_header(src_ip: str,
+                 dst_ip: str,
+                 payload_len: int,
+                 nexthdr: int,
+                 hop_limit: int = 64,
+                 traffic_class: int = 0,
+                 flow_label: int = 0) -> bytes:
+    vtc_fl = (6 << 28) | ((traffic_class & 0xFF) << 20) | (flow_label & 0xFFFFF)
+    src = socket.inet_pton(socket.AF_INET6, src_ip)
+    dst = socket.inet_pton(socket.AF_INET6, dst_ip)
+    return struct.pack("!IHBB16s16s", vtc_fl, payload_len, nexthdr, hop_limit, src, dst)
+
+def _tcp_header_v6(src_ip: str,
+                   dst_ip: str,
+                   src_port: int,
+                   dst_port: int,
+                   seq: int,
+                   ack: int,
+                   flags: int,
+                   window: int,
+                   payload: bytes,
+                   options: bytes = b"") -> bytes:
+    data_offset_words = 5 + (len(options) + 3) // 4
+    offset_flags = (data_offset_words << 12) | (flags & 0x01FF)
+    urg_ptr = 0
+    checksum = 0
+    base = struct.pack(
+        "!HHIIHHHH",
+        src_port, dst_port, seq, ack,
+        offset_flags, window, checksum, urg_ptr
+    )
+    if options:
+        pad = (4 - (len(options) % 4)) % 4
+        base += options + (b"\x00" * pad)
+    pseudo  = socket.inet_pton(socket.AF_INET6, src_ip) + socket.inet_pton(socket.AF_INET6, dst_ip)
+    pseudo += struct.pack("!I3xB", len(base) + len(payload), IP_PROTO_TCP)
+    checksum = _checksum(pseudo + base + payload)
+    base = base[:16] + struct.pack("!H", checksum) + base[18:]
+    return base
+
+def _udp_header_v6(src_ip: str,
+                   dst_ip: str,
+                   src_port: int,
+                   dst_port: int,
+                   payload: bytes) -> bytes:
+    length = 8 + len(payload)
+    checksum = 0
+    base = struct.pack("!HHHH", src_port, dst_port, length, checksum)
+    pseudo  = socket.inet_pton(socket.AF_INET6, src_ip) + socket.inet_pton(socket.AF_INET6, dst_ip)
+    pseudo += struct.pack("!I3xB", length, IP_PROTO_UDP)
+    csum = _checksum(pseudo + base + payload)
+    if csum == 0:
+        # For IPv6, checksum must not be zero; represent zero as 0xFFFF
+        csum = 0xFFFF
+    base = struct.pack("!HHHH", src_port, dst_port, length, csum)
+    return base
 
 def _tcp_header(src_ip: str,
                 dst_ip: str,
@@ -163,7 +221,9 @@ class PcapFile:
 
         self.path = path
         self.udp = udp
-        self.local = local
+        self.local: str = local
+        # Predeclare for type-checkers; set properly in remote setter below
+        self.remote_ip: str = ""
         self.remote = remote
         self.local_port = local_port
         self.remote_port = remote_port
@@ -172,6 +232,8 @@ class PcapFile:
         self.linktype_eth = linktype_eth
         self.ts_base = ts_base or time.time()
         self._last_ts = self.ts_base
+        # Address family for IP header emission (default IPv4; may switch to IPv6 via remote setter)
+        self._af = socket.AF_INET
 
         if self.local == self.remote_ip and self.local_port == self.remote_port:
             raise ValueError("IP address and port number for local/remote are identical.")
@@ -210,9 +272,28 @@ class PcapFile:
     def remote(self, value: str) -> None:
         self._remote_raw = value
         try:
-            self.remote_ip = socket.gethostbyname(value)
+            infos = socket.getaddrinfo(value, None, socket.AF_UNSPEC, 0, 0, 0)
+            # Prefer IPv6 if available, otherwise take the first entry
+            chosen = None
+            for ai in infos:
+                if ai[0] == socket.AF_INET6:
+                    chosen = ai
+                    break
+            if chosen is None:
+                chosen = infos[0]
+            af = chosen[0]
+            ip_obj = chosen[4][0]
+            ip: str = ip_obj if isinstance(ip_obj, str) else str(ip_obj)
+            self.remote_ip = ip
+            self._af = af
         except socket.gaierror:
+            # Fallback: keep the raw value and guess family from format
             self.remote_ip = value
+            self._af = socket.AF_INET6 if (":" in value and not value.count(".")) else socket.AF_INET
+
+        # If remote is IPv6 and local is the default IPv4, switch to loopback v6
+        if self._af == socket.AF_INET6 and self.local == "127.0.0.1":
+            self.local = "::1"
 
     def connect(self, ts: float | None = None) -> None:
         """TCP: Generate 3-way handshake.
@@ -392,13 +473,22 @@ class PcapFile:
                   *,
                   dir_out: bool) -> None:
         options = b""
-        tcp = _tcp_header(sip, dip, sport, dport,
-                          seq, ack, flags, window=65535,
-                          payload=payload, options=options)
-        ip = _ipv4_header(sip, dip, payload_len=len(tcp) + len(payload),
-                          proto=IP_PROTO_TCP, ident=self._alloc_ip_id())
-        eth = _eth_header(self.local_mac if dir_out else self.remote_mac,
-                          self.remote_mac if dir_out else self.local_mac, ETH_P_IP)
+        if self._af == socket.AF_INET6:
+            tcp = _tcp_header_v6(sip, dip, sport, dport,
+                                 seq, ack, flags, window=65535,
+                                 payload=payload, options=options)
+            ip = _ipv6_header(sip, dip, payload_len=len(tcp) + len(payload),
+                              nexthdr=IP_PROTO_TCP)
+            eth = _eth_header(self.local_mac if dir_out else self.remote_mac,
+                              self.remote_mac if dir_out else self.local_mac, ETH_P_IPV6)
+        else:
+            tcp = _tcp_header(sip, dip, sport, dport,
+                              seq, ack, flags, window=65535,
+                              payload=payload, options=options)
+            ip = _ipv4_header(sip, dip, payload_len=len(tcp) + len(payload),
+                              proto=IP_PROTO_TCP, ident=self._alloc_ip_id())
+            eth = _eth_header(self.local_mac if dir_out else self.remote_mac,
+                              self.remote_mac if dir_out else self.local_mac, ETH_P_IP)
         frame = eth + ip + tcp + payload
         self._write(ts, frame)
 
@@ -411,11 +501,18 @@ class PcapFile:
                   ts: float,
                   *,
                   dir_out: bool) -> None:
-        udp = _udp_header(sip, dip, sport, dport, payload)
-        ip = _ipv4_header(sip, dip, payload_len=len(udp) + len(payload),
-                          proto=IP_PROTO_UDP, ident=self._alloc_ip_id())
-        eth = _eth_header(self.local_mac if dir_out else self.remote_mac,
-                          self.remote_mac if dir_out else self.local_mac, ETH_P_IP)
+        if self._af == socket.AF_INET6:
+            udp = _udp_header_v6(sip, dip, sport, dport, payload)
+            ip = _ipv6_header(sip, dip, payload_len=len(udp) + len(payload),
+                              nexthdr=IP_PROTO_UDP)
+            eth = _eth_header(self.local_mac if dir_out else self.remote_mac,
+                              self.remote_mac if dir_out else self.local_mac, ETH_P_IPV6)
+        else:
+            udp = _udp_header(sip, dip, sport, dport, payload)
+            ip = _ipv4_header(sip, dip, payload_len=len(udp) + len(payload),
+                              proto=IP_PROTO_UDP, ident=self._alloc_ip_id())
+            eth = _eth_header(self.local_mac if dir_out else self.remote_mac,
+                              self.remote_mac if dir_out else self.local_mac, ETH_P_IP)
         frame = eth + ip + udp + payload
         self._write(ts, frame)
 
