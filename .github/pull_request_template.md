@@ -1,23 +1,34 @@
-# \<Title of Your Pull Request>
-## What's this Pull Request for?
-Choose one or more of the following items.
+# \<Pull Request Title>
 
-- [ ] Bug fix
-- [ ] Add/Remove feature
-- [ ] Cleaning code (including optimization/typo fix)
-- [ ] Others
+## Purpose
+What does this PR do, and why is it needed?  
+(e.g. Fixes a bug, adds a new feature, improves documentation, etc.)
 
-Please explain the detail here:
-\<Detail of your PR>
+- [ ] Bug fix  
+- [ ] New feature  
+- [ ] Refactor / Cleanup  
+- [ ] Documentation  
+- [ ] Other (please specify)  
 
-## What have you done so far?
-Tell me what you've tested to assure your change is right.
+## Related Issues
+Closes #\<issue_number>  
+(Related to #\<issue_number> if applicable)
 
-- [ ] All tests passed on your machine (`python -m unittest`)
-- [ ] Added test cases for new feature
-- [ ] Nothing / Test not required
+## Summary of Changes
+(A short summary of what was changed. Bullet points are fine.)
 
-(It's not mandatory to check even one of them, but test cases make it easy for the author to review your PR.)
+## Testing
+How did you verify the changes?  
+- [ ] Ran existing tests (`python -m unittest`)  
+- [ ] Added new tests  
+- [ ] Manually tested  
+- [ ] No tests needed (explain why)  
 
-## Comment
-\<Your Comment (if any)>
+(If manual testing: please include steps, expected vs. actual results.)
+
+## Breaking Changes
+- Does this PR introduce changes that break existing usage?  
+- If yes, describe what breaks and how to migrate.
+
+## Additional Notes
+(Optional: screenshots, logs, benchmarks, or anything else helpful for reviewers.)

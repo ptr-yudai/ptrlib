@@ -1,5 +1,7 @@
 def signal_name(code: int, detail: bool=False) -> str:
-    if   code == 1:
+    """Convert signal ID to signal name
+    """
+    if code == 1:
         return 'SIGHUP'
     elif code == 2:
         return 'SIGINT' + ' (Interruption)' if detail else ''

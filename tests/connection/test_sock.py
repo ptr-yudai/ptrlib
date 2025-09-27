@@ -1,15 +1,20 @@
+import inspect
 import json
 import unittest
-from socket import gethostbyname
-from ptrlib import Socket
 from logging import getLogger, FATAL
+from socket import gethostbyname
+from ptrlib import Socket, TubeTimeout
 
 
 class TestSocket(unittest.TestCase):
+    """Tests for Socket
+    """
     def setUp(self):
         getLogger("ptrlib").setLevel(FATAL)
 
     def test_socket(self):
+        """Test socket connection and data exchange.
+        """
         # connect
         sock = Socket("www.example.com", 80)
 
@@ -18,7 +23,7 @@ class TestSocket(unittest.TestCase):
         sock.send(b'Host: www.example.com\r\n\r\n')
 
         # shutdown
-        sock.shutdown('write')
+        sock.close_send()
 
         # receive
         result = int(sock.recvlineafter('Content-Length: ')) > 0
@@ -27,25 +32,40 @@ class TestSocket(unittest.TestCase):
         self.assertEqual(result, True)
 
     def test_timeout(self):
+        """Test socket timeout behavior.
+        """
+        mod = inspect.getmodule(Socket)
+        assert mod is not None
+        module_name = mod.__name__
+
         sock = Socket("www.example.com", 80)
         sock.sendline(b'GET / HTTP/1.1\r')
         sock.send(b'Host: www.example.com\r\n\r\n')
 
-        with self.assertRaises(TimeoutError) as cm:
+        with self.assertRaises(TubeTimeout) as cm:
             sock.recvuntil("*** never expected ***", timeout=2)
-        self.assertEqual(b"200 OK" in cm.exception.args[1], True)
+        self.assertEqual(b"200 OK" in cm.exception.buffered, True)
+
+        with self.assertLogs(module_name) as cm:
+            sock.close()
+        self.assertEqual(cm.output, [f"INFO:{module_name}:Connection {str(sock)} closed"])
 
     def test_reset(self):
+        """Test socket connection reset behavior.
+        """
         sock = Socket("www.example.com", 80)
         sock.sendline(b'GET / HTTP/1.1\r')
         sock.send(b'Host: www.example.com\r\n')
         sock.send(b'Connection: close\r\n\r\n')
 
-        with self.assertRaises(ConnectionResetError) as cm:
+        with self.assertRaises(EOFError):
             sock.recvuntil("*** never expected ***", timeout=2)
-        self.assertEqual(b"200 OK" in cm.exception.args[1], True)
+
+        sock.close()
 
     def test_tls(self):
+        """Test socket TLS behavior.
+        """
         host = "check-tls.akamaized.net"
         path = "/v1/tlssni.json"
 
@@ -56,7 +76,7 @@ class TestSocket(unittest.TestCase):
         sock.send(b'Connection: close\r\n\r\n')
         self.assertTrue((contentlength := int(sock.recvlineafter('Content-Length: '))) > 0)
         sock.recvuntil(b'\r\n\r\n')
-        content = json.loads(sock.recvonce(contentlength))
+        content = json.loads(sock.recvall(contentlength))
         sock.close()
         self.assertEqual(content['tls_sni_status'], "present")
         self.assertEqual(content['tls_sni_value'], host)
@@ -69,7 +89,7 @@ class TestSocket(unittest.TestCase):
         sock.send(b'Connection: close\r\n\r\n')
         self.assertTrue((contentlength := int(sock.recvlineafter('Content-Length: '))) > 0)
         sock.recvuntil(b'\r\n\r\n')
-        content = json.loads(sock.recvonce(contentlength))
+        content = json.loads(sock.recvall(contentlength))
         sock.close()
         self.assertEqual(content['tls_sni_status'], "invalid")
         self.assertEqual(content['tls_sni_value'], "akamaized.net")
@@ -81,7 +101,7 @@ class TestSocket(unittest.TestCase):
         sock.send(b'Connection: close\r\n\r\n')
         self.assertTrue((contentlength := int(sock.recvlineafter('Content-Length: '))) > 0)
         sock.recvuntil(b'\r\n\r\n')
-        content = json.loads(sock.recvonce(contentlength))
+        content = json.loads(sock.recvall(contentlength))
         sock.close()
         self.assertEqual(content['tls_sni_status'], "missing")
         self.assertEqual(content['tls_sni_value'], "")

@@ -4,6 +4,7 @@ import subprocess
 import tempfile
 from logging import getLogger
 from typing import Optional, Union
+from ptrlib.types import PtrlibArchT, PtrlibBitsT, PtrlibAssemblySyntaxT
 from ptrlib.arch.intel import assemble_intel, is_arch_intel, bit_by_arch_intel
 from ptrlib.arch.arm   import assemble_arm, is_arch_arm, bit_by_arch_arm
 from ptrlib.binary.encoding import *
@@ -12,9 +13,9 @@ logger = getLogger(__name__)
 
 
 def assemble(code: Union[str, bytes],
-             bits: Optional[int]=None,
-             arch: str='x86-64',
-             syntax: str='intel',
+             bits: PtrlibBitsT = 64,
+             arch: PtrlibArchT = 'intel',
+             syntax: PtrlibAssemblySyntaxT='intel',
              entry: Optional[str]=None,
              gcc_path: Optional[str]=None,
              objcopy_path: Optional[str]=None) -> Optional[bytes]:

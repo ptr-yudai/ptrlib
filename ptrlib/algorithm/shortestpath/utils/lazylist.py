@@ -34,4 +34,5 @@ class LazyList(Generic[_T]):
 
 LazyList.Null = LazyList(None, None)
 
+
 __all__ = ["LazyList"]

@@ -1,51 +1,105 @@
-from typing import Union
-from .byteconv import str2bytes
+"""This package provides some utilities for characters.
+"""
 from logging import getLogger
+from typing import TypeVar, Union
+from .byteconv import str2bytes
+from .dump import hexdump
 
 logger = getLogger(__name__)
 
 
-def has_space(data: Union[str, bytes], warn: bool=False) -> bool:
-    """Check if payload has "space" of C locale
+T = TypeVar('T', str, bytes)
+
+def is_token(data: Union[str, bytes], warn: bool=True) -> bool:
+    """Check if data is a valid token for scanf(%s), cin, or other C++ stream.
+
+    Args:
+        data (bytes): The data to check.
+        warn (bool): Display warning if this parameter is set to true and a whitespace is found.
+
+    Returns:
+        bool: True if no whitespace or line is found, otherwise false.
     """
     if isinstance(data, str):
         data = str2bytes(data)
 
     # SPC, TAB, LF, VT, FF, CR
-    whitespace = [0x20, 0x09, 0x0a, 0x0b, 0x0c, 0x0d]
+    errs = []
     for i, c in enumerate(data):
-        if c in whitespace:
-            if warn:
-                logger.error("Whitespace '\\x{:02x}' at offset 0x{:x}".format(c, i))
-            return True
+        if c in (0x20, 0x09, 0x0a, 0x0b, 0x0c, 0x0d):
+            if not warn:
+                return False
+            errs.append((i, c))
 
-    return False
+    if errs:
+        hexdump(data)
+        for i, c in errs:
+            logger.warning("Whitespace '\\x%02x' at offset 0x%x", c, i)
+        return False
 
-""" Check if payload is safe for an input function """
-def is_scanf_safe(data: Union[str, bytes], warn: bool=True) -> bool: # scanf
-    return not has_space(data, warn)
+    return True
 
-def is_stream_safe(data: Union[str, bytes], warn: bool=True) -> bool: # stream
-    return not has_space(data, warn)
+def is_line(data: Union[str, bytes], warn: bool=True) -> bool:
+    """Check if data is safe for the fgets function.
 
-def is_cin_safe(data: Union[str, bytes], warn: bool=True) -> bool: # cin
-    return not has_space(data, warn)
+    Args:
+        data (bytes): The data to check.
+        warn (bool): Display warning if this parameter is set to true and a whitespace is found.
 
-def is_fgets_safe(data: Union[str, bytes], warn: bool=True) -> bool: # fgets
+    Returns:
+        bool: True if the data is safe for fgets.
+    """
     if isinstance(data, str):
         data = str2bytes(data)
 
-    if b'\n' not in data:
-        return True
+    errs = []
+    for i, c in enumerate(data):
+        if c == 0x0a:
+            if not warn:
+                return False
+            errs.append((i, c))
 
-    if warn:
-        logger.error("Newline '\\x0a' at offset 0x{:x}".format(
-            data.index(b'\n')
-        ))
-    return False
+    if errs:
+        hexdump(data)
+        for i, c in errs:
+            logger.warning("Newline '\\x%02x' at offset 0x%x", c, i)
+        return False
 
-def is_gets_safe(data: Union[str, bytes], warn: bool=True) -> bool:    # gets
-    return is_fgets_safe(data, warn)
+    return True
 
-def is_getline_safe(data: Union[str, bytes], warn: bool=True) -> bool: # getline
-    return is_fgets_safe(data, warn)
+def assert_token(data: T, warn: bool=True) -> T:
+    """Assert if data is a valid token for scanf(%s), cin, or other C++ stream.
+
+    Args:
+        data (bytes): Data to check.
+        warn (bool): Display warning if this parameter is set to true and a whitespace is found.
+
+    Raises:
+        ValueError: If data is not a valid token.
+
+    Returns:
+        bytes: Input data.
+    """
+    if not is_token(data, warn):
+        raise ValueError("Data is not a token")
+    return data
+
+def assert_line(data: T, warn: bool=True) -> T:
+    """Check if data is a valid line for gets, fgets, or getline.
+
+    Args:
+        data (bytes): Data to check.
+        warn (bool): Display warning if this parameter is set to true and a whitespace is found.
+
+    Raises:
+        ValueError: If data is not a valid line.
+
+    Returns:
+        bytes: Input data.
+    """
+    if not is_line(data, warn):
+        raise ValueError("Data is not a line")
+    return data
+
+
+__all__ = ['is_token', 'is_line', 'assert_token', 'assert_line']

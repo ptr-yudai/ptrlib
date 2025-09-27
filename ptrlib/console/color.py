@@ -1,5 +1,6 @@
-from ptrlib import logger
-from logging import Formatter, DEBUG, INFO, WARNING, ERROR, LogRecord
+from logging import Formatter, INFO, WARNING, ERROR, LogRecord
+
+__all__ = ['Color', 'ColoredFormatter']
 
 
 class Color:
@@ -11,6 +12,13 @@ class Color:
     PURPLE    = '\033[35m'
     CYAN      = '\033[36m'
     WHITE     = '\033[37m'
+    BRIGHT_RED     = '\033[91m'
+    BRIGHT_GREEN   = '\033[92m'
+    BRIGHT_YELLOW  = '\033[93m'
+    BRIGHT_BLUE    = '\033[94m'
+    BRIGHT_MAGENTA = '\033[95m'
+    BRIGHT_CYAN    = '\033[96m'
+    BRIGHT_WHITE   = '\033[97m'
     END       = '\033[0m'
     BOLD      = '\033[1m'
     UNDERLINE = '\033[4m'
@@ -22,27 +30,19 @@ class ColoredFormatter(Formatter):
         prefix = ''
         postfix = ''
         if INFO <= record.levelno < WARNING:
-            prefix = '{bold}{green}[+]{end} {green}'.format(
-                bold=Color.BOLD, green=Color.GREEN, end=Color.END
-            )
+            prefix = f'{Color.BOLD}{Color.GREEN}[+]{Color.END} {Color.GREEN}'
             postfix = Color.END
 
         elif WARNING <= record.levelno < ERROR:
-            prefix = '{bold}{yellow}[WARN]{end} {yellow}'.format(
-                bold=Color.BOLD, yellow=Color.YELLOW, end=Color.END
-            )
+            prefix = f'{Color.BOLD}{Color.YELLOW}[WARN]{Color.END} {Color.YELLOW}'
             postfix = Color.END
 
         elif ERROR <= record.levelno:
-            prefix = '{bold}{red}[+]{end} {red}'.format(
-                bold=Color.BOLD, red=Color.RED, end=Color.END
-            )
+            prefix = f'{Color.BOLD}{Color.RED}[+]{Color.END} {Color.RED}'
             postfix = Color.END
 
         else:
-            prefix = '{bold}[+]{end} '.format(bold=Color.BOLD, end=Color.END)
+            prefix = f'{Color.BOLD}[+]{Color.END} '
             postfix = Color.END
 
-        return prefix + \
-            super(ColoredFormatter, self).format(record) + \
-            postfix
+        return prefix + super(ColoredFormatter, self).format(record) + postfix

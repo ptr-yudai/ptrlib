@@ -1,12 +1,16 @@
-from typing import Optional, Generic
+"""This package defines a shortest path problem solver.
+"""
 from math import inf
+from typing import Optional, Generic
 
+from .algorithms import *
 from .base import ShortestPathBase
 from .types import *
-from .algorithms import *
 
 
 class ShortestPath(ShortestPathBase[StateT, EdgeT], Generic[StateT, EdgeT]):
+    """Solver for the shortest path problem.
+    """
     def __init__(
         self,
         transition: TransitionFuncT[StateT, EdgeT],
