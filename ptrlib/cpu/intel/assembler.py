@@ -153,10 +153,11 @@ def assemble_nasm(assembly: str, address: int, bits: PtrlibBitsT = 64) -> bytes:
     """
     nasm_path = nasm()
 
-    assembly = '\n'.join(_normalize_assembly(assembly)[1])
+    # NASM does not use the 'ptr' keyword in memory operands; normalize without inserting it.
+    assembly = '\n'.join(_normalize_assembly(assembly, insert_ptr=False)[1])
     assembly = f'bits {bits}\n' + assembly
     if address > 0:
-        assembly = 'org {address}\n' + assembly
+        assembly = f'org {address}\n' + assembly
 
     fname_s = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())+'.S'
     fname_o = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())+'.o'
@@ -187,7 +188,7 @@ def assemble_nasm(assembly: str, address: int, bits: PtrlibBitsT = 64) -> bytes:
 
     raise OSError("Assemble failed")
 
-def _normalize_assembly(assembly: str) -> tuple[bool, list[str]]:
+def _normalize_assembly(assembly: str, insert_ptr: bool = True) -> tuple[bool, list[str]]:
     """Normalize assembly syntax.
 
     Args:
@@ -232,7 +233,9 @@ def _normalize_assembly(assembly: str) -> tuple[bool, list[str]]:
     # Normalize syntax
     has_label = False
     re_label = re.compile(r'^[a-zA-Z0-9_.]+:')
-    re_spec = re.compile(r'(byte|word|dword|qword)\s*\[', re.IGNORECASE)
+    # Patterns for size specifier with/without 'ptr'
+    re_spec_bracket = re.compile(r'\b(byte|word|dword|qword)\s*\[', re.IGNORECASE)
+    re_spec_with_ptr = re.compile(r'\b(byte|word|dword|qword)\s+ptr\s*\[', re.IGNORECASE)
     re_many_ws = re.compile(r'[ \t]+')
     re_comma = re.compile(r',\s*')
     re_lbracket = re.compile(r'\[\s*')
@@ -246,8 +249,16 @@ def _normalize_assembly(assembly: str) -> tuple[bool, list[str]]:
         u = re_many_ws.sub(' ', token).strip()
         # Ensure single space after commas
         u = re_comma.sub(', ', u)
-        # Ensure "spec [" -> "spec ptr ["
-        u = re_spec.sub(r'\1 ptr \[', u)
+        # Handle size-specifiers around memory operands depending on assembler
+        if insert_ptr:
+            # GAS/Keystone style: ensure "spec ptr ["
+            u = re_spec_with_ptr.sub(r'\1 ptr [', u)
+            u = re_spec_bracket.sub(r'\1 ptr [', u)
+        else:
+            # NASM style: remove 'ptr' if present; keep "spec ["
+            u = re_spec_with_ptr.sub(r'\1 [', u)
+            # Do not add 'ptr' for plain "spec ["
+
         # Tighten brackets "[ ... ]" -> "[...]" then ensure ", [" spacing
         u = re_lbracket.sub('[', u)
         u = re_rbracket.sub(']', u)

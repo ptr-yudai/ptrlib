@@ -972,6 +972,21 @@ class Tube(metaclass=abc.ABCMeta):
         return self.after(delim, blocksize, regex, timeout) \
             .sendline(data)
 
+    def sendafter(self,
+                  delim: DelimiterT,
+                  data: str | bytes,
+                  blocksize: int = 4096,
+                  regex: RegexDelimiterT | None = None,
+                  timeout: int | float = -1) -> int:
+        """Wait for a delimiter (or regex), then send data.
+
+        Note:
+            This method is deprecated.
+            Use `after(delim, blocksize, regex, timeout).send(...)` instead.
+        """
+        return self.after(delim, blocksize, regex, timeout) \
+            .send(data)
+
     def shutdown(self, target: typing.Literal['send', 'recv']):
         """Shut down a specific connection.
 
