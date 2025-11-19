@@ -51,6 +51,7 @@ class UnixProcess(Tube):
         self._fd_r: int = -1
         self._fd_w: int = -1
         self._args: list[str]
+        self._raw_args: str | list[str] = args
         self._pty_slave: int = -1
         self._pty_master: int = -1
         self._saved_termios: TcAttrT | None = None
@@ -431,9 +432,17 @@ class UnixProcess(Tube):
             if is_raw:
                 tty.setraw(self._pty_slave, when=termios.TCSANOW)
 
+        if self._shell:
+            if isinstance(self._raw_args, str):
+                popen_args = self._raw_args
+            else:
+                popen_args = " ".join(shlex.quote(arg) for arg in self._raw_args)
+        else:
+            popen_args = self._args
+
         # pylint: disable-next=subprocess-popen-preexec-fn
         self._proc = subprocess.Popen(
-            " ".join(shlex.quote(arg) for arg in self._args) if self._shell else self._args,
+            popen_args,
             shell=self._shell,
             cwd=self._workdir,
             env=self._env,
