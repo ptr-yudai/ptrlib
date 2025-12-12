@@ -1,8 +1,10 @@
 import inspect
 import json
+import socket
 import unittest
 from logging import getLogger, FATAL
 from socket import gethostbyname
+from unittest import mock
 from ptrlib import Socket, TubeTimeout
 
 
@@ -105,3 +107,28 @@ class TestSocket(unittest.TestCase):
         sock.close()
         self.assertEqual(content['tls_sni_status'], "missing")
         self.assertEqual(content['tls_sni_value'], "")
+
+    def test_connect_timeout_tcp_is_passed(self):
+        """Socket should pass connect_timeout to socket.create_connection."""
+        fake_sock = mock.Mock()
+        with mock.patch("socket.create_connection", return_value=fake_sock) as cc:
+            sock = Socket("example.com", 80, connect_timeout=1.23)
+
+        cc.assert_called_once_with(("example.com", 80), timeout=1.23)
+        fake_sock.settimeout.assert_any_call(None)  # restored to blocking mode
+        sock.close()
+
+    def test_connect_timeout_udp_is_used(self):
+        """UDP path should apply and then clear connect_timeout."""
+        fake_sock = mock.Mock()
+        addrinfo = [(mock.ANY, mock.ANY, mock.ANY, "", ("127.0.0.1", 9999))]
+        with mock.patch("socket.getaddrinfo", return_value=addrinfo) as gai, \
+             mock.patch("socket.socket", return_value=fake_sock) as s_ctor:
+            sock = Socket("127.0.0.1", 9999, udp=True, connect_timeout=0.5)
+
+        gai.assert_any_call("127.0.0.1", 9999, 0, socket.SOCK_DGRAM)
+        s_ctor.assert_called_once()
+        fake_sock.settimeout.assert_any_call(0.5)
+        fake_sock.connect.assert_called_once_with(("127.0.0.1", 9999))
+        fake_sock.settimeout.assert_any_call(None)  # reset after connect
+        sock.close()

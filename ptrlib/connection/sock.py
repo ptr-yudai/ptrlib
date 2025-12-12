@@ -32,6 +32,7 @@ class Socket(Tube):
                  ssl: bool = False,
                  sni: str | bool = True,
                  udp: bool = False,
+                 connect_timeout: float | None = None,
                  **kwargs):
         """Create and connect a TCP socket.
 
@@ -44,6 +45,8 @@ class Socket(Tube):
             ssl: Enable SSL/TLS for the connection if True.
             sni: Server Name Indication (SNI) for the connection.
             udp: Use UDP for the connection if True.
+            connect_timeout: Timeout (seconds) for establishing the connection.
+                              None keeps the OS default behavior.
             debug: Debug mode for I/O tracing. ('none', 'plain', or 'hex')
             quiet: Suppress output if True.
             pcap: File path to the pcap log file.
@@ -86,6 +89,7 @@ class Socket(Tube):
         self._timeout: float | None = None
         self._ssl_enabled = bool(ssl)
         self._sni = sni
+        self._connect_timeout: float | None = connect_timeout
         self._sock: socket.socket | None = None
         self._oob_flag = False
         self._is_udp: bool = bool(udp)
@@ -110,7 +114,13 @@ class Socket(Tube):
         try:
             if not self._is_udp:
                 # ---- TCP ----
-                self._sock = socket.create_connection((self._host, self._port))
+                self._sock = socket.create_connection(
+                    (self._host, self._port),
+                    timeout=self._connect_timeout
+                )
+                # Restore blocking mode so I/O timeouts are controlled by Tube
+                with contextlib.suppress(OSError):
+                    self._sock.settimeout(None)
                 with contextlib.suppress(OSError):
                     self._sock.setsockopt(socket.SOL_SOCKET, socket.TCP_NODELAY, 1)
 
@@ -135,8 +145,12 @@ class Socket(Tube):
                 af, socktype, proto, _cn, sa = infos[0]
                 s = socket.socket(af, socktype, proto)
                 try:
+                    if self._connect_timeout is not None:
+                        s.settimeout(self._connect_timeout)
                     # UDP connect does not send packets; it just fixes default peer & filters input.
                     s.connect(sa)
+                    if self._connect_timeout is not None:
+                        s.settimeout(None)
                     self._sock = s
                 except Exception:
                     with contextlib.suppress(Exception):
