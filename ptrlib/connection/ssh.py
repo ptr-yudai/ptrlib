@@ -2,7 +2,7 @@
 """
 import shlex
 import os
-from ptrlib.arch.common import which
+from ptrlib.os import which
 from .proc import Process
 
 

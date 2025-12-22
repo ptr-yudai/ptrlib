@@ -1,34 +1,41 @@
 def signal_name(code: int, detail: bool=False) -> str:
-    """Convert signal ID to signal name
+    """Convert signal ID to signal name (Linux).
+
+    Args:
+        code: Positive signal number (e.g., 9), or negative wait status (e.g., -9).
+        detail: If True, append short description to certain signals.
+
+    Returns:
+        Name such as 'SIGKILL' or '', when unknown.
     """
     if code == 1:
         return 'SIGHUP'
     elif code == 2:
-        return 'SIGINT' + ' (Interruption)' if detail else ''
+        return 'SIGINT' + (' (Interruption)' if detail else '')
     elif code == 3:
         return 'SIGQUIT'
     elif code == 4:
-        return 'SIGILL' + ' (Illegal instruction)' if detail else ''
+        return 'SIGILL' + (' (Illegal instruction)' if detail else '')
     elif code == 5:
-        return 'SIGTRAP' + ' (int3/breakpoint)' if detail else ''
+        return 'SIGTRAP' + (' (int3/breakpoint)' if detail else '')
     elif code == 6:
         return 'SIGABRT'
     elif code == 7:
-        return 'SIGBUS' + ' (Bus error; invalid memory access)' if detail else ''
+        return 'SIGBUS' + (' (Bus error; invalid memory access)' if detail else '')
     elif code == 8:
-        return 'SIGFPE'  + ' (Floating point exception)' if detail else ''
+        return 'SIGFPE'  + (' (Floating point exception)' if detail else '')
     elif code == 9:
-        return 'SIGKILL' + ' (Killed)' if detail else ''
+        return 'SIGKILL' + (' (Killed)' if detail else '')
     elif code == 10:
         return 'SIGUSR1'
     elif code == 11:
-        return 'SIGSEGV' + ' (Segmentation fault)' if detail else ''
+        return 'SIGSEGV' + (' (Segmentation fault)' if detail else '')
     elif code == 12:
         return 'SIGUSR2'
     elif code == 13:
-        return 'SIGPIPE' + ' (Broken pipe)' if detail else ''
+        return 'SIGPIPE' + (' (Broken pipe)' if detail else '')
     elif code == 14:
-        return 'SIGALRM' + ' (Timeout)' if detail else ''
+        return 'SIGALRM' + (' (Timeout)' if detail else '')
     elif code == 15:
         return 'SIGTERM'
     elif code == 16:
@@ -62,6 +69,10 @@ def signal_name(code: int, detail: bool=False) -> str:
     elif code == 30:
         return 'SIGPWR'
     elif code == 31:
-        return 'SIGSYS' + ' (Invalid system call; seccomp?)' if detail else ''
+        return 'SIGSYS' + (' (Invalid system call; seccomp?)' if detail else '')
     else:
         return ''
+
+
+__all__ = ['signal_name']
+

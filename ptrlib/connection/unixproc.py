@@ -22,7 +22,7 @@ import subprocess
 from logging import getLogger
 from ptrlib.debugger.unix import UnixProcessManager
 from ptrlib.binary.packing import p16
-from ptrlib.arch.linux import signal_name
+from ptrlib.os.linux import signal_name
 from .tube import Tube
 
 
