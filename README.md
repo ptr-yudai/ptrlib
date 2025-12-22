@@ -21,24 +21,19 @@ Library Dependency:
 - pycryptodome
 - pywin32 (when handling Windows process)
 
-External Program:
+Optional features that require external programs or libraries:
 - `SSH` requires:
   - ssh
-  - expect
-- `nasm` requires:
+- `IntelCPU.assemble` requires either of the following assemblers:
+  - gcc and objcopy
   - nasm
-- `assemble` requires:
-  - gcc, objcopy (x86, x86-64)
-  - arm-linux-gnueabi-gcc, aarch64-linux-gnu-gcc (arm, aarch64)
-- `disassemble` requires:
-  - objdump (x86, x86-64)
-  - arm-linux-gnueabi-objdump, aarch64-linux-gnu-objdump (arm, aarch64)
-- `consts` requires:
-  - grep
-  - gcc (x86, x86-64)
+  - keystone (`pip install keystone-engine`)
+- `IntelCPU.disassemble` requires either of the following disassemblers:
+  - objdump
+  - capstone (`pip install capstone`)
+- `ArmCPU` and `MipsCPU` require the corresponding cross-architecture compilers/decompilers such as `aarch64-linux-gnu-gcc`.
 
 ## Usage
-Basic examples are available at [/examples](https://github.com/ptr-yudai/ptrlib/tree/master/examples/).
 
 Testcases under [/tests](https://github.com/ptr-yudai/ptrlib/tree/master/tests/) may also help you understand ptrlib.
 
@@ -115,14 +110,12 @@ leak = u64(sock.recvline())
 libc.base = leak - libc.symbol("puts")
 
 payload  = b'A' * 8
-paylaod += p64(next(elf.gadget("ret")))
-# Automatically rebase after <ELF>.base is set
-payload += p64(next(libc.search("/bin/sh")))
-payload += p64(libc.symbol("system"))
-
-# Shows warning if payload contains a character `gets` cannot accept
-is_gets_safe(payload) # is_[cin/fgets/gets/getline/scanf/stream]_safe
-
+paylaod += p64([
+  elf.gadget("ret"),
+  # Automatically rebased after <ELF>.base is set
+  libc.search("/bin/sh"),
+  libc.symbol("system")
+])
 sock.sendline(payload)
 
 sock.sh() # or sock.interactive()
@@ -166,18 +159,18 @@ with io.defer_after():
 """The above is equivalent to the following code:"""
 # Deferred "create"
 for i in range(100):
-  io.sendline(f'1\n{i}\n' + 'A'*0x40 + '\n')
+  io.send(f'1\n{i}\n' + 'A'*0x40 + '\n')
 for i in range(100):
   io.recvuntil('> ')
   io.recvuntil('Index: ')
 # Deferred "show"
-io.sendline('2\n0\n')
+io.send('2\n0\n')
 io.recvuntil('> ')
 io.recvuntil('Index: ')
 leak = io.recvline()
 # Deferred "delete"
 for i in range(100):
-  io.sendline(f'3\n{i}\n')
+  io.send(f'3\n{i}\n')
 for i in range(100):
   io.recvuntil('> ')
   io.recvuntil('Index: ')

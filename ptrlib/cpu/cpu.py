@@ -50,4 +50,4 @@ def _cpu_factory(arch: PtrlibArchT='intel',
 CPU = _cpu_factory
 
 
-__all__ = ['CPU', 'ArmCPU', 'IntelCPU', 'PtrlibCpuT']
+__all__ = ['CPU', 'ArmCPU', 'IntelCPU', 'MipsCPU', 'PtrlibCpuT']
