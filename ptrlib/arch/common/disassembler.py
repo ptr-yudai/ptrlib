@@ -1,5 +1,4 @@
 from logging import getLogger
-from typing import Optional, Union
 from ptrlib.arch.intel import disassemble_intel, is_arch_intel, bit_by_arch_intel
 from ptrlib.arch.arm import disassemble_arm, is_arch_arm, bit_by_arch_arm
 from ptrlib.binary.encoding import str2bytes
@@ -7,14 +6,14 @@ from ptrlib.binary.encoding import str2bytes
 logger = getLogger(__name__)
 
 
-def disassemble(code: Union[str, bytes],
+def disassemble(code: str | bytes,
                 address: int=0,
-                bits: Optional[int]=None,
-                arch: Optional[str]='x86-64',
-                syntax: Optional[str]='intel',
-                thumb: Optional[bool]=False,
-                returns: Optional[type]=list,
-                objdump_path: str=None) -> Union[list, str]:
+                bits: int | None = None,
+                arch: str = 'x86-64',
+                syntax: str = 'intel',
+                thumb: bool = False,
+                returns: type | None = list,
+                objdump_path: str | None = None) -> list | str:
     if syntax.lower() == 'intel':
         syntax = 'intel' # Intel syntax
     else:
@@ -43,13 +42,13 @@ def disassemble(code: Union[str, bytes],
     else:
         return l
 
-def disasm(code: Union[str, bytes],
+def disasm(code: str | bytes,
            address: int=0,
-           bits: Optional[int]=None,
-           arch: Optional[str]='x86-64',
-           syntax: Optional[str]='intel',
-           thumb: Optional[bool]=False,
-           returns: Optional[type]=list,
-           objdump_path: str=None) -> Union[list, str]:
+           bits: int | None = None,
+           arch: str = 'x86-64',
+           syntax: str = 'intel',
+           thumb: bool = False,
+           returns: type | None = list,
+           objdump_path: str | None = None) -> list | str:
     return disassemble(code, address, bits, arch, syntax,
                        thumb, returns, objdump_path)

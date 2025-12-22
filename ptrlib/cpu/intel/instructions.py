@@ -1,6 +1,5 @@
 """This package provides functions equivalent to some Intel instructions.
 """
-from typing import List, Union
 from ptrlib.binary.encoding import str2bytes
 
 
@@ -42,35 +41,35 @@ inv_s_box = (
     0x17, 0x2B, 0x04, 0x7E, 0xBA, 0x77, 0xD6, 0x26, 0xE1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0C, 0x7D,
 )
 
-def _aes_bytes_to_matrix(data: Union[str, bytes]) -> List[List[int]]:
+def _aes_bytes_to_matrix(data: str | bytes) -> list[list[int]]:
     if isinstance(data, str):
         data = str2bytes(data)
     return [list(data[i:i+4]) for i in range(0, len(data), 4)]
 
-def _aes_matrix_to_bytes(matrix: List[List[int]]) -> bytes:
+def _aes_matrix_to_bytes(matrix: list[list[int]]) -> bytes:
     return bytes(sum(matrix, []))
 
-def _aes_shift_rows(s: List[List[int]]):
+def _aes_shift_rows(s: list[list[int]]):
     s[0][1], s[1][1], s[2][1], s[3][1] = s[1][1], s[2][1], s[3][1], s[0][1]
     s[0][2], s[1][2], s[2][2], s[3][2] = s[2][2], s[3][2], s[0][2], s[1][2]
     s[0][3], s[1][3], s[2][3], s[3][3] = s[3][3], s[0][3], s[1][3], s[2][3]
 
-def _aes_inv_shift_rows(s: List[List[int]]):
+def _aes_inv_shift_rows(s: list[list[int]]):
     s[0][1], s[1][1], s[2][1], s[3][1] = s[3][1], s[0][1], s[1][1], s[2][1]
     s[0][2], s[1][2], s[2][2], s[3][2] = s[2][2], s[3][2], s[0][2], s[1][2]
     s[0][3], s[1][3], s[2][3], s[3][3] = s[1][3], s[2][3], s[3][3], s[0][3]
 
-def _aes_sub_bytes(s: List[List[int]]):
+def _aes_sub_bytes(s: list[list[int]]):
     for i in range(4):
         for j in range(4):
             s[i][j] = s_box[s[i][j]]
 
-def _aes_inv_sub_bytes(s: List[List[int]]):
+def _aes_inv_sub_bytes(s: list[list[int]]):
     for i in range(4):
         for j in range(4):
             s[i][j] = inv_s_box[s[i][j]]
 
-def _aes_add_round_key(s: List[List[int]], k: List[List[int]]):
+def _aes_add_round_key(s: list[list[int]], k: list[list[int]]):
     for i in range(4):
         for j in range(4):
             s[i][j] ^= k[i][j]
@@ -78,7 +77,7 @@ def _aes_add_round_key(s: List[List[int]], k: List[List[int]]):
 def _aes_xtime(a: int) -> int:
     return (((a << 1) ^ 0x1B) & 0xFF) if (a & 0x80) else (a << 1)
 
-def _aes_mix_columns(s: List[List[int]]):
+def _aes_mix_columns(s: list[list[int]]):
     for i in range(4):
         t = s[i][0] ^ s[i][1] ^ s[i][2] ^ s[i][3]
         temp = s[i][0]
@@ -87,7 +86,7 @@ def _aes_mix_columns(s: List[List[int]]):
         s[i][2] ^= t ^ _aes_xtime(s[i][2] ^ s[i][3])
         s[i][3] ^= t ^ _aes_xtime(s[i][3] ^ temp)
 
-def _aes_inv_mix_columns(s: List[List[int]]):
+def _aes_inv_mix_columns(s: list[list[int]]):
     for i in range(4):
         u = _aes_xtime(_aes_xtime(s[i][0] ^ s[i][2]))
         v = _aes_xtime(_aes_xtime(s[i][1] ^ s[i][3]))
@@ -101,7 +100,7 @@ def _aes_inv_mix_columns(s: List[List[int]]):
 class Instructions:
     """Emulate some Intel instructions.
     """
-    def aesenc(self, state: Union[str, bytes], round_key: Union[str, bytes]) -> bytes:
+    def aesenc(self, state: str | bytes, round_key: str | bytes) -> bytes:
         """Emulate AESENC instruction.
 
         Args:
@@ -127,7 +126,7 @@ class Instructions:
         _aes_add_round_key(mstate, mkey)
         return _aes_matrix_to_bytes(mstate)
 
-    def aesenc_inv(self, state: Union[str, bytes], round_key: Union[str, bytes]) -> bytes:
+    def aesenc_inv(self, state: str | bytes, round_key: str | bytes) -> bytes:
         """Emulate the inverse of AESENC instruction.
 
         Args:
@@ -153,7 +152,7 @@ class Instructions:
         _aes_inv_shift_rows(mstate)
         return _aes_matrix_to_bytes(mstate)
 
-    def aesdec(self, state: Union[str, bytes], round_key: Union[str, bytes]) -> bytes:
+    def aesdec(self, state: str | bytes, round_key: str | bytes) -> bytes:
         """Emulate AESDEC instruction.
 
         Args:
@@ -179,7 +178,7 @@ class Instructions:
         _aes_add_round_key(mstate, mkey)
         return _aes_matrix_to_bytes(mstate)
 
-    def aesdec_inv(self, state: Union[str, bytes], round_key: Union[str, bytes]) -> bytes:
+    def aesdec_inv(self, state: str | bytes, round_key: str | bytes) -> bytes:
         """Emulate the inverse of AESENC instruction
 
         Args:

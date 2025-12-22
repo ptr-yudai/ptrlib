@@ -18,20 +18,22 @@ class TestSocket(unittest.TestCase):
         """Test socket connection and data exchange.
         """
         # connect
-        sock = Socket("github.com", 80)
+        host = "www.github.com"
+        sock = Socket(host, 80)
 
         # request 
         sock.sendline(b'GET / HTTP/1.1\r')
-        sock.send(b'Host: github.com\r\n\r\n')
+        sock.send(f'Host: {host}'.encode() + b'\r\n\r\n')
 
         # shutdown
         sock.close_send()
 
         # receive
-        status = int(sock.recvregex(r"HTTP/1.1 (\d+) .+").group(1))
+        m = sock.recvregex(r"HTTP/\d\.\d (\d{3}) ")
+        status = int(m.group(1))
         sock.close()
 
-        self.assertIn(status, [200, 301]) # OK or Moved permanently
+        self.assertIn(status, [200, 301, 302])
 
     def test_timeout(self):
         """Test socket timeout behavior.

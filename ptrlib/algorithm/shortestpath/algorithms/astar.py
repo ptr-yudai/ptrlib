@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import TypeVar, Generic, DefaultDict, Dict, List, Tuple, Set
+from typing import TypeVar, Generic
 import heapq
 from math import inf
 
@@ -12,7 +12,11 @@ EdgeT_Inner = TypeVar('EdgeT_Inner')
 
 
 class AStar(ShortestPathBase[StateT, EdgeT]):
+    memo: dict[StateT, "AStar._AStar_Container[StateT, EdgeT]"]
+
     class _AStar_Container(Generic[StateT_Inner, EdgeT_Inner]):
+        res: defaultdict[StateT_Inner, ResultT[EdgeT_Inner]]
+
         def __init__(
             self,
             transition: TransitionFuncT[StateT_Inner, EdgeT_Inner],
@@ -23,14 +27,14 @@ class AStar(ShortestPathBase[StateT, EdgeT]):
             self.transition = transition
             self.cost_estimator = cost_estimator
             self.infinity = infinity
-            self.res: DefaultDict[StateT_Inner, ResultT[EdgeT_Inner]] = defaultdict(lambda: (self.infinity, LazyList.Null))
+            self.res = defaultdict(lambda: (self.infinity, LazyList.Null))
             self.res[init_state] = (0, LazyList(None, []))
 
         def __getitem__(self, dest_state: StateT_Inner) -> ResultT[EdgeT_Inner]:
-            arrived: Dict[StateT_Inner, bool] = dict()
-            fixed: Set[StateT_Inner] = set()
-            cur_res: DefaultDict[StateT_Inner, ResultT[EdgeT_Inner]] = defaultdict(lambda: (self.infinity, LazyList.Null))
-            heap: List[Tuple[NumberT, NumberT, StateT_Inner]] = []
+            arrived: dict[StateT_Inner, bool] = dict()
+            fixed: set[StateT_Inner] = set()
+            cur_res = defaultdict(lambda: (self.infinity, LazyList.Null))
+            heap: list[tuple[float, float, StateT_Inner]] = []
 
             for state in self.res.keys():
                 cost, path = self.res[state]
@@ -67,7 +71,7 @@ class AStar(ShortestPathBase[StateT, EdgeT]):
     ) -> None:
         self.transition = transition
         self.cost_estimator = cost_estimator
-        self.memo: Dict[StateT, AStar._AStar_Container[StateT, EdgeT]] = dict()
+        self.memo = dict()
         self.infinity: NumberT = infinity
 
     def __getitem__(self, initState: StateT) -> _AStar_Container[StateT, EdgeT]:

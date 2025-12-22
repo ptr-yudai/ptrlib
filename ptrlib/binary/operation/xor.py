@@ -1,18 +1,17 @@
 """This package provides a generic XOR implementation.
 """
 from logging import getLogger
-from typing import List, Union
 from ptrlib.binary.encoding import str2bytes
 
 logger = getLogger(__name__)
 
 
-def xor(data: Union[str, bytes, List[int]], key: Union[int, str, bytes, List[int]]) -> bytes:
+def xor(data: str | bytes | list[int], key: int | str | bytes | list[int]) -> bytes:
     """Xor data with a key.
 
     Args:
-        data (Union[str, bytes, List[int]]): The plaintext.
-        key (Union[str, bytes, int, List[int]]): The key.
+        data (str | bytes | list[int]): The plaintext.
+        key (str | bytes | int | list[int]): The key.
             The key is used repeatedly if the key length is shorter than the data length.
 
     Returns:

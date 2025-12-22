@@ -1,11 +1,11 @@
 """This package provides some primitive operations.
 """
 from logging import getLogger
-from typing import Any, List, TypeVar
+from typing import Any, TypeVar
 
 logger = getLogger(__name__)
 
-_T = TypeVar("_T", int, str, bytes, List[Any])
+_T = TypeVar("_T", int, str, bytes, list[Any])
 
 
 def rol(data: _T, n: int, bits: int=32) -> _T:

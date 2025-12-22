@@ -1,6 +1,5 @@
 from collections import defaultdict
 from math import inf
-from typing import *
 
 from ..types import *
 from ..base import ShortestPathBase
@@ -8,6 +7,9 @@ from ..utils.lazylist import LazyList
 
 
 class FloydWarshall(ShortestPathBase[StateT, EdgeT]):
+    mat: defaultdict[StateT, defaultdict[StateT, ResultT[EdgeT]]]
+    states: list[StateT]
+
     def __init__(
         self,
         transition: TransitionFuncT[StateT, EdgeT],
@@ -15,9 +17,9 @@ class FloydWarshall(ShortestPathBase[StateT, EdgeT]):
     ) -> None:
         self.transition = transition
         self.infinity = infinity
-        self.mat: DefaultDict[StateT, DefaultDict[StateT, ResultT[EdgeT]]] = defaultdict(
+        self.mat = defaultdict(
             lambda: defaultdict(lambda: (self.infinity, LazyList.Null)))
-        self.states: List[StateT] = []
+        self.states = []
 
     def __getitem__(self, init_state: StateT) -> SupportsGetItem[StateT, ResultT[EdgeT]]:
         if init_state not in self.mat:

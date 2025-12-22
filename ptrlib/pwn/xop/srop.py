@@ -20,7 +20,7 @@ class SROP:
             # TODO: Infer architecture
             pass
 
-        if arch == 'x64':
+        if arch == 'intel':
             self._srop = SROPx64(**kwargs)
 
         else:

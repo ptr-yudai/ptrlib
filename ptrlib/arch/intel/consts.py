@@ -1,5 +1,4 @@
 import functools
-from typing import Union
 
 try:
     cache = functools.cache
@@ -9,7 +8,7 @@ except AttributeError:
 
 class ConstsTableIntel(object):
     @cache
-    def __getitem__(self, name: str) -> Union[int, str]:
+    def __getitem__(self, name: str) -> int | str:
         from ptrlib.arch.linux import consts
         return consts.resolve_constant(
             name,

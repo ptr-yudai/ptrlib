@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import List, Type, TypeVar, Union
+from typing import TypeVar, cast
 
 logger = getLogger(__name__)
 
@@ -8,10 +8,10 @@ _T = TypeVar("_T", float, bool)
 def get_frequency(*args):
     raise NotImplementedError("ptrlib.binary.statistics.get_frequency")
 
-def consists_of(text: Union[str, bytes, List[int]],
-                charset: Union[str, bytes, List[str]],
-                per: float=1.0,
-                returns: Type[_T]=bool) -> _T:
+def consists_of(text: str | bytes | list[int],
+                charset: str | bytes | list[str],
+                per: float = 1.0,
+                returns: type[_T] = bool) -> _T:
     """Checks if the text consists of given charset.
 
     Args:
@@ -49,6 +49,6 @@ def consists_of(text: Union[str, bytes, List[int]],
             count += 1
 
     if returns == bool:
-        return count / len(target) >= per
+        return cast(_T, count / len(target) >= per)
     else:
-        return count / len(target)
+        return cast(_T, count / len(target))

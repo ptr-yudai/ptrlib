@@ -292,7 +292,14 @@ class ELFParser:
         return True
 
     def __del__(self):
-        self.stream.close()
+        # Best-effort cleanup: the file may already be closed if initialization failed
+        # or if the object has been partially finalized.
+        try:
+            stream = getattr(self, 'stream', None)
+            if stream is not None:
+                stream.close()
+        except Exception:
+            pass
 
 
 __all__ = ['ELFParser']

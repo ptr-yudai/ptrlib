@@ -3,7 +3,6 @@ import os
 import subprocess
 import tempfile
 from logging import getLogger
-from typing import Optional, Union
 from ptrlib.types import PtrlibArchT, PtrlibBitsT, PtrlibAssemblySyntaxT
 from ptrlib.arch.intel import assemble_intel, is_arch_intel, bit_by_arch_intel
 from ptrlib.arch.arm   import assemble_arm, is_arch_arm, bit_by_arch_arm
@@ -12,13 +11,13 @@ from ptrlib.binary.encoding import *
 logger = getLogger(__name__)
 
 
-def assemble(code: Union[str, bytes],
+def assemble(code: str | bytes,
              bits: PtrlibBitsT = 64,
              arch: PtrlibArchT = 'intel',
              syntax: PtrlibAssemblySyntaxT='intel',
-             entry: Optional[str]=None,
-             gcc_path: Optional[str]=None,
-             objcopy_path: Optional[str]=None) -> Optional[bytes]:
+             entry: str | None = None,
+             gcc_path: str | None = None,
+             objcopy_path: str | None = None) -> bytes | None:
     """Assemble code with GCC
 
     Args:
@@ -35,6 +34,8 @@ def assemble(code: Union[str, bytes],
     """
     if isinstance(code, str):
         code = str2bytes(code)
+    else:
+        code = bytes(code)
 
     if code[-1] != 0x0a:
         code += b'\n'
@@ -61,11 +62,11 @@ def assemble(code: Union[str, bytes],
         raise ValueError("Unknown architecture '{}'".format(arch))
 
 
-def nasm(code: Union[str, bytes],
+def nasm(code: str | bytes,
          fmt: str='bin',
          bits: int=64,
-         org: Optional[int]=None,
-         nasm_path: Optional[str]=None):
+         org: int | None = None,
+         nasm_path: str | None = None):
     """Assemble x86/x86-64 code with NASM
 
     Args:
@@ -98,6 +99,7 @@ def nasm(code: Union[str, bytes],
     with open(fname_s, 'wb') as f:
         f.write(code)
 
+    output: bytes | None = None
     with open(fname_o, 'wb+') as f, contextlib.suppress(FileNotFoundError):
         p = subprocess.Popen([nasm_path, "-f{}".format(fmt), fname_s, "-o", fname_o],
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -119,4 +121,5 @@ def nasm(code: Union[str, bytes],
         os.unlink(fname_s)
         os.unlink(fname_o)
 
+    assert output is not None
     return output

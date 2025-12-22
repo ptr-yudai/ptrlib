@@ -1,7 +1,8 @@
 from itertools import chain, product
-from typing import List, Optional, Union
 
-def bruteforce(minlen: Optional[int]=None, maxlen: Optional[int]=None, charset: Optional[Union[List[str], List[bytes], List[int], str, bytes]]=None):
+def bruteforce(minlen: int | None = None,
+               maxlen: int | None = None,
+               charset: list[str] | list[bytes] | list[int] | str | bytes | None = None):
     if minlen is None:
         minlen = 1
     if maxlen is None:
@@ -19,7 +20,7 @@ def bruteforce(minlen: Optional[int]=None, maxlen: Optional[int]=None, charset: 
         charset = bytes([i for i in range(0x100)])
     elif isinstance(charset, list):
         if isinstance(charset[0], int):
-            charset = bytes(charset)
+            charset = bytes(charset)  # type: ignore[arg-type]
 
     assert isinstance(charset, str) \
         or isinstance(charset, bytes) \
@@ -28,9 +29,12 @@ def bruteforce(minlen: Optional[int]=None, maxlen: Optional[int]=None, charset: 
     for length in range(minlen, maxlen+1):
         for candidate in product(charset, repeat=length):
             if isinstance(charset, bytes):
-                yield bytes(candidate)
+                # candidate: tuple[int, ...]
+                yield bytes(candidate)  # type: ignore[arg-type]
             else:
                 if isinstance(candidate[0], bytes):
-                    yield b''.join(candidate)
+                    # candidate: tuple[bytes, ...]
+                    yield b''.join(candidate)  # type: ignore[arg-type]
                 else:
-                    yield ''.join(candidate)
+                    # candidate: tuple[str, ...]
+                    yield ''.join(candidate)  # type: ignore[arg-type]

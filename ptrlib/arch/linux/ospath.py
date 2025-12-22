@@ -1,9 +1,8 @@
 import os
 import subprocess
-from typing import Optional
 
 
-def which_linux(s: str) -> Optional[str]:
+def which_linux(s: str) -> str | None:
     if '/' not in s:
         try:
             s = subprocess.check_output(["which", s]).decode().rstrip()
