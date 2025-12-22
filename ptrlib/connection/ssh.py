@@ -1,6 +1,5 @@
 """This package provides SSH function.
 """
-import shlex
 import os
 from ptrlib.os import which
 from .proc import Process
@@ -10,11 +9,11 @@ def SSH(host: str,
         username: str,
         *,
         port: int = 22,
-        password: str | None=None,
-        identity: str | None=None,
-        ssh_path: str | None=None,
+        password: str | None = None,
+        identity: str | None = None,
+        ssh_path: str | None = None,
         options: list[str] | None = None,
-        command: str=''):
+        command: str | None = None):
     """Create an SSH shell
 
     Create a new process to connect to SSH server
@@ -35,8 +34,7 @@ def SSH(host: str,
         FileNotFoundError: If SSH executable is not found.
     """
     assert isinstance(port, int)
-    if identity is None and password is None:
-        raise ValueError("You must provide either password or identity")
+    # Allow agent-based auth when neither password nor identity is provided.
     if ssh_path is None:
         ssh_path = which('ssh')
     if ssh_path is None or not os.path.isfile(ssh_path):
@@ -47,14 +45,19 @@ def SSH(host: str,
     if identity is not None:
         options += ['-i', os.path.realpath(os.path.expanduser(identity))]
 
-    sess = Process([
+    argv: list[str] = [
         ssh_path,
         '-oStrictHostKeyChecking=no', '-oCheckHostIP=no',
-        f'{shlex.quote(username)}@{shlex.quote(host)}',
+        f'{username}@{host}',
         '-p', str(port),
         *options,
-        command
-    ])
+    ]
+    # Only append command if provided (avoid passing an empty argument which
+    # would make ssh execute an empty remote command and close immediately).
+    if command:
+        argv.append(command)
+
+    sess = Process(argv)
     sess.prompt = ""
     if password is not None:
         sess.sendlineafter("password: ", password)
