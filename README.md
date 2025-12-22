@@ -137,6 +137,69 @@ else:
   sock.sendctrl("esc")
 ```
 
+Since v3.1.0, if you enclose I/O calls within `defer_after`, every receive in `after`, `sendafter`, and `sendlineafter` will be delayed.
+
+```python
+def create(index: int, data: str):
+  io.after('> ').sendline('1')
+  io.after('Index: ').sendline(index)
+  io.sendline(data)
+
+def delete(index: int):
+  io.sendlineafter('> ', '2')
+  io.sendlineafter('Index: ', index)
+
+def show(index: int):
+  io.sendlineafter('> ', '3')
+  io.sendlineafter('Index: ', index)
+  return io.recvline()
+
+with io.defer_after():
+  for i in range(100):
+    create(i, "A"*0x40)
+  leak = show(0) # Every deferred `after` will be called before `recv` calls.
+  for i in range(100):
+    delete(i)
+
+  io.sh()
+
+"""The above is equivalent to the following code:"""
+# Deferred "create"
+for i in range(100):
+  io.sendline(f'1\n{i}\n' + 'A'*0x40 + '\n')
+for i in range(100):
+  io.recvuntil('> ')
+  io.recvuntil('Index: ')
+# Deferred "show"
+io.sendline('2\n0\n')
+io.recvuntil('> ')
+io.recvuntil('Index: ')
+leak = io.recvline()
+# Deferred "delete"
+for i in range(100):
+  io.sendline(f'3\n{i}\n')
+for i in range(100):
+  io.recvuntil('> ')
+  io.recvuntil('Index: ')
+io.sh()
+```
+
+Assemblers/disassemblers are available.
+
+```python
+arm = ArmCPU(32)
+arm.assemble('mov r0, #1; mov r1, #2')
+x64 = CPU('intel', 64) # or IntelCPU
+x64.assemble('pop rdi; pop rax; /*Set rdi and rax*/ ret // good gadget')
+x64.assembler = 'nasm'
+x64.assemble("mov eax, 1 ; EAX = 1") # ";" works as comment in NASM mode
+
+insns = x64.disassemble(b"\x64\x89\xd0\x90")
+print(insns[0].mnemonic) # mov
+print(insns[0].operands) # ['eax', 'edx']
+print(insns[1]) # 00000003: (90) nop 
+```
+
 ## Install
 Run `pip install --upgrade ptrlib` or `python setup.py install`.
 
