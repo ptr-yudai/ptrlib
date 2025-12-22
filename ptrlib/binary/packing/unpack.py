@@ -2,14 +2,13 @@
 """
 import struct
 from logging import getLogger
-from typing import Union
 from ptrlib.types import PtrlibEndiannessT
 from ptrlib.binary.encoding.byteconv import str2bytes
 
 logger = getLogger(__name__)
 
 
-def u8(data: Union[str, bytes], signed: bool=False) -> int:
+def u8(data: str | bytes, signed: bool=False) -> int:
     """Unpack a byte into integer.
 
     Args:
@@ -26,7 +25,7 @@ def u8(data: Union[str, bytes], signed: bool=False) -> int:
 
     return int.from_bytes(data, 'big', signed=signed)
 
-def u16(data: Union[str, bytes], byteorder: PtrlibEndiannessT="little", signed: bool=False) -> int:
+def u16(data: str | bytes, byteorder: PtrlibEndiannessT="little", signed: bool=False) -> int:
     """Unpack a word into integer.
 
     Args:
@@ -43,7 +42,7 @@ def u16(data: Union[str, bytes], byteorder: PtrlibEndiannessT="little", signed: 
 
     return int.from_bytes(data, byteorder=byteorder, signed=signed)
 
-def u32(data: Union[str, bytes], byteorder: PtrlibEndiannessT="little", signed: bool=False) -> int:
+def u32(data: str | bytes, byteorder: PtrlibEndiannessT="little", signed: bool=False) -> int:
     """Unpack a dword into integer.
 
     Args:
@@ -60,7 +59,7 @@ def u32(data: Union[str, bytes], byteorder: PtrlibEndiannessT="little", signed: 
 
     return int.from_bytes(data, byteorder=byteorder, signed=signed)
 
-def u32f(data: Union[str, bytes], byteorder: PtrlibEndiannessT="little") -> float:
+def u32f(data: str | bytes, byteorder: PtrlibEndiannessT="little") -> float:
     """Unpack q dword into float.
 
     Args:
@@ -77,7 +76,7 @@ def u32f(data: Union[str, bytes], byteorder: PtrlibEndiannessT="little") -> floa
 
     return struct.unpack('<f' if byteorder == 'little' else '>f', data)[0]
 
-def u64(data: Union[str, bytes], byteorder: PtrlibEndiannessT='little', signed: bool=False) -> int:
+def u64(data: str | bytes, byteorder: PtrlibEndiannessT='little', signed: bool=False) -> int:
     """Unpack a qword into integer.
 
     Args:
@@ -94,7 +93,7 @@ def u64(data: Union[str, bytes], byteorder: PtrlibEndiannessT='little', signed: 
 
     return int.from_bytes(data, byteorder=byteorder, signed=signed)
 
-def u64f(data: Union[str, bytes], byteorder: PtrlibEndiannessT="little") -> float:
+def u64f(data: str | bytes, byteorder: PtrlibEndiannessT="little") -> float:
     """Unpack a qword into float.
 
     Args:

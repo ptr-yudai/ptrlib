@@ -1,4 +1,5 @@
-from typing import Generic, Union, TypeVar, Tuple, Callable, Iterator, Protocol, Literal
+from collections.abc import Callable, Iterator
+from typing import Generic, TypeVar, Protocol, Literal, TypeAlias
 
 from .utils.lazylist import LazyList
 
@@ -10,12 +11,12 @@ class SupportsGetItem(Protocol, Generic[_KT_contra, _VT_co]):
 
 StateT = TypeVar('StateT')
 EdgeT = TypeVar('EdgeT')
-NumberT = Union[int, float]
-AlgorithmsT = Literal["dijkstra", "floydwarshall", "astar"]
+NumberT: TypeAlias = int | float
+AlgorithmsT: TypeAlias = Literal["dijkstra", "floydwarshall", "astar"]
 
-ResultT = Tuple[NumberT, LazyList[EdgeT]]
-TransitionFuncT = Callable[[StateT], Iterator[Tuple[StateT, NumberT, EdgeT]]]
-CostEstimatorT = Callable[[StateT, StateT], NumberT]
+ResultT: TypeAlias = tuple[NumberT, LazyList[EdgeT]]
+TransitionFuncT: TypeAlias = Callable[[StateT], Iterator[tuple[StateT, NumberT, EdgeT]]]
+CostEstimatorT: TypeAlias = Callable[[StateT, StateT], NumberT]
 
 
 __all__ = ["SupportsGetItem", "StateT", "EdgeT", "NumberT", "ResultT", "TransitionFuncT", "CostEstimatorT", "AlgorithmsT"]

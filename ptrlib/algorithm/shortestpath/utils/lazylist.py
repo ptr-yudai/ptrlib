@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import sys
-from typing import Generic, Optional, Union, List, TypeVar, Any
+from typing import Generic, TypeVar, Any
 
 sys.setrecursionlimit(max(sys.getrecursionlimit(), 100000))
 
@@ -9,18 +11,18 @@ _T = TypeVar('_T')
 class LazyList(Generic[_T]):
     Null: "LazyList[Any]"
 
-    def __init__(self, prev_enumerate: "Optional[LazyList[_T]]", elems: Optional[Union[List[_T], "LazyList[_T]"]]):
+    def __init__(self, prev_enumerate: "LazyList[_T] | None", elems: list[_T] | "LazyList[_T]" | None):
         self._prev_enumerate = prev_enumerate
         self._elems = elems
 
-    def __add__(self, other: Union[List[_T], "LazyList[_T]"]):
+    def __add__(self, other: list[_T] | "LazyList[_T]"):
         return LazyList(self, other)
 
     def append(self, elem: _T):
         return LazyList(self, [elem])
 
     @property
-    def value(self) -> List[_T]:
+    def value(self) -> list[_T]:
         if self._elems is None:
             raise ValueError("list is null")
         if isinstance(self._elems, LazyList):

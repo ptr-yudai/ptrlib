@@ -1,5 +1,4 @@
 from collections import defaultdict
-from typing import Dict, DefaultDict, List, Tuple, Set
 import heapq
 from math import inf
 
@@ -9,22 +8,24 @@ from ..types import StateT, EdgeT, NumberT, ResultT, TransitionFuncT
 
 
 class BulkDijkstra(ShortestPathBase[StateT, EdgeT]):
+    memo: dict[StateT, defaultdict[StateT, ResultT[EdgeT]]]
+
     def __init__(
         self,
         transition: TransitionFuncT[StateT, EdgeT],
         infinity: NumberT = inf
     ) -> None:
         self.transition = transition
-        self.memo: Dict[StateT, DefaultDict[StateT, ResultT[EdgeT]]] = dict()
+        self.memo = dict()
         self.infinity: NumberT = infinity
 
-    def __getitem__(self, init_state: StateT) -> Dict[StateT, ResultT[EdgeT]]:
+    def __getitem__(self, init_state: StateT) -> dict[StateT, ResultT[EdgeT]]:
         if init_state not in self.memo:
-            res: DefaultDict[StateT, ResultT[EdgeT]] = defaultdict(
+            res: defaultdict[StateT, ResultT[EdgeT]] = defaultdict(
                 lambda: (self.infinity, LazyList.Null))
-            reached: Set[StateT] = set()
+            reached: set[StateT] = set()
             res[init_state] = (0, LazyList(None, []))
-            heap: List[Tuple[NumberT, StateT]] = [(0, init_state)]
+            heap: list[tuple[float, StateT]] = [(0, init_state)]
             while len(heap) != 0:
                 _, elem = heapq.heappop(heap)
                 if elem in reached:

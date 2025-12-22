@@ -1,13 +1,14 @@
 """This package provides `flat` function.
 """
-from typing import Any, Callable, List
+from typing import Any
+from collections.abc import Callable
 
 
-def flat(chunks: List[Any], map: Callable[[Any], bytes]) -> bytes:
+def flat(chunks: list[Any], map: Callable[[Any], bytes]) -> bytes:
     """Concatnate chunks into bytes.
 
     Args:
-        chunks (List[int]): The chunks to concatenate.
+        chunks (list[int]): The chunks to concatenate.
         map (Callable[[int], bytes]): A function that converts each element into bytes.
 
     Returns:

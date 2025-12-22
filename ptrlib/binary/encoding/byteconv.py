@@ -1,12 +1,11 @@
 """This package provides byte and string converters.
 """
-from typing import Tuple, List, Union
 from logging import getLogger
 
 logger = getLogger(__name__)
 
 
-def bytes2str(data: Union[str, bytes]) -> str:
+def bytes2str(data: str | bytes) -> str:
     """Convert bytes to str.
 
     Args:
@@ -23,7 +22,7 @@ def bytes2str(data: Union[str, bytes]) -> str:
 
     raise TypeError(f"{type(data)} given ('bytes' expected)")
 
-def str2bytes(data: Union[str, bytes]) -> bytes:
+def str2bytes(data: str | bytes) -> bytes:
     """Convert str to bytes.
 
     Args:
@@ -43,7 +42,7 @@ def str2bytes(data: Union[str, bytes]) -> bytes:
 
     raise TypeError(f"{type(data)} given ('str' expected)")
 
-def bytes2utf8(data: bytes) -> Tuple[str, bytes, List[bool]]:
+def bytes2utf8(data: bytes) -> tuple[str, bytes, list[bool]]:
     """Convert bytes to UTF-8 (!!! EXPERIMENTAL !!!)
 
     Convert byte array into UTF-8 string.

@@ -320,7 +320,7 @@ class Socket(Tube):
         with self.timeout(-1):
             try:
                 self._sock.setblocking(False)
-                return self._sock.recv(1, socket.MSG_PEEK) == 1
+                return len(self._sock.recv(1, socket.MSG_PEEK)) == 1
             except (BlockingIOError, ValueError, BrokenPipeError):
                 # SSLSocket may raise ValueError but we treat it as alive
                 # BrokenPipeError may happen when recv connection is closed

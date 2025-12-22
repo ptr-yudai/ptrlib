@@ -1,4 +1,4 @@
-from typing import Literal, Union, SupportsInt, SupportsIndex
+from typing import Literal, SupportsInt, SupportsIndex
 
 PtrlibArchT = Literal['unknown', 'intel', 'arm', 'risc-v', 'sparc', 'mips']
 PtrlibBitsT = Literal[16, 32, 64]
@@ -7,7 +7,7 @@ PtrlibAssemblySyntaxT = Literal['intel', 'att']
 PtrlibAssemblerT = Literal['keystone', 'gcc', 'nasm', 'none']
 PtrlibDisassemblerT = Literal['capstone', 'objdump', 'none']
 
-PtrlibIntLikeT = Union[SupportsInt, SupportsIndex]
+PtrlibIntLikeT = SupportsInt | SupportsIndex
 
 __all__ = ['PtrlibArchT', 'PtrlibBitsT', 'PtrlibEndiannessT',
            'PtrlibAssemblySyntaxT', 'PtrlibAssemblerT', 'PtrlibDisassemblerT',

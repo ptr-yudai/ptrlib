@@ -16,20 +16,20 @@ class TestSocket(unittest.TestCase):
         """Test socket connection and data exchange.
         """
         # connect
-        sock = Socket("www.example.com", 80)
+        sock = Socket("www.github.com", 80)
 
         # request 
         sock.sendline(b'GET / HTTP/1.1\r')
-        sock.send(b'Host: www.example.com\r\n\r\n')
+        sock.send(b'Host: www.github.com\r\n\r\n')
 
         # shutdown
         sock.close_send()
 
         # receive
-        result = int(sock.recvlineafter('Content-Length: ')) > 0
+        status = int(sock.recvregex(r'HTTP/\d\.\d (\d{3}) ')[1])
         sock.close()
 
-        self.assertEqual(result, True)
+        self.assertIn(status, [200, 301, 302])
 
     def test_timeout(self):
         """Test socket timeout behavior.

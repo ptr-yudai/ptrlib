@@ -1,7 +1,7 @@
 """This package provides some utilities for characters.
 """
 from logging import getLogger
-from typing import TypeVar, Union
+from typing import TypeVar
 from .byteconv import str2bytes
 from .dump import hexdump
 
@@ -10,7 +10,7 @@ logger = getLogger(__name__)
 
 T = TypeVar('T', str, bytes)
 
-def is_token(data: Union[str, bytes], warn: bool=True) -> bool:
+def is_token(data: str | bytes, warn: bool=True) -> bool:
     """Check if data is a valid token for scanf(%s), cin, or other C++ stream.
 
     Args:
@@ -39,7 +39,7 @@ def is_token(data: Union[str, bytes], warn: bool=True) -> bool:
 
     return True
 
-def is_line(data: Union[str, bytes], warn: bool=True) -> bool:
+def is_line(data: str | bytes, warn: bool=True) -> bool:
     """Check if data is safe for the fgets function.
 
     Args:

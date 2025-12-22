@@ -1,21 +1,21 @@
 """This package provides `chunks` function.
 """
 from logging import getLogger
-from typing import Any, List, Optional, Union
+from typing import Any
 
-DataType = Union[str, bytes, List[Any]]
+DataType = str | bytes | list[Any]
 
 logger = getLogger(__name__)
 
 def chunks(data: DataType,
            size: int,
-           padding: Optional[DataType]=None) -> List[Any]:
+           padding: DataType | None = None) -> list[Any]:
     """Split data into chunks.
 
     Args:
-        data (Union[str, bytes, List[Any]]): The data to split.
+        data (str | bytes | list[Any]): The data to split.
         size (int): The size of each chunk.
-        padding (Union[str, bytes, List[Any]], optional):
+        padding (str | bytes | list[Any], optional):
             Data for padding (None if not to add padding)
 
     Returns:

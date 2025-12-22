@@ -1,7 +1,7 @@
 """This package defines a shortest path problem solver.
 """
 from math import inf
-from typing import Optional, Generic
+from typing import Generic
 
 from .algorithms import *
 from .base import ShortestPathBase
@@ -15,8 +15,8 @@ class ShortestPath(ShortestPathBase[StateT, EdgeT], Generic[StateT, EdgeT]):
         self,
         transition: TransitionFuncT[StateT, EdgeT],
         infinity: NumberT = inf,
-        algorithm: Optional[AlgorithmsT] = None,
-        cost_estimator: Optional[CostEstimatorT[StateT]] = None
+        algorithm: AlgorithmsT | None = None,
+        cost_estimator: CostEstimatorT[StateT] | None = None
     ):
         self.calculator: ShortestPathBase[StateT, EdgeT]
 

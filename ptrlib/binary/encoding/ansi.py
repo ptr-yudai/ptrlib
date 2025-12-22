@@ -1,6 +1,6 @@
 import enum
 from logging import getLogger
-from typing import Callable, Generator, List, Optional, Tuple, Union
+from collections.abc import Callable, Generator
 
 logger = getLogger(__name__)
 
@@ -134,11 +134,11 @@ class AnsiOp(enum.Enum):
 class AnsiInstruction(object):
     def __init__(self,
                  c0: AnsiOp,
-                 code: Optional[AnsiOp]=None,
-                 args: Optional[List[int]]=None):
+                 code: AnsiOp | None = None,
+                 args: list[int] | None = None):
         self._c0   = c0
         self._code = code
-        self._args = args
+        self._args = args or []
 
     @property
     def is_skip(self):
@@ -160,6 +160,10 @@ class AnsiInstruction(object):
             return None
         else:
             return self._args[i]
+
+    def arg(self, i: int) -> int | None:
+        v = self[i]
+        return v if isinstance(v, int) else None
 
     def __eq__(self, other):
         if isinstance(other, AnsiInstruction):
@@ -185,8 +189,8 @@ class AnsiParser(object):
 
     def __init__(self,
                  generator: Generator[bytes, None, None],
-                 size: Tuple[int, int]=(0, 0),
-                 pos: Tuple[int, int]=(0, 0)):
+                 size: tuple[int, int] = (0, 0),
+                 pos: tuple[int, int] = (0, 0)):
         """
         Args:
             generator: A generator which yields byte stream
@@ -211,7 +215,7 @@ class AnsiParser(object):
                      "If you encounter this error, please create an issue here:\n" \
                      "https://github.com/ptr-yudai/ptrlib/issues")
 
-    def _decode_csi(self) -> Optional[AnsiInstruction]:
+    def _decode_csi(self) -> AnsiInstruction | None:
         """Decode a CSI sequence
         """
         c0, code = AnsiOp.ESC, AnsiOp.CSI
@@ -219,7 +223,7 @@ class AnsiParser(object):
         # Parse parameters
         mode_set, mode_q, mode_private = 0, 0, 0
         cur = 2
-        args = []
+        args: list[int] = []
 
         while cur < len(self._buffer) and self._buffer[cur] in [ord('='), ord('?'), ord('>')]:
             if self._buffer[cur] == ord('='):
@@ -407,12 +411,12 @@ class AnsiParser(object):
             raise NotImplementedError("Unknown CSI")
 
         if len(args) < len(default):
-            args = tuple(args + list(default[len(args):]))
+            args.extend(default[len(args):])
 
         self._buffer = self._buffer[cur+1:]
         return AnsiInstruction(c0, code, args)
 
-    def _decode_esc(self) -> Optional[AnsiInstruction]:
+    def _decode_esc(self) -> AnsiInstruction | None:
         """Decode an ESC sequence
         """
         c0   = AnsiOp.ESC
@@ -500,7 +504,7 @@ class AnsiParser(object):
         self._buffer = self._buffer[cur+1:]
         return AnsiInstruction(c0, code)
 
-    def parse_block(self) -> Optional[Union[bytes, AnsiInstruction]]:
+    def parse_block(self) -> bytes | AnsiInstruction | None:
         """Parse a block of ANSI escape sequence
 
         Returns:
@@ -574,7 +578,7 @@ class AnsiParser(object):
 
     def draw_screen(self,
                     returns: type=list,
-                    stop: Optional[Callable[[AnsiInstruction], bool]]=None) -> list:
+                    stop: Callable[[AnsiInstruction], bool] | None = None) -> list | str:
         """Receive a screen
 
         Args:
@@ -602,16 +606,9 @@ class AnsiParser(object):
             except StopIteration:
                 break
 
-            stop_recv = stop(instr)
+            if isinstance(instr, AnsiInstruction):
+                stop_recv = stop(instr)
 
-            if isinstance(instr, bytes):
-                # TODO: Reverse order?
-                for c in instr:
-                    screen[(self._x, self._y)] = self._special_char(charset, c)
-                    self._x += 1
-                    last_char = c
-
-            else:
                 if instr.is_skip:
                     continue
 
@@ -623,7 +620,9 @@ class AnsiParser(object):
                     stop_recv = True
 
                 elif instr == AnsiOp.CHA: # Cursor character absolute
-                    self._x = instr[0] - 1
+                    n = instr.arg(0)
+                    assert n is not None
+                    self._x = n - 1
 
                 elif instr == AnsiOp.SCS_0: # DEC special graphic
                     charset = AnsiOp.SCS_0
@@ -632,10 +631,15 @@ class AnsiParser(object):
                     self._x, self._y = 0, self._y + 1
 
                 elif instr == AnsiOp.CUP: # Cursor position
-                    self._x, self._y = instr[1] - 1, instr[0] - 1
+                    n0 = instr.arg(0)
+                    n1 = instr.arg(1)
+                    assert n0 is not None and n1 is not None
+                    self._x, self._y = n1 - 1, n0 - 1
 
                 elif instr == AnsiOp.ECH: # Erase character
-                    for x in range(self._x, self._x + instr[0]):
+                    n = instr.arg(0)
+                    assert n is not None
+                    for x in range(self._x, self._x + n):
                         screen[(x, self._y)] = DEL
 
                 elif instr == AnsiOp.ED: # Erase in page
@@ -669,9 +673,11 @@ class AnsiParser(object):
                     self._x, self._y = 0, self._y + 1
 
                 elif instr == AnsiOp.REP: # Repeat
-                    for x in range(self._x, self._x + instr[0]):
+                    n = instr.arg(0)
+                    assert n is not None
+                    for x in range(self._x, self._x + n):
                         screen[(x, self._y)] = self._special_char(charset, last_char)
-                    self._x += instr[0]
+                    self._x += n
 
                 elif instr == AnsiOp.RM: # Reset mode
                     pass # TODO: ?
@@ -680,10 +686,21 @@ class AnsiParser(object):
                     pass # TODO: ?
 
                 elif instr == AnsiOp.VPA: # Line position absolute
-                    self._y = instr[0] - 1
+                    n = instr.arg(0)
+                    assert n is not None
+                    self._y = n - 1
 
                 else:
                     raise ValueError(f"Emulation not supported for instruction {instr}")
+
+            else:
+                # bytes-like payload
+                assert isinstance(instr, (bytes, bytearray, memoryview))
+                # TODO: Reverse order?
+                for c in bytes(instr):
+                    screen[(self._x, self._y)] = self._special_char(charset, c)
+                    self._x += 1
+                    last_char = c
 
         self._update_screen_size(screen)
         field = [[' ' for x in range(self._width)]

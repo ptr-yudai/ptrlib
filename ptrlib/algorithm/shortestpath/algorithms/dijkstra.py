@@ -1,7 +1,7 @@
 from collections import defaultdict
 import heapq
 from math import inf
-from typing import TypeVar, Generic, Set, List, Tuple, DefaultDict, Dict
+from typing import TypeVar, Generic
 
 from ..types import *
 from ..base import ShortestPathBase
@@ -12,15 +12,21 @@ EdgeT_Inner = TypeVar('EdgeT_Inner')
 
 
 class Dijkstra(ShortestPathBase[StateT, EdgeT]):
+    memo: dict[StateT, "Dijkstra._Dijkstra_Container[StateT, EdgeT]"]
+
     class _Dijkstra_Container(Generic[StateT_Inner, EdgeT_Inner]):
+        res: defaultdict[StateT_Inner, ResultT[EdgeT_Inner]]
+        reached: set[StateT_Inner]
+        heap: list[tuple[NumberT, StateT_Inner]]
+
         def __init__(self, transition: TransitionFuncT[StateT_Inner, EdgeT_Inner], infinity: NumberT, init_state: StateT_Inner) -> None:
             self.transition = transition
             self.infinity = infinity
-            self.res: DefaultDict[StateT_Inner, ResultT[EdgeT_Inner]] = defaultdict(
+            self.res = defaultdict(
                 lambda: (self.infinity, LazyList.Null))
-            self.reached: Set[StateT_Inner] = set()
+            self.reached = set()
             self.res[init_state] = (0, LazyList(None, []))
-            self.heap: List[Tuple[NumberT, StateT_Inner]] = [(0, init_state)]
+            self.heap = [(0, init_state)]
 
         def __getitem__(self, dest_state: StateT_Inner) -> ResultT[EdgeT_Inner]:
             while len(self.heap) != 0 and dest_state not in self.reached:
@@ -44,8 +50,7 @@ class Dijkstra(ShortestPathBase[StateT, EdgeT]):
         infinity: NumberT = inf
     ):
         self.transition = transition
-        self.memo: Dict[StateT,
-                        Dijkstra._Dijkstra_Container[StateT, EdgeT]] = dict()
+        self.memo = dict()
         self.infinity: NumberT = infinity
 
     def __getitem__(self, init_state: StateT) -> _Dijkstra_Container[StateT, EdgeT]:

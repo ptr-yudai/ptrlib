@@ -5,7 +5,7 @@ import platform
 import re
 import subprocess
 import tempfile
-from typing import List, Optional, Union
+from collections.abc import Callable
 from ptrlib.arch.arm import is_arch_arm, ConstsTableArm
 from ptrlib.arch.intel import is_arch_intel, ConstsTableIntel
 
@@ -34,7 +34,7 @@ int main() {{
 class ConstsTableLinux(object):
     def resolve_constant(self,
                          const: str,
-                         include_path: Optional[List[str]] = None) -> Union[int, str]:
+                         include_path: list[str] | None = None) -> int | str:
         from ptrlib.arch.common import which
 
         if len(const) == 0:
@@ -55,7 +55,7 @@ class ConstsTableLinux(object):
                 else:
                     return path
 
-        def test_constant(path: str, name: str, gcc_path: str) -> Optional[Union[int, str]]:
+        def test_constant(path: str, name: str, gcc_path: str) -> int | str | None:
             """Compile and run C code to get constant value"""
             path = heuristic_redirect(path)
             fname_c   = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())+'.c'
@@ -113,7 +113,7 @@ class ConstsTableLinux(object):
         raise KeyError("Could not find constant: {}".format(const))
 
     @cache
-    def __getitem__(self, const_or_arch: str) -> Union[int, str, ConstsTableIntel, ConstsTableArm]:
+    def __getitem__(self, const_or_arch: str) -> int | str | ConstsTableIntel | ConstsTableArm:
         if is_arch_intel(const_or_arch):
             return ConstsTableIntel()
         elif is_arch_arm(const_or_arch):
