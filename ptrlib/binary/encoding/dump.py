@@ -1,11 +1,10 @@
 import contextlib
-from collections.abc import Buffer
 from typing import BinaryIO
 from .byteconv import str2bytes
 from ptrlib.console.color import Color
 
 
-def hexdump(data: str | bytes | Buffer,
+def hexdump(data: str | bytes | bytearray | memoryview,
             base: int = 0,
             file: BinaryIO | None = None,
             *,
