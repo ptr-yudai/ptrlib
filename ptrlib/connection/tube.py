@@ -85,6 +85,10 @@ class Tube(metaclass=abc.ABCMeta):
 
         self._pcap: PcapFile = PcapFile(path)
 
+        # Defer `after` / `sendafter` / `sendlineafter`
+        self._defer_depth: int = 0
+        self._defer_queue: list[tuple[DelimiterT | None, int, RegexDelimiterT | None, int | float]] = []
+
     def __del__(self):
         self.close()
 
@@ -229,6 +233,8 @@ class Tube(metaclass=abc.ABCMeta):
         if blocksize == 0:
             return b''
 
+        self._flush_defer_after()
+
         if self._is_alive and not self._is_alive_impl():
             # First time detection of dead tube
             self._is_alive = False
@@ -276,6 +282,8 @@ class Tube(metaclass=abc.ABCMeta):
             raise ValueError(f"size must be -1 or >= 0, not {size}")
         if blocksize < 0:
             raise ValueError(f"blocksize must be >= 0, not {blocksize}")
+
+        self._flush_defer_after()
 
         out = bytearray()
         if size == -1:
@@ -359,6 +367,8 @@ class Tube(metaclass=abc.ABCMeta):
         if len(patterns) == 0:
             raise ValueError("No pattern is provided.")
 
+        self._flush_defer_after()
+
         def _best_match(buf: bytes) -> re.Match | None:
             best_m = None
             best_end = -1
@@ -424,6 +434,23 @@ class Tube(metaclass=abc.ABCMeta):
             TubeTimeout: If the operation timed out.
             OSError: If a system error occurred.
         """
+        self._flush_defer_after()
+        return self._recvuntil_core(
+            delim=delim,
+            blocksize=blocksize,
+            regex=regex,
+            timeout=timeout,
+            drop=drop,
+            consume=consume
+        )
+
+    def _recvuntil_core(self,
+                  delim: DelimiterT | None = None,
+                  blocksize: int = 4096,
+                  regex: RegexDelimiterT | None = None,
+                  timeout: int | float = -1,
+                  drop: bool = False,
+                  consume: bool = True) -> bytes:
         use_delim = delim is not None
         use_regex = regex is not None
         if use_delim == use_regex:
@@ -512,7 +539,10 @@ class Tube(metaclass=abc.ABCMeta):
             TubeTimeout: If the operation timed out.
             OSError: If a system error occurred.
         """
-        self.recvuntil(delim, blocksize, regex, timeout)
+        if self._defer_depth > 0:
+            self._defer_queue.append((delim, blocksize, regex, timeout))
+        else:
+            self.recvuntil(delim, blocksize, regex, timeout)
         return self
 
     # --- Send methods -----------------------------------------------------
@@ -618,6 +648,7 @@ class Tube(metaclass=abc.ABCMeta):
         Returns:
             bytes
         """
+        self._flush_defer_after()
         if size < 0:
             return self._buffer
 
@@ -637,6 +668,73 @@ class Tube(metaclass=abc.ABCMeta):
             data = str2bytes(data)
         with self._mutex:
             self._buffer = bytes(data) + self._buffer
+
+    def _flush_defer_after(self) -> None:
+        """If `after(...)` calls were deferred, consume them now in FIFO order."""
+        with self._mutex:
+            if not self._defer_queue:
+                return
+            pending = self._defer_queue
+            self._defer_queue = []
+
+        # Execute outside the mutex to avoid deadlocks while reading
+        for (delim, blocksize, regex, timeout) in pending:
+            self._recvuntil_core(
+                delim=delim,
+                blocksize=blocksize,
+                regex=regex,
+                timeout=timeout,
+                drop=False,
+                consume=True
+            )
+
+    class _DeferAfterHandle:
+        __slots__ = ("_tube",)
+        def __init__(self, tube: 'Tube'):
+            self._tube = tube
+        def flush(self) -> None:
+            """Flush deferred `after()` waits immediately."""
+            # pylint: disable=protected-access
+            self._tube._flush_defer_after()
+
+    @contextlib.contextmanager
+    def defer_after(self):
+        """Defer `after()` waits to enable simple request pipelining.
+
+        Within this context, `after(...)` does not block; the wait is queued.
+        Before any receive that consumes data (`recv*`, `peek`), all queued waits are
+        flushed in order, then the receive proceeds. On exit, the outermost block also
+        flushes remaining waits (nested blocks supported).
+
+        Only `after()` (and thus `sendafter`/`sendlineafter`) is deferred; `recvuntil`
+        and other recv methods always flush first.
+
+        Example:
+        ```
+        with tube.defer_after():
+            tube.after(b"> ").sendline(b"1")
+            tube.after(b"Message: ").send(b"bye")
+            data = tube.recvall(8)
+            tube.sendlineafter(b"> ", b"2")
+
+        # is equivalent to
+
+        tube.sendline(b"1")
+        tube.send(b"bye")
+        tube.recvuntil(b"> ")
+        tube.recvuntil(b"Message: ")
+        data = tube.recvall(8)
+        tube.send(b"2")
+        tube.recvuntil(b"> ")
+        ```
+        """
+        self._defer_depth += 1
+        try:
+            yield Tube._DeferAfterHandle(self)
+        finally:
+            self._defer_depth -= 1
+            if self._defer_depth == 0:
+                self._flush_defer_after()
 
     # --- Closing / lifecycle ----------------------------------------------
 
