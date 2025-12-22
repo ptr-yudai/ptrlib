@@ -383,7 +383,11 @@ class PcapFile:
 
         finally:
             if self._fh is not None:
-                self._fh.close()
+                # Best-effort close: pcap logging must not break application logic.
+                # In some environments (e.g. during heavy mocking), the underlying
+                # file descriptor can become invalid unexpectedly.
+                with contextlib.suppress(Exception):
+                    self._fh.close()
                 self._fh = None
 
     def advance(self, seconds: float) -> None:
