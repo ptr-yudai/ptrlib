@@ -12,7 +12,9 @@ CONST_GCC_BYTES = \
     b'\x00\x01\x00\x02\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00' \
     b'/bin/sh\0/bin/sh'
 
-CONST_NASM = 'db 0; dw 1; dd 2; dq 3; db "/bin/sh", 0; db "/bin/sh"'
+# NOTE: NASM treats ';' as a comment delimiter, not an instruction separator.
+# Use newlines to separate directives.
+CONST_NASM = 'db 0\ndw 1\ndd 2\ndq 3\ndb "/bin/sh", 0\ndb "/bin/sh"'
 CONST_NASM_BYTES = \
     b'\x00\x01\x00\x02\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00' \
     b'/bin/sh\0/bin/sh'
@@ -242,12 +244,12 @@ class TestIntelAssembler(unittest.TestCase):
         # Test assembler
         self.assertEqual(cpu.assemble(''), b'')
         self.assertEqual(cpu.assemble('nop'), b'\x90')
-        self.assertEqual(cpu.assemble('nop; nop'), b'\x90\x90')
-        self.assertEqual(cpu.assemble('a:nop\nb:int3;nop'), b'\x90\xcc\x90')
+        self.assertEqual(cpu.assemble('nop\nnop'), b'\x90\x90')
+        self.assertEqual(cpu.assemble('a:nop\nb:int3\nnop'), b'\x90\xcc\x90')
 
         # Test minor assembly
         self.assertEqual(cpu.assemble('endbr64'), b'\xf3\x0f\x1e\xfa')
-        self.assertEqual(cpu.assemble('mfence; sfence; lfence'),
+        self.assertEqual(cpu.assemble('mfence\nsfence\nlfence'),
                          b'\x0f\xae\xf0\x0f\xae\xf8\x0f\xae\xe8')
         self.assertEqual(cpu.assemble('A: /* infinite call */ call A'), b'\xe8\xfb\xff\xff\xff')
 
@@ -275,13 +277,13 @@ class TestIntelAssembler(unittest.TestCase):
         # Test assembler
         self.assertEqual(cpu.assemble(''), b'')
         self.assertEqual(cpu.assemble('nop'), b'\x90')
-        self.assertEqual(cpu.assemble('nop; nop'), b'\x90\x90')
-        self.assertEqual(cpu.assemble('a:nop\nb:int3;nop'), b'\x90\xcc\x90')
+        self.assertEqual(cpu.assemble('nop\nnop'), b'\x90\x90')
+        self.assertEqual(cpu.assemble('a:nop\nb:int3\nnop'), b'\x90\xcc\x90')
 
         # Test minor assembly
         self.assertEqual(cpu.assemble('endbr64'), b'\xf3\x0f\x1e\xfa')
         self.assertEqual(cpu.assemble('lgdt [rdi]'), b'\x0f\x01\x17')
-        self.assertEqual(cpu.assemble('mfence; sfence; lfence'),
+        self.assertEqual(cpu.assemble('mfence\nsfence\nlfence'),
                          b'\x0f\xae\xf0\x0f\xae\xf8\x0f\xae\xe8')
         self.assertEqual(cpu.assemble('A: /* infinite call */ call A'), b'\xe8\xfb\xff\xff\xff')
 

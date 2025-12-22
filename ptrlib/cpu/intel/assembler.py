@@ -53,9 +53,10 @@ def assemble_keystone(assembly: str,
         ks.syntax = keystone.KS_OPT_SYNTAX_INTEL
 
     has_label, instructions = _normalize_assembly(assembly)
+    normalized_assembly = '\n'.join(instructions)
     if has_label:
         try:
-            code, _ = ks.asm(assembly, address, True)
+            code, _ = ks.asm(normalized_assembly, address, True)
             if code is None:
                 raise OSError("Assemble failed")
         except keystone.KsError as e:
@@ -153,8 +154,9 @@ def assemble_nasm(assembly: str, address: int, bits: PtrlibBitsT = 64) -> bytes:
     """
     nasm_path = nasm()
 
-    # NASM does not use the 'ptr' keyword in memory operands; normalize without inserting it.
-    assembly = '\n'.join(_normalize_assembly(assembly, insert_ptr=False)[1])
+    # NASM uses ';' as a comment delimiter (GAS uses it as an instruction separator).
+    # Also, NASM does not use the 'ptr' keyword in memory operands; normalize without inserting it.
+    assembly = '\n'.join(_normalize_assembly(assembly, insert_ptr=False, semicolon_as_comment=True)[1])
     assembly = f'bits {bits}\n' + assembly
     if address > 0:
         assembly = f'org {address}\n' + assembly
@@ -188,7 +190,11 @@ def assemble_nasm(assembly: str, address: int, bits: PtrlibBitsT = 64) -> bytes:
 
     raise OSError("Assemble failed")
 
-def _normalize_assembly(assembly: str, insert_ptr: bool = True) -> tuple[bool, list[str]]:
+def _normalize_assembly(
+    assembly: str,
+    insert_ptr: bool = True,
+    semicolon_as_comment: bool = False,
+) -> tuple[bool, list[str]]:
     """Normalize assembly syntax.
 
     Args:
@@ -218,9 +224,15 @@ def _normalize_assembly(assembly: str, insert_ptr: bool = True) -> tuple[bool, l
             token = ''
 
         elif assembly[i] == ';':
+            # GAS/Keystone accept ';' as an instruction separator.
+            # NASM treats ';' as the start of a comment until end-of-line.
             if token := token.strip():
                 tokens.append(token)
             token = ''
+
+            if semicolon_as_comment:
+                while i + 1 < len(assembly) and assembly[i + 1] != '\n':
+                    i += 1
 
         else:
             token += assembly[i]

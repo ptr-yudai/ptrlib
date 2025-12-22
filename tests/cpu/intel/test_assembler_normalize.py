@@ -77,10 +77,11 @@ class TestIntelAssemblerNormalize(unittest.TestCase):
         """'// ...' and '/* ... */' must be ignored by the tokenizer."""
         if _is_windows:
             return
+        # NASM treats ';' as comment, so we use newlines for instruction separation here.
         for assembler in ('gcc', 'nasm'):
             cpu = CPU('intel', 64)
             cpu.assembler = assembler
-            code = 'nop // line\n/* block\n comment */ nop ; nop'
+            code = 'nop // line\n/* block\n comment */ nop\nnop'
             baseline = 'nop\nnop\nnop'
             self.assertEqual(cpu.assemble(code), cpu.assemble(baseline))
 
@@ -88,12 +89,24 @@ class TestIntelAssemblerNormalize(unittest.TestCase):
         """'nop; nop ;nop' equals three nops after normalization."""
         if _is_windows:
             return
-        for assembler in ('gcc', 'nasm'):
+        # GAS-like assemblers treat ';' as an instruction separator.
+        for assembler in ('gcc',):
             cpu = CPU('intel', 64)
             cpu.assembler = assembler
             code = 'nop;   nop  ;  nop'
             baseline = 'nop\nnop\nnop'
             self.assertEqual(cpu.assemble(code), cpu.assemble(baseline))
+
+    def test_nasm_semicolon_is_comment(self):
+        """In NASM mode, ';' starts a comment until end-of-line (not an instruction separator)."""
+        if _is_windows:
+            return
+        cpu = CPU('intel', 64)
+        cpu.assembler = 'nasm'
+        # This should assemble as a single 'nop' because the second 'nop' is in a comment.
+        code = 'nop;   nop\n'
+        baseline = 'nop\n'
+        self.assertEqual(cpu.assemble(code), cpu.assemble(baseline))
 
     def test_whitespace_collapse(self):
         """Multiple spaces/tabs collapse and consistent comma spacing."""
