@@ -1,0 +1,4 @@
+Sphinx>=7.2
+furo>=2024.8.6
+sphinx-autoapi>=3.0.0
+
