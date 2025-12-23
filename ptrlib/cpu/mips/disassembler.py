@@ -32,11 +32,12 @@ OBJDUMP_RE = re.compile(
 class MipsDisassembly(NamedTuple):
     """A single MIPS instruction.
 
-    Attributes:
-        address (int): The address of this instruction.
-        bytes (bytes): The machine code bytes corresponding to this instruction.
-        mnemonic (str): Mnemonic.
-        operands (list[str]): Operand list.
+    This is a :class:`typing.NamedTuple` with the following fields:
+
+    - ``address`` (int)
+    - ``bytes`` (bytes)
+    - ``mnemonic`` (str)
+    - ``operands`` (list[str])
     """
     address: int
     bytes: bytes

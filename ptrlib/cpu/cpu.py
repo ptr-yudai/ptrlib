@@ -26,13 +26,14 @@ def _cpu_factory(arch: PtrlibArchT='intel',
     """Create a CPU instance.
 
     Examples:
-        ```
-        x64 = CPU()
-        x86 = CPU('intel', 32)
-        code = x86.assemble("int3; nop;")
-        aarch64 = CPU('arm', 64)
-        aarch64.disassemble(b'\x00\x00\x00\x00')
-        ```
+        .. code-block:: python
+
+            x64 = CPU()
+            x86 = CPU('intel', 32)
+            code = x86.assemble("int3; nop;")
+
+            aarch64 = CPU('arm', 64)
+            aarch64.disassemble(b'\x00\x00\x00\x00')
     """
     if arch == 'intel':
         return IntelCPU(bits)

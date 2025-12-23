@@ -158,12 +158,12 @@ class ELF:
             int: The base address.
 
         Examples:
-            ```
-            elf = ELF("./chall")
-            elf.base = 0x555555554000
-            libc = ELF("./libc.so.6")
-            libc.base = u64(leak) - libc.main_arena() - 0x60
-            ```
+            .. code-block:: python
+
+                elf = ELF("./chall")
+                elf.base = 0x555555554000
+                libc = ELF("./libc.so.6")
+                libc.base = u64(leak) - libc.main_arena() - 0x60
         """
         # Support integer-like types such as mpz int
         base = int(base)
@@ -317,7 +317,7 @@ class ELF:
              pattern: TypingUnion[str, bytes],
              writable: Optional[bool]=None,
              executable: Optional[bool]=None) -> GeneratorOrInt:
-        """Find binary data from the ELF. (Alias of ```search```)
+        """Find binary data from the ELF. (Alias of ``search``)
 
         Args:
             pattern (bytes): Data to find.
@@ -361,7 +361,7 @@ class ELF:
 
         If a non-existent address is specified, None is returned.
 
-        Unintended behaviour will occur if ```addr + size``` exceeds the segment boundary.
+        Unintended behaviour will occur if ``addr + size`` exceeds the segment boundary.
 
         Args:
             addr (int): Start virtual address

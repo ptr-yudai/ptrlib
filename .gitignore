@@ -6,3 +6,7 @@
 /build
 /ptrlib.egg-info
 */__pycache__
+
+# Sphinx docs
+/docs/_build
+/docs/source/autoapi

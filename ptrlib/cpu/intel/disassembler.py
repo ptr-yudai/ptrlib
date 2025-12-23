@@ -37,12 +37,13 @@ PREFIXES = {
 class IntelDisassembly(NamedTuple):
     """A single Intel instruction.
 
-    Attributes:
-        address (int): The address of this instruction.
-        bytes (bytes): The machine code bytes corresponding to this instruction.
-        prefix (List[str]): Instruction prefix.
-        mnemonic (str): Mnemonic.
-        operands (List[str]): Operand list.
+    This is a :class:`typing.NamedTuple` with the following fields:
+
+    - ``address`` (int)
+    - ``bytes`` (bytes)
+    - ``prefix`` (list[str])
+    - ``mnemonic`` (str)
+    - ``operands`` (list[str])
     """
     address: int
     bytes: bytes

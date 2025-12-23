@@ -4,6 +4,7 @@ __all__ = ['Color', 'ColoredFormatter']
 
 
 class Color:
+    """ANSI escape codes for terminal colors and basic styles."""
     BLACK     = '\033[30m'
     RED       = '\033[31m'
     GREEN     = '\033[32m'
@@ -26,6 +27,11 @@ class Color:
     REVERSE   = '\033[07m'
 
 class ColoredFormatter(Formatter):
+    """`logging.Formatter` which wraps formatted messages with ANSI colors.
+
+    The formatting behavior is inherited from the base class; this formatter only
+    adds a colored prefix/suffix based on the log level.
+    """
     def format(self, record: LogRecord):
         prefix = ''
         postfix = ''

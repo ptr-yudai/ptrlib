@@ -27,9 +27,9 @@ def lsb_leak_attack(lsb_oracle: Callable[[int], Literal[0, 1]], n: int, e: int, 
         int: Decrypted plaintext.
 
     Examples:
-        ```
-        plain = padding_oracle(lsb_oracle, N, e, C)
-        ```
+        .. code-block:: python
+
+            plain = lsb_leak_attack(lsb_oracle, n=N, e=e, c=C)
     """
     l = n.bit_length()
     t = l // 100

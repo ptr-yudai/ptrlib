@@ -32,12 +32,21 @@ class UnixProcess(Tube):
     """Communication with a Unix process (PTY preferred, non-blocking I/O).
 
     Example:
-        ```
+
+    .. code-block:: python
+
+        from ptrlib import Process
+
         Process("/bin/cat").sh()
+
         files = Process(["ls", "-lha"], cwd="/").recvall()
-        sol = Process(f"python solve.py", env={"CHALL": chall})
-            .recvregex(r"Solution: (.+)")[1]
-        ```
+
+        chall = "example"
+        sol = (
+            Process(["python", "solve.py"], env={"CHALL": chall})
+            .recvregex(r"Solution: (.+)")
+            .group(1)
+        )
     """
     def __init__(self,
                  args: str | list[str],

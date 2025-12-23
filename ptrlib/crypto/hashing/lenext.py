@@ -8,16 +8,25 @@ def lenext(hash_class: Any, padlen: int, known_hash: bytes, known_message: bytes
     Given the value of hash(s + m1), this function calculates
     the value of hash(s + m1 + pad + m2).
 
-    Usage:
-        # md5(SALT + 'Hello') = a67ecc30adca8ee6e70f9c25678f2a9f
-        # Given the length of SALT is 5
-        p, h = lenext(MD5, 5, 'a67ecc30adca8ee6e70f9c25678f2a9f', 'Hello', 'World')
-        # md5(SALT + 'Hello' + )
+    Examples:
+        .. code-block:: python
 
-    The hashfunc must have the following methods:
-        set_iv(iv), update(message), convert(hash), padding(data)
-    Also, an argument which describes the message length before the current blocks
-    is given to the construntor of hash_class.
+            # md5(SALT + b"Hello") = a67ecc30adca8ee6e70f9c25678f2a9f
+            # Given the length of SALT is 5
+            p, h = lenext(
+                MD5,
+                5,
+                b"a67ecc30adca8ee6e70f9c25678f2a9f",
+                b"Hello",
+                b"World",
+            )
+
+    Notes:
+        The hash class must implement at least:
+        ``set_iv(iv)``, ``update(message)``, ``convert(hash)``, and ``padding(data)``.
+
+        Also, an argument which describes the message length before the current blocks
+        is given to the constructor of ``hash_class``.
     """
     hash_func = hash_class()
 

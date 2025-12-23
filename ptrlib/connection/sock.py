@@ -377,10 +377,10 @@ class Socket(Tube):
         """Send OOB packet in this context.
 
         Examples:
-            ```
-            with sock.out_of_band():
-                sock.send(b"XXY")
-            ```
+            .. code-block:: python
+
+                with sock.out_of_band():
+                    sock.send(b"XXY")
 
         Raises:
             AssertionError: If already in OOB context.

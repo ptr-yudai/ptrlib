@@ -111,12 +111,12 @@ class Tube(metaclass=abc.ABCMeta):
         """A byte sequence considered as newline terminators.
 
         Examples:
-            ```
-            p = Process(["wine", "a.exe"])
-            p.newline = [b"\\n", b"\\r\\n"]
-            sock = Socket("localhost", 80)
-            sock.newline = "\\r\\n"
-            ```
+            .. code-block:: python
+
+                p = Process(["wine", "a.exe"])
+                p.newline = [b"\\n", b"\\r\\n"]
+                sock = Socket("localhost", 80)
+                sock.newline = "\\r\\n"
         """
         return self._newline[0]
 
@@ -125,12 +125,12 @@ class Tube(metaclass=abc.ABCMeta):
         """List of byte sequences considered as newline terminators.
 
         Examples:
-            ```
-            p = Process(["wine", "a.exe"])
-            p.newline = [b"\\n", "\\r\\n"]
-            p.newline  # b"\n"
-            p.newlines # b"\r\n"
-            ```
+            .. code-block:: python
+
+                p = Process(["wine", "a.exe"])
+                p.newline = [b"\\n", b"\\r\\n"]
+                p.newline   # b"\\n"
+                p.newlines  # [b"\\n", b"\\r\\n"]
         """
         return self._newline
 
@@ -166,12 +166,12 @@ class Tube(metaclass=abc.ABCMeta):
         - False -> 'none'
 
         Examples:
-            ```
-            sock = Socket("...", debug=True)
-            sock.debug = False
-            sock.debug = 'plain'
-            sock.debug = 'hex'
-            ```
+            .. code-block:: python
+
+                sock = Socket("...", debug=True)
+                sock.debug = False
+                sock.debug = 'plain'
+                sock.debug = 'hex'
         """
         return self._debug
 
@@ -262,10 +262,8 @@ class Tube(metaclass=abc.ABCMeta):
 
         Args:
             size: Number of bytes to read.
-                  - If ``size >= 0``, read **exactly** ``size`` bytes. If EOF occurs first,
-                    raise ``EOFError``.
-                  - If ``size == -1``, read until EOF and return everything, including
-                    previously buffered bytes.
+                  If ``size >= 0``, read **exactly** ``size`` bytes (raise ``EOFError`` on early EOF).
+                  If ``size == -1``, read until EOF and return everything, including buffered bytes.
             blocksize: Maximum size for each low-level read.
             timeout: Timeout for each low-level read operation.
 
@@ -514,10 +512,10 @@ class Tube(metaclass=abc.ABCMeta):
         """Wait for a delimiter (or regex) and then return `self`.
 
         Useful for chained calls like:
-            ```
-            tube.after(b'Name: ').sendline(name)
-            leak = tube.after(regex=r'Hello, .{32}').recvline()
-            ```
+            .. code-block:: python
+
+                tube.after(b'Name: ').sendline(name)
+                leak = tube.after(regex=r'Hello, .{32}').recvline()
 
         Args:
             delim: Delimiter(s) to wait for. A single ``bytes``/``str`` or a list of such
@@ -710,23 +708,23 @@ class Tube(metaclass=abc.ABCMeta):
         and other recv methods always flush first.
 
         Example:
-        ```
-        with tube.defer_after():
-            tube.after(b"> ").sendline(b"1")
-            tube.after(b"Message: ").send(b"bye")
+        .. code-block:: python
+
+            with tube.defer_after():
+                tube.after(b"> ").sendline(b"1")
+                tube.after(b"Message: ").send(b"bye")
+                data = tube.recvall(8)
+                tube.sendlineafter(b"> ", b"2")
+
+            # is equivalent to
+
+            tube.sendline(b"1")
+            tube.send(b"bye")
+            tube.recvuntil(b"> ")
+            tube.recvuntil(b"Message: ")
             data = tube.recvall(8)
-            tube.sendlineafter(b"> ", b"2")
-
-        # is equivalent to
-
-        tube.sendline(b"1")
-        tube.send(b"bye")
-        tube.recvuntil(b"> ")
-        tube.recvuntil(b"Message: ")
-        data = tube.recvall(8)
-        tube.send(b"2")
-        tube.recvuntil(b"> ")
-        ```
+            tube.send(b"2")
+            tube.recvuntil(b"> ")
         """
         self._defer_depth += 1
         try:
@@ -1025,10 +1023,10 @@ class Tube(metaclass=abc.ABCMeta):
                      If ``timeout`` is negative, the timeout is temporarily disabled.
 
         Examples:
-            ```
-            with tube.timeout(5):
-                line = tube.recvline()
-            ```
+            .. code-block:: python
+
+                with tube.timeout(5):
+                    line = tube.recvline()
         """
         old_timeout = self._gettimeout_impl()
         try:
@@ -1093,18 +1091,18 @@ class Tube(metaclass=abc.ABCMeta):
 
         Examples:
            The following code shuts down input of remote.
-           ```
-           tube.shutdown("send")
-           data = tube.recv() # OK
-           tube.send(b"data") # NG
-           ```
+           .. code-block:: python
+
+               tube.shutdown("send")
+               data = tube.recv()  # OK
+               tube.send(b"data")  # NG
 
            The following code shuts down output of remote.
-           ```
-           tube.shutdown("recv")
-           tube.send(b"data") # OK
-           data = tube.recv() # NG
-           ```
+           .. code-block:: python
+
+               tube.shutdown("recv")
+               tube.send(b"data")  # OK
+               data = tube.recv()   # NG
         """
         if target.lower() in ['write', 'send', 'stdin']:
             self.close_send()
@@ -1295,12 +1293,12 @@ class Tube(metaclass=abc.ABCMeta):
 class TubeTimeout(TimeoutError):
     """Timeout with captured partial data.
 
-    Attributes:
-        buffered (bytes): Bytes obtained until timeout.
+    The partial data read up to the timeout is available as ``.buffered``.
 
     Note:
-        - This exception subclasses `TimeoutError`, so existing `except TimeoutError`
-          handlers will still work. Prefer catching `TubeTimeout` when you need data.
+        This exception subclasses :class:`TimeoutError`, so existing
+        ``except TimeoutError`` handlers will still work. Prefer catching
+        :class:`TubeTimeout` when you need the buffered data.
     """
     def __init__(self, message: str, *, buffered: bytes = b''):
         super().__init__(message)

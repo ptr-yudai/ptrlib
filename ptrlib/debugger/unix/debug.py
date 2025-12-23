@@ -155,17 +155,17 @@ class UnixProcessDebugger:
             str: Result of the command.
 
         Examples:
-            ```
-            conn = sock.process.attach()
-            stdout = int(conn.execute("p/x &_IO_2_1_stdout_").split(' = ')[1], 16)
-            conn.execute("break puts", resume=True)
-            sock.sendline(b"Hello")
-            res = conn.execute([
-                f"set {{long}}{stdout} = 0xfbad1887",
-                f"x/4xg {stdout}"
-            ])
-            print(res[1])
-            ```
+            .. code-block:: python
+
+                conn = sock.process.attach()
+                stdout = int(conn.execute("p/x &_IO_2_1_stdout_").split(' = ')[1], 16)
+                conn.execute("break puts", resume=True)
+                sock.sendline(b"Hello")
+                res = conn.execute([
+                    f"set {{long}}{stdout} = 0xfbad1887",
+                    f"x/4xg {stdout}",
+                ])
+                print(res[1])
         """
         if isinstance(command, list):
             result = [self.execute(c) for c in command]

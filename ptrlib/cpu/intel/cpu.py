@@ -18,15 +18,15 @@ class IntelCPU:
     """CPU and assembly features for Intel architecture.
 
     Examples:
-        ```
-        key = b"ThisIsATestKey!!"
-        cpu = IntelCPU()
-        a = cpu.instruction.aesenc(b"AAAABBBBCCCCDDDD", key)
-        print(cpu.instruction.aesenc_inv(a, key))
+        .. code-block:: python
 
-        cpu = IntelCPU(32)
-        cpu.assemble(f"mov eax, {cpu.syscall.execve}")
-        ```
+            key = b"ThisIsATestKey!!"
+            cpu = IntelCPU()
+            a = cpu.instruction.aesenc(b"AAAABBBBCCCCDDDD", key)
+            print(cpu.instruction.aesenc_inv(a, key))
+
+            cpu = IntelCPU(32)
+            cpu.assemble(f"mov eax, {cpu.syscall.execve}")
     """
     def __init__(self, bits: PtrlibBitsT=64):
         self._bits: PtrlibBitsT = bits

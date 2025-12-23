@@ -18,12 +18,12 @@ def xor(data: str | bytes | list[int], key: int | str | bytes | list[int]) -> by
         bytes: The encrypted data.
 
     Examples:
-        ```
-        xor("Hello, World", "key")
-        xor(b"Hello, World", 47)
-        xor("Hello", b"ALongKeyWillBeTruncated")
-        xor([1,2,3,4,5], [0xaa,0x55])
-        ```
+        .. code-block:: python
+
+            xor("Hello, World", "key")
+            xor(b"Hello, World", 47)
+            xor("Hello", b"ALongKeyWillBeTruncated")
+            xor([1, 2, 3, 4, 5], [0xaa, 0x55])
     """
     assert isinstance(data, (str, bytes, bytearray, list))
     assert isinstance(key, (str, bytes, bytearray, int, list))

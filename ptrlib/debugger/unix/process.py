@@ -165,20 +165,20 @@ class UnixProcessManager:
             pid (int): Process ID or a function or lambda that returns a pid.
 
         Examples:
-            ```
-            sock = Process("/bin/cat")
-            conn = sock.process.attach()
-            #conn.debug = True
+            .. code-block:: python
 
-            conn.execute("break write", resume=True)
-            sock.sendline(b"Hello, World!")
+                sock = Process("/bin/cat")
+                conn = sock.process.attach()
+                # conn.debug = True
 
-            a, b = conn.execute(["p/x $rsi", "x/1s $rsi"])
-            print(a)  # $1 = 0x7d0f5d1de000
-            print(b)  # 0x7d0f5d1de000: "Hello, World!\\n"
+                conn.execute("break write", resume=True)
+                sock.sendline(b"Hello, World!")
 
-            conn.detach()
-            ```
+                a, b = conn.execute(["p/x $rsi", "x/1s $rsi"])
+                print(a)  # $1 = 0x7d0f5d1de000
+                print(b)  # 0x7d0f5d1de000: "Hello, World!\\n"
+
+                conn.detach()
         """
         if pid is None:
             pid = self.pid

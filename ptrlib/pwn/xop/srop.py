@@ -10,10 +10,10 @@ class SROP:
     """Craft payload for SROP (sigreturn oriented programming).
 
     Examples:
-        ```
-        srop = SROP('x64')
-        print(srop.payload)
-        ```
+        .. code-block:: python
+
+            srop = SROP('intel')
+            print(srop.payload)
     """
     def __init__(self, arch: Optional[PtrlibArchT]=None, **kwargs: int):
         if arch is None:
@@ -36,52 +36,26 @@ class SROP:
 class SROPx64:
     """Craft SROP payload for x86-64
 
-    Attributes:
-        payload (bytes): SROP payload in bytes.
-        uc_flags (int): Context-related flags. Reserved and not used.
-        uc_link (int): Pointer to a `ucontext` struct. Usually NULL.
-        ss_sp (int): Stack pointer for the signal handler. (`uc_stack.ss_sp`)
-        ss_flags (int): Flags for the signal stack. (`uc_stack.ss_flags`)
-        ss_size (int): Stack size for the signal handler. (`uc_stack.ss_size`)
-        r8 (int): R8 register value.
-        r9 (int): R9 register value.
-        r10 (int): R10 register value.
-        r11 (int): R11 register value.
-        r12 (int): R12 register value.
-        r13 (int): R13 register value.
-        r14 (int): R14 register value.
-        r15 (int): R15 register value.
-        rdi (int): RDI register value.
-        rsi (int): RSI register value.
-        rbp (int): RBP register value.
-        rbx (int): RBX register value.
-        rdx (int): RDX register value.
-        rax (int): RAX register value.
-        rcx (int): RCX register value.
-        rsp (int): RSP register value.
-        rip (int): RIP register value.
-        eflags (int): EFLAGS register value.
-        cs (int): CS register value. Usually 0x33 for 64-bit, or 0x23 for 32-bit. Default to 0x33.
-        gs (int): GS register value.
-        fs (int): FS register value.
-        pad0 (int): Padding between `fs` and `err`.
-        err (int): CPU error code.
-        trapno (int): Trap number. (Exception vector number.)
-        oldmask (int): The value of signal mask before executing the signal handler.
-        cr2 (int): CR2 register value.
-        pfpstate (int): Pointer to the floating-point registers.
-        mask (int): The value of signal mask.
-        fpstate (int): Pointer to the floating-point registers.
+    Fields
+    ------
+    ``SROPx64`` exposes a number of integer fields corresponding to the Linux
+    signal frame / ucontext layout, plus a computed payload.
+
+    - The computed payload is available as ``payload``.
+    - Register / context values are writable attributes (e.g. ``rip``, ``rdi``, ``rsp``).
+
+    (The full field list is intentionally omitted here to keep the docstring
+    compatible with multiple doc generators.)
 
     Examples:
-        ```
-        srop = SROPx64(rip=0x401c20, rdi=0x404058)
-        print(srop.payload)
+        .. code-block:: python
 
-        srop.rsp = 0x404400
-        srop.rip = 0x401c40
-        print(srop.payload)
-        ```
+            srop = SROPx64(rip=0x401c20, rdi=0x404058)
+            print(srop.payload)
+
+            srop.rsp = 0x404400
+            srop.rip = 0x401c40
+            print(srop.payload)
     """
     def __init__(self, **kwargs: int):
         self.uc_flags = kwargs.get('uc_flags', 0)

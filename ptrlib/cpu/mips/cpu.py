@@ -18,8 +18,12 @@ class MipsCPU:
     """CPU and assembly features for MIPS architecture.
 
     Examples:
-        ```
-        ```
+        .. code-block:: python
+
+            cpu = MipsCPU(64)
+            code = cpu.assemble("nop")
+            insns = cpu.disassemble(code)
+            print(insns[0])
     """
     def __init__(self, bits: PtrlibBitsT=64):
         self._bits: PtrlibBitsT = bits

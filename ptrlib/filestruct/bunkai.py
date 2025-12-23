@@ -117,15 +117,15 @@ class BitStruct(BunkaiStructBase):
         *args: Struct members. Each member must be a :obj:`BitInt`.
 
     Examples:
-        ```
-        'CR3Register' <= BitStruct(
-            'reserved1' <= BitInt(3),
-            'PWT' <= BitInt(1),
-            'PCD' <= BitInt(1),
-            'reserved2' <= BitInt(7),
-            'PDBR' <= BitInt(52),
-        )
-        ```
+        .. code-block:: python
+
+            'CR3Register' <= BitStruct(
+                'reserved1' <= BitInt(3),
+                'PWT' <= BitInt(1),
+                'PCD' <= BitInt(1),
+                'reserved2' <= BitInt(7),
+                'PDBR' <= BitInt(52),
+            )
     """
     def __init__(self, *args: BunkaiMember):
         self._members: OrderedDict[str, BitInt] = OrderedDict()

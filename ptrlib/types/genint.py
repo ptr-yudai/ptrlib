@@ -11,19 +11,19 @@ class GeneratorOrInt(object):
     or converted into the first element integer with `int`.
 
     Examples:
-        ```
-        g = elf.gadget("pop rdi; ret;")
-        x = GeneratorOrInt(g, b"pop rdi; ret;")
-        print(next(x)) # 0x4012ac
-        print(next(x)) # 0x40135f
-        print(int(x))  # 0x4012ac
+        .. code-block:: python
 
-        # int-like ops
-        print(x + 4)        # OK
-        print(4 + x)        # OK (reflected)
-        print(x >> 8)       # OK
-        print(x & 0xfff)    # OK
-        ```
+            g = elf.gadget("pop rdi; ret;")
+            x = GeneratorOrInt(g, b"pop rdi; ret;")
+            print(next(x))  # 0x4012ac
+            print(next(x))  # 0x40135f
+            print(int(x))   # 0x4012ac
+
+            # int-like ops
+            print(x + 4)      # OK
+            print(4 + x)      # OK (reflected)
+            print(x >> 8)     # OK
+            print(x & 0xfff)  # OK
     """
     def __init__(self, generator: Generator[int, None, None], symbol: bytes = b''):
         self._generator = generator
