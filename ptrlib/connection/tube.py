@@ -83,7 +83,25 @@ class Tube(metaclass=abc.ABCMeta):
         else:
             path = Path(pcap)
 
-        self._pcap: PcapFile = PcapFile(path)
+        # pcap logging must NEVER crash the application; guard constructor
+        try:
+            self._pcap: PcapFile = PcapFile(path)
+        except Exception:
+            # Provide a dummy object with no-op methods
+            class _NoopPcap:
+                def __init__(self):
+                    self.udp = False
+                    self.remote = "0.0.0.0"
+                    self.remote_port = 0
+                def send(self, *_a, **_k):
+                    pass
+                def recv(self, *_a, **_k):
+                    pass
+                def close(self, *_a, **_k):
+                    pass
+                def close_send(self, *_a, **_k):
+                    pass
+            self._pcap = _NoopPcap()  # type: ignore[assignment]
 
         # Defer `after` / `sendafter` / `sendlineafter`
         self._defer_depth: int = 0

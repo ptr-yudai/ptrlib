@@ -123,6 +123,53 @@ def _ensure_windows_askpass_cmd() -> str:
     return str(path)
 
 
+def _ensure_posix_askpass_sh() -> str:
+    """Create a minimal SSH_ASKPASS helper for POSIX and return its path.
+
+    OpenSSH can read passwords via an external helper specified by SSH_ASKPASS.
+    We provide a tiny, non-interactive helper that prints the password from an
+    environment variable. This avoids fragile prompt parsing and works even
+    when stdin is not a TTY or when ssh suppresses prompts.
+    """
+    path = Path(tempfile.gettempdir()) / "ptrlib-ssh-askpass.sh"
+
+    content = (
+        "#!/bin/sh\n"
+        "# ptrlib askpass helper (POSIX)\n"
+        "# $1 is the prompt (ignored).\n"
+        "# Print the password from $PTRLIB_SSH_PASSWORD without a trailing newline.\n"
+        "if [ -n \"$PTRLIB_SSH_PASSWORD\" ]; then\n"
+        "  printf '%s' \"$PTRLIB_SSH_PASSWORD\"\n"
+        "fi\n"
+    )
+
+    try:
+        if path.is_file():
+            try:
+                if path.read_text(encoding="utf-8", errors="ignore") == content:
+                    # Ensure executable bit is set
+                    try:
+                        os.chmod(path, 0o700)
+                    except Exception:
+                        pass
+                    return str(path)
+            except Exception:
+                pass
+        path.write_text(content, encoding="utf-8")
+        try:
+            os.chmod(path, 0o700)
+        except Exception:
+            pass
+    except Exception:
+        # Fallback to a per-process path
+        path = Path(tempfile.gettempdir()) / f"ptrlib-ssh-askpass-{os.getpid()}.sh"
+        path.write_text(content, encoding="utf-8")
+        with contextlib.suppress(Exception):
+            os.chmod(path, 0o700)
+
+    return str(path)
+
+
 def _ensure_ssh_option(options: list[str], key: str, value: str) -> None:
     """Append -oKey=Value if the key isn't already present."""
     prefix = f"-o{key}="
@@ -194,6 +241,18 @@ def SSH(host: str,
             env["SSH_ASKPASS_REQUIRE"] = "force"
             # Some builds still require DISPLAY to be non-empty to invoke askpass.
             env.setdefault("DISPLAY", "1")
+        else:
+            # On POSIX, prefer SSH_ASKPASS to avoid fragile prompt parsing and to
+            # work even when OpenSSH chooses not to echo prompts to the PTY.
+            askpass = _ensure_posix_askpass_sh()
+            env = os.environ.copy()
+            env["PTRLIB_SSH_PASSWORD"] = password
+            # Ensure no controlling TTY to force askpass on older OpenSSH builds
+            env["PTRLIB_START_NEW_SESSION"] = "1"
+            env["SSH_ASKPASS"] = askpass
+            env["SSH_ASKPASS_REQUIRE"] = "force"
+            # Historically OpenSSH only invoked askpass when DISPLAY was set; keep it.
+            env.setdefault("DISPLAY", "1")
 
     argv = _build_ssh_argv(
         host,
@@ -205,34 +264,39 @@ def SSH(host: str,
         command=command,
     )
 
-    # On POSIX, use a PTY for interactive sessions and/or password prompts.
-    need_tty = (not command) or (password is not None)
+    # On POSIX, use a PTY for interactive shells when no programmatic password is used.
+    # If a password is provided, prefer pipes (no controlling TTY) so SSH_ASKPASS is
+    # reliably used even on older OpenSSH that ignore SSH_ASKPASS_REQUIRE=force.
     if os.name != 'nt':
-        sess = Process(argv, use_tty=need_tty, env=env)
+        use_local_pty = (password is None) and (not command)
+        sess = Process(argv, use_tty=use_local_pty, env=env)
     else:
         sess = Process(argv, env=env)
 
     sess.prompt = ""
 
     if password is not None and os.name != 'nt':
-        # Handle common prompts robustly (case-insensitive, includes hostkey prompt).
-        hostkey_re = re.compile(br"(?i)are you sure you want to continue connecting")
-        password_re = re.compile(br"(?i)password:\s*")
-        denied_re = re.compile(br"(?i)permission denied")
+        # If we're using askpass, prompts won't appear on the TTY. Skip prompt parsing.
+        using_askpass = (env is not None) and (env.get("SSH_ASKPASS_REQUIRE") == "force")
+        if not using_askpass:
+            # Handle common prompts robustly (case-insensitive, includes hostkey prompt).
+            hostkey_re = re.compile(br"(?i)are you sure you want to continue connecting")
+            password_re = re.compile(br"(?i)password:\s*")
+            denied_re = re.compile(br"(?i)permission denied")
 
-        # Best-effort prompt dance: accept host key prompt, then send password.
-        # If nothing matches within a short time, continue and let the user drive.
-        for _ in range(3):
-            with contextlib.suppress(Exception):
-                m = sess.recvregex([hostkey_re, password_re, denied_re], timeout=10)
-                if m.re is hostkey_re:
-                    sess.sendline("yes")
-                    continue
-                if m.re is password_re:
-                    sess.sendline(password)
-                    break
-                if m.re is denied_re:
-                    raise PermissionError("SSH authentication failed (Permission denied)")
+            # Best-effort prompt dance: accept host key prompt, then send password.
+            # If nothing matches within a short time, continue and let the user drive.
+            for _ in range(3):
+                with contextlib.suppress(Exception):
+                    m = sess.recvregex([hostkey_re, password_re, denied_re], timeout=10)
+                    if m.re is hostkey_re:
+                        sess.sendline("yes")
+                        continue
+                    if m.re is password_re:
+                        sess.sendline(password)
+                        break
+                    if m.re is denied_re:
+                        raise PermissionError("SSH authentication failed (Permission denied)")
 
     # Windows: if we forced BatchMode (password=None), fail fast on auth errors.
     if os.name == 'nt' and password is None:

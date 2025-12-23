@@ -449,6 +449,16 @@ class UnixProcess(Tube):
         else:
             popen_args = self._args
 
+        # Determine if we should detach from the current session (no controlling TTY).
+        # SSH with SSH_ASKPASS needs this on older OpenSSH builds where a controlling
+        # TTY (accessible via /dev/tty) suppresses askpass. The SSH wrapper sets
+        # PTRLIB_START_NEW_SESSION=1 when a password is provided on POSIX.
+        start_new_sess = False
+        try:
+            start_new_sess = (not use_tty) and (str(self._env.get("PTRLIB_START_NEW_SESSION", "0")) == "1")
+        except Exception:
+            start_new_sess = False
+
         # pylint: disable-next=subprocess-popen-preexec-fn
         self._proc = subprocess.Popen(
             popen_args,
@@ -461,6 +471,7 @@ class UnixProcess(Tube):
             stderr=stderr,
             close_fds=True,
             bufsize=0,
+            start_new_session=start_new_sess,
         )
 
         with contextlib.suppress(OSError):

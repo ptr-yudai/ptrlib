@@ -397,10 +397,15 @@ class PcapFile:
 
     def flush(self) -> None:
         """Flush the file handle and synchronize the file system.
+        
+        Best-effort: errors are suppressed so pcap logging never breaks
+        application logic (e.g., when the FD has been invalidated by the
+        environment/tests).
         """
         if self._fh is None:
             return
-        self._fh.flush()
+        with contextlib.suppress(Exception):
+            self._fh.flush()
 
     def __enter__(self) -> "PcapFile":
         return self
@@ -520,14 +525,28 @@ class PcapFile:
         self._write(ts, frame)
 
     def _write(self, ts: float, frame: bytes) -> None:
-        assert self._fh is not None, "Pcap file already closed"
-        if ts <= self._last_ts:
-            ts = self._last_ts + 0.000001
-        self._last_ts = ts
-        hdr = _pack_pcap_packet_header(ts, len(frame), len(frame))
-        self._fh.write(hdr)
-        self._fh.write(frame)
-        self._fh.flush()
+        """Best-effort writer; swallow I/O errors to avoid affecting callers.
+        
+        In some environments, file descriptors may get closed or invalidated
+        unexpectedly (e.g., heavy mocking, embedded REPLs). Any error during
+        pcap emission is suppressed and the pcap stream is disabled.
+        """
+        fh = self._fh
+        if fh is None:
+            return
+        try:
+            if ts <= self._last_ts:
+                ts = self._last_ts + 0.000001
+            self._last_ts = ts
+            hdr = _pack_pcap_packet_header(ts, len(frame), len(frame))
+            fh.write(hdr)
+            fh.write(frame)
+            fh.flush()
+        except Exception:
+            # Disable further logging on any failure
+            with contextlib.suppress(Exception):
+                fh.close()
+            self._fh = None
 
     def _alloc_ip_id(self) -> int:
         self._ip_id = (self._ip_id + 1) & 0xFFFF
