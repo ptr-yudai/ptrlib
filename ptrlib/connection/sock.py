@@ -140,22 +140,36 @@ class Socket(Tube):
 
             else:
                 # ---- UDP ----
-                # Resolve and create a datagram socket, then connect() to set default peer.
+                # Resolve possible addresses and prefer IPv6 first to match Server's default
+                # dualstack preference. Try each candidate until connect succeeds.
                 infos = socket.getaddrinfo(self._host, self._port, 0, socket.SOCK_DGRAM)
-                af, socktype, proto, _cn, sa = infos[0]
-                s = socket.socket(af, socktype, proto)
-                try:
-                    if self._connect_timeout is not None:
-                        s.settimeout(self._connect_timeout)
-                    # UDP connect does not send packets; it just fixes default peer & filters input.
-                    s.connect(sa)
-                    if self._connect_timeout is not None:
-                        s.settimeout(None)
-                    self._sock = s
-                except Exception:
-                    with contextlib.suppress(Exception):
-                        s.close()
-                    raise
+                infos_sorted = sorted(
+                    infos,
+                    key=lambda ai: 0 if ai[0] == socket.AF_INET6 else 1
+                )
+
+                last_err: Exception | None = None
+                for af, socktype, proto, _cn, sa in infos_sorted:
+                    s = socket.socket(af, socktype, proto)
+                    try:
+                        if self._connect_timeout is not None:
+                            s.settimeout(self._connect_timeout)
+                        # UDP connect does not send packets; it just fixes default peer & filters input.
+                        s.connect(sa)
+                        if self._connect_timeout is not None:
+                            s.settimeout(None)
+                        self._sock = s
+                        last_err = None
+                        break
+                    except Exception as e:
+                        last_err = e
+                        with contextlib.suppress(Exception):
+                            s.close()
+                        continue
+
+                if self._sock is None:
+                    assert last_err is not None
+                    raise last_err
 
                 self._log_info(f"Successfully connected to {self._host}:{self._port} (UDP)")
 
@@ -334,13 +348,36 @@ class Socket(Tube):
         with self.timeout(-1):
             try:
                 self._sock.setblocking(False)
-                return len(self._sock.recv(1, socket.MSG_PEEK)) == 1
-            except (BlockingIOError, ValueError, BrokenPipeError):
-                # SSLSocket may raise ValueError but we treat it as alive
-                # BrokenPipeError may happen when recv connection is closed
+                # NOTE:
+                #   On Windows, peeking a UDP datagram with a too-small buffer raises
+                #   WSAEMSGSIZE (WinError 10040). Use a large peek size for UDP and
+                #   treat EMSGSIZE as "alive" (data is available, just larger than buffer).
+                peek_size = 65535 if self._is_udp else 1
+                return len(self._sock.recv(peek_size, socket.MSG_PEEK)) > 0
+            except (BlockingIOError, ValueError):
+                # Non-blocking socket has no data, or SSL socket can't be peeked.
+                # Treat as "alive" because we can't conclude it's dead.
+                return True
+            except BrokenPipeError:
+                # Can happen on some platforms after local shutdown(SHUT_RD).
+                # Treat as alive (send side may still be usable).
                 return True
             except (ConnectionResetError, socket.timeout):
                 return False
+            except OSError as e:
+                # UDP oversized datagram (Windows): WSAEMSGSIZE
+                if self._is_udp and (
+                    getattr(e, "winerror", None) == 10040 or  # WSAEMSGSIZE
+                    getattr(e, "errno", None) == getattr(errno, "EMSGSIZE", None)
+                ):
+                    return True
+                # Local shutdown may surface as WSAESHUTDOWN (WinError 10058) / ESHUTDOWN.
+                if (
+                    getattr(e, "winerror", None) == 10058 or
+                    getattr(e, "errno", None) == getattr(errno, "ESHUTDOWN", None)
+                ):
+                    return True
+                raise
             finally:
                 self._sock.setblocking(True)
 

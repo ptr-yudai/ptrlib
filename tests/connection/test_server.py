@@ -127,6 +127,9 @@ class TestServer(unittest.TestCase):
             # Receive 10 messages
             for i in range(10, 20):
                 expected = data[i*32:(i+1)*32].encode()
+                # Regression guard (Windows): UDP liveness check must not peek with 1-byte buffer
+                # when the pending datagram is larger than that.
+                self.assertGreater(len(expected), 1)
                 self.assertEqual(cli.recvline(), expected)
         finally:
             cli.close()

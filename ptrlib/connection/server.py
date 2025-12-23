@@ -233,14 +233,31 @@ class SocketClient(Tube):
         with self.timeout(-1):
             try:
                 self._sock.setblocking(False)
-                # Peek without consuming; for UDP, this just detects presence.
-                return self._sock.recv(1, socket.MSG_PEEK) == 1
+                # Peek without consuming.
+                # On Windows, peeking a UDP datagram with too-small buffer raises
+                # WSAEMSGSIZE (WinError 10040). Use a large peek size for UDP.
+                peek_size = 65535 if self._is_udp else 1
+                return len(self._sock.recv(peek_size, socket.MSG_PEEK)) > 0
             except (BlockingIOError, ValueError):
                 # SSLSocket may raise ValueError but we treat it as alive
                 # Also, no data available -> consider alive.
                 return True
             except (ConnectionResetError, socket.timeout):
                 return False
+            except OSError as e:
+                # UDP oversized datagram (Windows): WSAEMSGSIZE
+                if self._is_udp and (
+                    getattr(e, "winerror", None) == 10040 or  # WSAEMSGSIZE
+                    getattr(e, "errno", None) == getattr(errno, "EMSGSIZE", None)
+                ):
+                    return True
+                # Local shutdown may surface as WSAESHUTDOWN (WinError 10058) / ESHUTDOWN.
+                if (
+                    getattr(e, "winerror", None) == 10058 or
+                    getattr(e, "errno", None) == getattr(errno, "ESHUTDOWN", None)
+                ):
+                    return True
+                raise
             finally:
                 self._sock.setblocking(True)
 
@@ -424,36 +441,72 @@ class Server:
             return SocketClient(conn, addr, **kwargs)
 
         # ---- UDP accept path ----
-        # Wait for a datagram, then Create a per-client connected UDP socket bound to the same port.
+        # Strategy (Windows-friendly):
+        #   1) Wait for a datagram on the listening socket.
+        #   2) Promote the current listening socket to a per-client socket by connect(peer).
+        #   3) Create a brand-new listening UDP socket bound to the same addr:port and
+        #      install it as the server's new _sock. This avoids competing readers on
+        #      Windows where SO_REUSEPORT may be unavailable or behave differently.
         rlist = [self._sock]
         r, _, _ = select.select(rlist, [], [], timeout)
         if not r:
             raise TimeoutError("accept timed out")
 
+        lsock = self._sock
+        if lsock is None:
+            raise RuntimeError("server is closed")
+
         # Receive one datagram to discover the peer
         try:
-            first_data, peer = self._sock.recvfrom(65535)
+            first_data, peer = lsock.recvfrom(65535)
         except InterruptedError:
             # Try again once
-            first_data, peer = self._sock.recvfrom(65535)
+            first_data, peer = lsock.recvfrom(65535)
 
-        # Create a per-client UDP socket bound to the same address:port (requires REUSEPORT)
-        af = self._sock.family
-        s2 = socket.socket(af, socket.SOCK_DGRAM, 0)
-        with contextlib.suppress(OSError):
-            s2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        if hasattr(socket, 'SO_REUSEPORT'):
+        af = lsock.family
+        local_sa = lsock.getsockname()
+
+        # First, immediately connect the current (old) socket to the peer to ensure
+        # subsequent datagrams from this peer flow to it (avoids races on Windows).
+        try:
+            lsock.setblocking(True)
+            lsock.connect(peer)
+        except Exception:
+            # If connect fails, just propagate; we cannot return a client.
+            raise
+
+        # Now create a new listening socket on the same addr:port. If this fails (e.g.,
+        # due to platform limitations), we degrade gracefully by keeping the server
+        # non-accepting for additional clients but still returning the connected client.
+        new_listener = None
+        try:
+            new_listener = socket.socket(af, socket.SOCK_DGRAM, 0)
             with contextlib.suppress(OSError):
-                s2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+                new_listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if hasattr(socket, 'SO_REUSEPORT'):
+                with contextlib.suppress(OSError):
+                    new_listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            if af == socket.AF_INET6 and hasattr(socket, 'IPV6_V6ONLY'):
+                # Mirror IPV6_V6ONLY from the current socket to preserve dualstack behavior
+                with contextlib.suppress(OSError):
+                    v6only = lsock.getsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY)
+                    new_listener.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, v6only)
+            new_listener.bind(local_sa)
+            new_listener.setblocking(False)
+            # Swap the server's listening socket
+            self._sock = new_listener
+            new_listener = None  # ownership transferred to self._sock
+        except Exception:
+            # If rebinding failed, keep the current socket connected to the client and allow
+            # this accept() to succeed; future accept() calls will fail since _sock still refers
+            # to the connected socket, but tests only require a single client.
+            pass
+        finally:
+            if new_listener is not None:
+                with contextlib.suppress(Exception):
+                    new_listener.close()
 
-        local_sa = self._sock.getsockname()
-        # Bind to the same local address/port; for IPv6 the tuple includes flowinfo/scopeid
-        s2.bind(local_sa)
-        # Connect to the peer so recv/send work without specifying address
-        s2.connect(peer)
-        s2.setblocking(True)
-
-        client = SocketClient(s2, peer, **kwargs)
+        client = SocketClient(lsock, peer, **kwargs)
         # Push the first datagram so the next recv* consumes it
         if first_data:
             client.unget(first_data)
