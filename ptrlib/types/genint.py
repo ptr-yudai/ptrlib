@@ -13,17 +13,23 @@ class GeneratorOrInt(object):
     Examples:
         .. code-block:: python
 
-            g = elf.gadget("pop rdi; ret;")
-            x = GeneratorOrInt(g, b"pop rdi; ret;")
-            print(next(x))  # 0x4012ac
-            print(next(x))  # 0x40135f
-            print(int(x))   # 0x4012ac
+            def f(n):
+                for i in range(n):
+                    yield 2 * i
+            x = GeneratorOrInt(f(10), b'f(10)')
+            print(next(x))  # 0
+            print(next(x))  # 2
+            print(int(x))   # 0
+            print(x[1])     # 2
+            print(x[5])     # 10
 
             # int-like ops
             print(x + 4)      # OK
             print(4 + x)      # OK (reflected)
             print(x >> 8)     # OK
             print(x & 0xfff)  # OK
+            print(f'{x}')     # '0'
+            print(f'{x!r}')   # 'GeneratorOrInt(first=0, known=6, symbol=b"f(10)")'
     """
     def __init__(self, generator: Generator[int, None, None], symbol: bytes = b''):
         self._generator = generator
@@ -145,10 +151,7 @@ class GeneratorOrInt(object):
     def __rrshift__(self, other): return self._coerce_other(other) >> self._as_int()
 
     def __str__(self) -> str:
-        if len(self._cache) <= 1:
-            return f'GeneratorOrInt({repr(self._symbol)} @ {hex(self[0])})'
-        return (f'GeneratorOrInt({repr(self._symbol)} @ {hex(self._cache[0])} '
-                f'and {len(self._cache) - 1} more known values)')
+        return f'{int(self)}'
 
     def __repr__(self) -> str:
         if not self._cache:
